@@ -1,0 +1,110 @@
+{% load static %}
+{% load cobra_tags %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>{{ page_title }} — SMS</title>
+  <link rel="icon" href="{% static 'webadmin/img/favicon.ico' %}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'webadmin/img/favicon-32x32.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'webadmin/img/apple-touch-icon.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'webadmin/css/app.css' %}" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="cobra-app">
+  <aside class="cobra-sidebar d-none d-lg-flex flex-column">
+    <div class="cobra-sidebar-brand">
+      <img src="{% static 'webadmin/img/sms-logo.png' %}" alt="SMS — Sécurité Multi Services" class="cobra-brand-logo-img" width="200" height="60" decoding="async">
+      <small>Espace administration</small>
+    </div>
+    <nav class="nav flex-column py-3 cobra-nav flex-grow-1">
+      <a class="nav-link {% if nav_active == 'dashboard' %}active{% endif %}" href="{% url 'webadmin-dashboard' %}">
+        <i class="bi bi-grid-1x2-fill"></i> Tableau de bord
+      </a>
+      <a class="nav-link {% if nav_active == 'sites' %}active{% endif %}" href="{% url 'webadmin-sites' %}">
+        <i class="bi bi-geo-alt-fill"></i> Sites
+      </a>
+      <a class="nav-link {% if nav_active == 'vigiles' %}active{% endif %}" href="{% url 'webadmin-vigiles' %}">
+        <i class="bi bi-people-fill"></i> Vigiles
+      </a>
+      <a class="nav-link {% if nav_active == 'controllers' %}active{% endif %}" href="{% url 'webadmin-controllers' %}">
+        <i class="bi bi-person-video3"></i> Contrôleurs
+      </a>
+      <a class="nav-link {% if nav_active == 'affectations' %}active{% endif %}" href="{% url 'webadmin-affectations' %}">
+        <i class="bi bi-calendar-week-fill"></i> Affectations
+      </a>
+      <a class="nav-link {% if nav_active == 'affectations' %}active{% endif %}" href="{% url 'webadmin-affectations-titulaires' %}">
+        <i class="bi bi-diagram-3-fill"></i> Titulaires
+      </a>
+      <a class="nav-link {% if nav_active == 'alertes' %}active{% endif %}" href="{% url 'webadmin-alertes' %}">
+        <i class="bi bi-bell-fill"></i> Alertes
+      </a>
+      <a class="nav-link {% if nav_active == 'notifications' %}active{% endif %}" href="{% url 'webadmin-notifications-push' %}">
+        <i class="bi bi-phone-vibrate"></i> Push mobile
+      </a>
+      <a class="nav-link {% if nav_active == 'rapports' %}active{% endif %}" href="{% url 'webadmin-rapports' %}">
+        <i class="bi bi-file-earmark-bar-graph-fill"></i> Rapports
+      </a>
+      <a class="nav-link {% if nav_active == 'pointages' %}active{% endif %}" href="{% url 'webadmin-pointages' %}">
+        <i class="bi bi-pin-map-fill"></i> Pointages
+      </a>
+    </nav>
+    <div class="p-3 border-top border-secondary border-opacity-25">
+      <div class="small text-secondary mb-2">{{ request.user.get_full_name|default:request.user.username }}</div>
+      <a class="btn btn-outline-light btn-sm w-100" href="{% url 'webadmin-logout' %}">
+        <i class="bi bi-box-arrow-right me-1"></i> Déconnexion
+      </a>
+    </div>
+  </aside>
+
+  <div class="d-lg-none bg-dark text-white p-3">
+    <div class="fw-bold mb-2 d-flex align-items-center gap-2">
+      <img src="{% static 'webadmin/img/sms-logo.png' %}" alt="" class="cobra-brand-logo-img cobra-brand-logo-img--compact" width="140" height="42" decoding="async">
+    </div>
+    <div class="d-flex flex-wrap gap-1">
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-dashboard' %}">Accueil</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-sites' %}">Sites</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-vigiles' %}">Vigiles</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-controllers' %}">Contrôleurs</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-affectations' %}">Affectations</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-affectations-titulaires' %}">Titulaires</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-alertes' %}">Alertes</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-notifications-push' %}">Push</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-rapports' %}">Rapports</a>
+      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-pointages' %}">Pointages</a>
+      <a class="btn btn-sm btn-danger" href="{% url 'webadmin-logout' %}">Déco</a>
+    </div>
+  </div>
+
+  <main class="cobra-main">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="cobra-topbar">
+      <h2>{{ page_title }}</h2>
+      <div class="d-flex gap-2 align-items-center">
+        <span class="text-muted small d-none d-md-inline">{{ request.user.username }} · {{ request.user.role|role_fr }}</span>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ request.path }}"><i class="bi bi-arrow-clockwise"></i> Actualiser</a>
+      </div>
+    </div>
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

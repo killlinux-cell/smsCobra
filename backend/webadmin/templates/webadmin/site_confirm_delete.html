@@ -1,0 +1,18 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card cobra-panel border-danger">
+      <div class="card-header bg-danger text-white">Supprimer un site</div>
+      <div class="card-body">
+        <p>Confirmez-vous la suppression du site <strong>{{ site.name }}</strong> ? Cette action est irréversible.</p>
+        <form method="post">
+          {% csrf_token %}
+          <a href="{% url 'webadmin-sites' %}" class="btn btn-outline-secondary">Annuler</a>
+          <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

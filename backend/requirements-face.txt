@@ -1,0 +1,4 @@
+# Reconnaissance faciale (dlib) pour la comparaison selfie vs photo d’enrôlement.
+# Installation : Linux ou Docker recommandé (dlib exige souvent un compilateur C++ sur Windows).
+setuptools<81
+face-recognition>=1.3.0

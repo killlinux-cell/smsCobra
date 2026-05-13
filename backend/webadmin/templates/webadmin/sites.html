@@ -1,0 +1,86 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card cobra-panel">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>Liste des sites</span>
+      </div>
+      <div class="card-body border-bottom py-3">
+        <form method="get" class="row g-2 align-items-center" role="search">
+          <div class="col">
+            <label class="visually-hidden" for="sites-search-q">Rechercher un site</label>
+            <input type="search" id="sites-search-q" name="q" class="form-control" placeholder="Rechercher par nom ou adresse…" value="{{ search_q }}" autocomplete="off">
+          </div>
+          <div class="col-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Rechercher</button>
+            {% if search_q %}
+            <a href="{% url 'webadmin-sites' %}" class="btn btn-outline-secondary">Effacer</a>
+            {% endif %}
+          </div>
+        </form>
+        {% if search_q %}
+        <p class="small text-muted mb-0 mt-2">Filtre actif : « {{ search_q }} » — {{ sites|length }} résultat{% if sites|length != 1 %}s{% endif %}.</p>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover cobra-table mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Nom</th>
+              <th>Adresse</th>
+              <th>Horaires</th>
+              <th>Statut</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sites %}
+            <tr>
+              <td class="fw-semibold">
+                <a href="{% url 'webadmin-site-detail' s.pk %}" class="text-decoration-none">{{ s.name }}</a>
+              </td>
+              <td class="small text-muted">{{ s.address }}</td>
+              <td class="small">{{ s.expected_start_time|time:"H:i" }} – {{ s.expected_end_time|time:"H:i" }}</td>
+              <td>{% if s.is_active %}<span class="badge bg-success">Actif</span>{% else %}<span class="badge bg-secondary">Inactif</span>{% endif %}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'webadmin-site-detail' s.pk %}" title="Fiche site et vigiles">Détails</a>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'webadmin-site-edit' s.pk %}">Modifier</a>
+                <a class="btn btn-sm btn-outline-danger" href="{% url 'webadmin-site-delete' s.pk %}">Supprimer</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card cobra-panel">
+      <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Nouveau site</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if search_q %}
+          <input type="hidden" name="preserve_q" value="{{ search_q }}">
+          {% endif %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          {% for field in form %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="btn cobra-btn-accent w-100">Enregistrer le site</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

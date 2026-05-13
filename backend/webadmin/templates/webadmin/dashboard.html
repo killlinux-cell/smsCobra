@@ -1,0 +1,419 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+<style>
+  .cobra-map-panel .cobra-map-wrap { border-radius: var(--cobra-radius); overflow: hidden; border: 1px solid rgba(15, 20, 25, 0.1); }
+  #cobra-dashboard-map { height: min(52vh, 480px); min-height: 320px; width: 100%; background: #e8eef5; z-index: 1; }
+  .cobra-map-marker-wrap { background: transparent !important; border: none !important; }
+  .cobra-map-marker { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card cobra-kpi h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="label">Aujourd'hui</div>
+          <div class="value">{{ kpi.total }}</div>
+          <small class="text-muted">Affectations</small>
+        </div>
+        <div class="icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-calendar-check"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card cobra-kpi h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="label">Planifiés</div>
+          <div class="value">{{ kpi.scheduled }}</div>
+        </div>
+        <div class="icon bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-clock-history"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card cobra-kpi h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="label">Remplacés</div>
+          <div class="value">{{ kpi.replaced }}</div>
+        </div>
+        <div class="icon bg-info bg-opacity-10 text-info"><i class="bi bi-arrow-left-right"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card cobra-kpi h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="label">Terminés</div>
+          <div class="value">{{ kpi.completed }}</div>
+        </div>
+        <div class="icon bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card cobra-kpi h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="label">Manqués</div>
+          <div class="value">{{ kpi.missed }}</div>
+        </div>
+        <div class="icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-exclamation-triangle"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card cobra-kpi alert-open h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="label text-danger">Alertes</div>
+          <div class="value text-danger">{{ kpi.open_alerts }}</div>
+        </div>
+        <div class="icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-bell-fill"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card cobra-kpi">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon bg-dark bg-opacity-10 text-dark"><i class="bi bi-geo-alt"></i></div>
+        <div>
+          <div class="label">Sites actifs</div>
+          <div class="value">{{ kpi.sites }}</div>
+        </div>
+        <a href="{% url 'webadmin-sites' %}" class="btn btn-sm btn-outline-dark ms-auto">Gérer</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card cobra-kpi">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon bg-dark bg-opacity-10 text-dark"><i class="bi bi-person-badge"></i></div>
+        <div>
+          <div class="label">Vigiles</div>
+          <div class="value">{{ kpi.vigiles }}</div>
+        </div>
+        <a href="{% url 'webadmin-vigiles' %}" class="btn btn-sm btn-outline-dark ms-auto">Gérer</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card cobra-kpi">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon bg-dark bg-opacity-10 text-dark"><i class="bi bi-person-video3"></i></div>
+        <div>
+          <div class="label">Contrôleurs</div>
+          <div class="value">{{ kpi.controleurs }}</div>
+          <small class="text-muted">{{ kpi.controller_visits_today }} passage{% if kpi.controller_visits_today != 1 %}s{% endif %} aujourd'hui</small>
+        </div>
+        <a href="{% url 'webadmin-controllers' %}" class="btn btn-sm btn-outline-dark ms-auto">Gérer</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card cobra-panel cobra-map-panel">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span><i class="bi bi-map me-2 text-primary"></i>Vigiles sur les postes (aujourd’hui)</span>
+        <small class="text-muted">Fond OSM via le serveur (même origine) · Cercle bleu = zone au pointage · Orange = rayon enregistré</small>
+      </div>
+      <div class="card-body p-0">
+        <div class="cobra-map-wrap">
+          <div id="cobra-dashboard-map" role="img" aria-label="Carte des affectations du jour"></div>
+        </div>
+        {% if not dashboard_map_data.markers and not dashboard_map_data.circles %}
+        <div class="p-4 text-center text-muted border-top">
+          Aucune affectation active aujourd’hui sur un site géolocalisé. Créez des affectations dans « Affectations » ou vérifiez que les sites ont bien une latitude et une longitude.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card cobra-panel mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bell me-2 text-danger"></i>Alertes de retard (ouvertes)</span>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'webadmin-alertes' %}">Tout voir</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover cobra-table mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>N°</th>
+              <th>Vigile</th>
+              <th>Site</th>
+              <th>Message</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for alert in alerts %}
+            <tr>
+              <td class="fw-semibold">#{{ alert.id }}</td>
+              <td>{{ alert.assignment.guard.display_name }}</td>
+              <td>{{ alert.assignment.site.name }}</td>
+              <td class="small text-muted">{{ alert.message }}</td>
+              <td>
+                <form method="post" action="{% url 'webadmin-ack-alert' alert.id %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'webadmin-dashboard' %}">
+                  <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-5 text-muted">Aucune alerte ouverte. Tout va bien.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card cobra-panel">
+      <div class="card-header"><i class="bi bi-clock-history me-2"></i>Derniers pointages</div>
+      <div class="table-responsive">
+        <table class="table table-sm cobra-table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Selfie</th>
+              <th>Date et heure</th>
+              <th>Vigile</th>
+              <th>Site</th>
+              <th>Type</th>
+              <th>Géoloc.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in recent_checkins %}
+            <tr>
+              <td>
+                {% if c.photo %}
+                <img src="{{ c.photo.url }}" alt="" class="rounded" style="width:36px;height:36px;object-fit:cover;">
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td>{{ c.timestamp|date:"d/m/Y H:i" }}</td>
+              <td>{{ c.guard.display_name }}</td>
+              <td>{{ c.assignment.site.name }}</td>
+              <td><span class="badge bg-secondary">{{ c.type|type_pointage_fr }}</span></td>
+              <td>
+                {% if c.within_geofence %}<span class="text-success">OK</span>{% else %}<span class="text-warning">Hors zone</span>{% endif %}
+                {% if c.distance_from_site_meters is not None %}
+                <span class="text-muted small">({{ c.distance_from_site_meters|floatformat:0 }}&nbsp;m)</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center py-4 text-muted">Aucun pointage récent.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white border-0 text-end">
+        <a href="{% url 'webadmin-pointages' %}" class="btn btn-sm btn-outline-primary">Historique complet</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card cobra-panel mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-shield-check me-2"></i>Passages contrôleurs (aujourd'hui)</span>
+        <a href="{% url 'webadmin-controllers' %}" class="btn btn-sm btn-outline-primary">Configurer</a>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for v in controller_visits_today %}
+        <li class="list-group-item small">
+          <strong>{{ v.visited_at|date:"H:i" }}</strong> — {{ v.controller.display_name }} · {{ v.site.name }}
+          {% if v.face_score is not None %}
+          <span class="text-muted">({{ v.face_score|floatformat:2 }})</span>
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted text-center py-4">Aucun passage contrôleur aujourd'hui.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card cobra-panel mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-task me-2"></i>Affectations du jour</span>
+        <a href="{% url 'webadmin-affectations' %}" class="btn btn-sm btn-outline-primary">Gérer</a>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for item in today_assignments %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{{ item.guard.display_name }}</strong>
+            <div class="small text-muted">{{ item.site.name }} · {{ item.start_time|time:"H:i" }} – {{ item.end_time|time:"H:i" }}</div>
+          </div>
+          <span class="badge rounded-pill bg-light text-dark border">{{ item.status|statut_affectation_fr }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-center text-muted py-4">Aucune affectation pour aujourd'hui. Créez-en dans « Affectations ».</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card cobra-panel">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-file-earmark-text me-2"></i>Rapports récents</span>
+        <a href="{% url 'webadmin-rapports' %}" class="btn btn-sm btn-outline-primary">Tout voir</a>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for report in reports %}
+        <li class="list-group-item small">
+          <strong>{{ report.report_date|date:"d/m/Y" }}</strong> — {{ report.site.name }} — {{ report.guard.display_name }}
+          {% if report.was_late %}<span class="badge bg-warning text-dark ms-1">Retard</span>{% else %}<span class="badge bg-success ms-1">À l'heure</span>{% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted text-center py-4">Aucun rapport pour le moment.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ dashboard_map_data|json_script:"cobra-dashboard-map-data" }}
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var el = document.getElementById("cobra-dashboard-map");
+  var raw = document.getElementById("cobra-dashboard-map-data");
+  if (!el || !raw || typeof L === "undefined") return;
+
+  function escapeHtml(s) {
+    if (s == null || s === "") return "";
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  var data = JSON.parse(raw.textContent);
+  var circles = data.circles || [];
+  var markers = data.markers || [];
+  var defaultCenter = [5.36, -4.01];
+  var zoom = 12;
+
+  var map = L.map(el, { scrollWheelZoom: true });
+  /* Obligatoire avant cercles / getBounds : sans centre, CRS non prête → layerPointToLatLng undefined (erreur console). */
+  map.setView(defaultCenter, zoom);
+  /* Tuiles proxifiées par Django : le navigateur ne sort pas vers Internet (réseaux qui bloquent OSM/CDN). */
+  var osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+  L.tileLayer("{{ map_tile_url|escapejs }}", {
+    attribution: osmAttr,
+    maxZoom: 19
+  }).addTo(map);
+
+  var accent = "#e85d04";
+  var statusColors = {
+    scheduled: "#2563eb",
+    replaced: "#0891b2",
+    completed: "#059669",
+    missed: "#dc2626"
+  };
+
+  var mapBounds = null;
+  function extendMapBounds(bounds) {
+    if (!mapBounds) mapBounds = L.latLngBounds(bounds.getSouthWest(), bounds.getNorthEast());
+    else mapBounds.extend(bounds);
+  }
+  function extendWithLatLng(latlng) {
+    if (!mapBounds) mapBounds = L.latLngBounds(latlng, latlng);
+    else mapBounds.extend(latlng);
+  }
+
+  circles.forEach(function (c) {
+    var eff = c.effective_radius_m != null ? c.effective_radius_m : c.radius_m;
+    var margin = c.margin_m != null ? c.margin_m : 0;
+    var addr = c.address
+      ? "<br/><span class=\"small text-muted\">" + escapeHtml(c.address) + "</span>"
+      : "";
+    var outer = L.circle([c.lat, c.lng], {
+      radius: eff,
+      color: "#1d4ed8",
+      weight: 2,
+      fillColor: "#3b82f6",
+      fillOpacity: 0.08
+    }).addTo(map);
+    var inactive = c.site_active === false ? " <span class=\"badge bg-warning text-dark\">Site inactif</span>" : "";
+    outer.bindPopup(
+      "<strong>" + escapeHtml(c.site_name) + "</strong>" + inactive + addr +
+        "<br/><span class=\"small\">Zone <strong>valide au pointage</strong> : " +
+        eff +
+        "&nbsp;m (rayon " +
+        c.radius_m +
+        "&nbsp;m + marge GPS " +
+        margin +
+        "&nbsp;m)</span>"
+    );
+    extendMapBounds(outer.getBounds());
+    L.circle([c.lat, c.lng], {
+      radius: c.radius_m,
+      color: accent,
+      weight: 2,
+      dashArray: "6 5",
+      fillOpacity: 0,
+      opacity: 0.9
+    }).addTo(map);
+  });
+
+  var group = L.featureGroup();
+  markers.forEach(function (m) {
+    var col = statusColors[m.status] || "#6c757d";
+    var icon = L.divIcon({
+      className: "cobra-map-marker-wrap",
+      html: '<div class="cobra-map-marker" style="background:' + col + '"></div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
+    });
+    var marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(group);
+    var maddr = m.address
+      ? "<br/><span class=\"small text-muted\">" + escapeHtml(m.address) + "</span>"
+      : "";
+    var inactiveM = m.site_active === false ? " <span class=\"badge bg-warning text-dark\">Site inactif</span><br/>" : "";
+    var popup =
+      "<strong>" + escapeHtml(m.guard_name) + "</strong><br/>" +
+      escapeHtml(m.site_name) +
+      inactiveM +
+      maddr +
+      "<br/>" +
+      "<span class=\"text-muted\">" + m.start + " – " + m.end + "</span><br/>" +
+      "<span class=\"badge bg-light text-dark border mt-1\">" + escapeHtml(m.status_fr) + "</span>";
+    marker.bindPopup(popup);
+    extendWithLatLng(marker.getLatLng());
+  });
+  group.addTo(map);
+
+  if (mapBounds && mapBounds.isValid()) {
+    map.fitBounds(mapBounds.pad(0.16));
+  } else if (markers.length) {
+    map.fitBounds(group.getBounds().pad(0.18));
+  } else if (circles.length) {
+    var cg = L.featureGroup();
+    circles.forEach(function (c) {
+      var eff = c.effective_radius_m != null ? c.effective_radius_m : c.radius_m;
+      L.circle([c.lat, c.lng], { radius: eff }).addTo(cg);
+    });
+    cg.addTo(map);
+    map.fitBounds(cg.getBounds().pad(0.2));
+  } else {
+    map.setView(defaultCenter, zoom);
+  }
+})();
+</script>
+{% endblock %}

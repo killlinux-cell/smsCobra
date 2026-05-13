@@ -1,0 +1,16 @@
+.venv
+venv
+__pycache__
+*.py[cod]
+*.sqlite3
+db.sqlite3
+.git
+.idea
+*.md
+media
+.pytest_cache
+.mypy_cache
+htmlcov
+.env
+.env.docker
+*.log

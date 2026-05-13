@@ -1,0 +1,104 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card cobra-panel">
+      <div class="card-header">Liste des contrôleurs</div>
+      <div class="card-body border-bottom py-3">
+        <form method="get" class="row g-2 align-items-center" role="search">
+          <div class="col">
+            <input
+              type="search"
+              name="q"
+              class="form-control"
+              placeholder="Rechercher un contrôleur…"
+              value="{{ search_q }}"
+              autocomplete="off"
+            >
+          </div>
+          <div class="col-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Rechercher</button>
+            {% if search_q %}
+            <a href="{% url 'webadmin-controllers' %}" class="btn btn-outline-secondary">Effacer</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover cobra-table mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Contrôleur</th>
+              <th>Sites autorisés</th>
+              <th>Derniers passages</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in controller_rows %}
+            {% with c=row.controller %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ c.display_name }}</div>
+                <div class="small text-muted">{{ c.username }}{% if c.phone_number %} · {{ c.phone_number }}{% endif %}</div>
+              </td>
+              <td class="small">
+                {% with ass=c.controller_site_assignments.all %}
+                  {% if ass %}
+                    {% for a in ass %}
+                      <span class="badge bg-light text-dark border">{{ a.site.name }}</span>
+                    {% endfor %}
+                  {% else %}
+                    <span class="text-muted">Aucun site affecté</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+              <td class="small">
+                {% with visits=row.recent_visits %}
+                  {% if visits %}
+                    {% for v in visits %}
+                      <div>{{ v.visited_at|date:"d/m H:i" }} — {{ v.site.name }}</div>
+                    {% endfor %}
+                  {% else %}
+                    <span class="text-muted">Aucun passage récent</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+              <td>
+                {% if c.is_active %}<span class="badge bg-success">Actif</span>{% else %}<span class="badge bg-secondary">Inactif</span>{% endif %}
+              </td>
+            </tr>
+            {% endwith %}
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-5 text-muted">Aucun contrôleur enregistré.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card cobra-panel">
+      <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Nouveau contrôleur</div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn cobra-btn-accent w-100">Enregistrer le contrôleur</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

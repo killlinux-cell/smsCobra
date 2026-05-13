@@ -1,0 +1,103 @@
+================================================================================
+Cobra — Tester les apps Flutter sur un vrai téléphone (API Django sur ton PC)
+================================================================================
+
+  « Connexion refusée » sur Android PHYSIQUE
+  ------------------------------------------
+  La valeur par défaut API_BASE est http://10.0.2.2:8000 — ça ne marche QUE sur
+  l’émulateur. Sur un vrai téléphone il FAUT lancer l’app avec l’IP du PC, ex. :
+
+    flutter run --dart-define=API_BASE=http://192.168.1.42:8000
+
+  Et Django doit tourner avec :  manage.py runserver 0.0.0.0:8000
+
+================================================================================
+
+Prérequis
+  · Téléphone et PC sur le même Wi‑Fi (sauf méthode USB + adb reverse).
+  · Backend : Python / Django avec les migrations appliquées et un compte vigile + admin.
+
+--------------------------------------------------------------------------------
+1) Lancer Django en écoutant le réseau local
+--------------------------------------------------------------------------------
+
+  cd backend
+  .venv\Scripts\python manage.py runserver 0.0.0.0:8000
+
+  (Sans 0.0.0.0, seul le PC peut joindre le serveur.)
+
+--------------------------------------------------------------------------------
+2) Autoriser l’hôte dans Django
+--------------------------------------------------------------------------------
+
+  Le téléphone enverra un en-tête Host du type 192.168.x.x:8000.
+
+  Option A — nouveau Wi‑Fi / IP inconnue (DEBUG uniquement, pratique) :
+
+  $env:DJANGO_ALLOWED_HOSTS = "*"
+  .venv\Scripts\python manage.py runserver 0.0.0.0:8000
+
+  Option B — lister l’IP (ipconfig → Adresse IPv4) :
+
+  $env:DJANGO_ALLOWED_HOSTS = "127.0.0.1,localhost,192.168.1.42"
+  .venv\Scripts\python manage.py runserver 0.0.0.0:8000
+
+  Ajoute 10.0.2.2 si tu utilises l’émulateur Android.
+
+--------------------------------------------------------------------------------
+3) Pare-feu Windows
+--------------------------------------------------------------------------------
+
+  Si la connexion échoue : autoriser le port 8000 (entrant) pour le profil
+  « Réseau privé », ou Python dans le pare-feu.
+
+--------------------------------------------------------------------------------
+4) Adresse IP du PC
+--------------------------------------------------------------------------------
+
+  ipconfig  →  Adresse IPv4 (ex. 192.168.1.42)
+
+--------------------------------------------------------------------------------
+5) Lancer l’app Flutter avec la bonne API
+--------------------------------------------------------------------------------
+
+  cd mobile_agent   (ou mobile_admin)
+
+  flutter run --dart-define=API_BASE=http://192.168.1.42:8000
+
+  Remplace 192.168.1.42 par ton IP.
+
+  Build APK debug (pour installer sans câble USB vers le projet) :
+
+  flutter build apk --debug --dart-define=API_BASE=http://192.168.1.42:8000
+
+--------------------------------------------------------------------------------
+6) Android — HTTP non chiffré
+--------------------------------------------------------------------------------
+
+  En build debug, android/app/src/debug/AndroidManifest.xml contient déjà
+  usesCleartextTraffic=true (HTTP vers ton PC).
+
+  En build release, il faudrait HTTPS (ou une config réseau dédiée) : pour
+  les tests, reste en debug ou profile.
+
+--------------------------------------------------------------------------------
+7) Variante USB (Android) — sans Wi‑Fi vers le PC
+--------------------------------------------------------------------------------
+
+  Branche le téléphone, active le débogage USB, puis :
+
+  adb reverse tcp:8000 tcp:8000
+
+  Django peut rester sur 127.0.0.1:8000 côté PC. Sur le téléphone, utilise :
+
+  flutter run --dart-define=API_BASE=http://127.0.0.1:8000
+
+--------------------------------------------------------------------------------
+8) iPhone
+--------------------------------------------------------------------------------
+
+  Info.plist inclut NSAllowsLocalNetworking pour HTTP vers le LAN.
+  Utilise la même commande flutter run avec l’IP du PC sur le Wi‑Fi.
+
+================================================================================

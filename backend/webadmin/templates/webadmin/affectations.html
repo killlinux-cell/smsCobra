@@ -1,0 +1,85 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+{% if filter_site %}
+<div class="alert alert-info border mb-4 d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span><i class="bi bi-funnel me-2"></i>Affectations filtrées sur le site <strong>{{ filter_site.name }}</strong>.</span>
+  <a href="{% url 'webadmin-affectations' %}" class="btn btn-sm btn-outline-dark">Voir toutes les affectations</a>
+</div>
+{% endif %}
+<div class="alert alert-light border mb-4 small">
+  <strong>Règle SMS:</strong> 2 vigiles minimum par site avec 2 postes fixes:
+  <strong>Jour 06:00-18:00</strong> et <strong>Nuit 18:00-06:00 (lendemain)</strong>.
+  La passation se fait aux plages <strong>06h-07h</strong> et <strong>18h-19h</strong>.
+  Le système lie automatiquement le relève entre les postes.
+  Toute nouvelle affectation est enregistrée comme <strong>poste fixe titulaire</strong>
+  (reconduction quotidienne automatique).
+</div>
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header"><i class="bi bi-person-lines-fill me-2"></i>Dépêcher un remplaçant (jour du {{ today|date:"d/m/Y" }})</div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Sélectionnez l’affectation du <strong>jour en cours</strong> et le vigile qui prend le poste.
+      Le <strong>titulaire</strong> d’origine est conservé sur la fiche ; le vigile affiché en poste devient le <strong>remplaçant</strong>.
+      Les alertes du tableau de bord restent consultables sous <a href="{% url 'webadmin-alertes' %}">Alertes</a>.
+    </p>
+    <form method="post" action="{% url 'webadmin-dispatch' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'webadmin-affectations' %}">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">{{ dispatch_form.assignment.label }}</label>
+          {{ dispatch_form.assignment }}
+          {% if dispatch_form.assignment.errors %}<div class="text-danger small">{{ dispatch_form.assignment.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ dispatch_form.replacement_guard.label }}</label>
+          {{ dispatch_form.replacement_guard }}
+          {% if dispatch_form.replacement_guard.errors %}<div class="text-danger small">{{ dispatch_form.replacement_guard.errors }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn cobra-btn-accent"><i class="bi bi-check2-circle me-1"></i>Confirmer le remplacement</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-calendar-plus me-2"></i>Nouvelle affectation</span>
+    <a class="btn btn-sm btn-outline-dark" href="{% url 'webadmin-affectations-titulaires' %}">
+      <i class="bi bi-diagram-3 me-1"></i>Voir titulaires par site
+    </a>
+  </div>
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        {% for field in form %}
+          {% if field.name != "create_fixed_post" %}
+          <div class="col-md-6">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <input type="hidden" name="create_fixed_post" value="on">
+      <div class="small text-muted mt-2">
+        Le vigile saisi devient titulaire du poste (jour/nuit) et sera reconduit automatiquement les jours suivants.
+      </div>
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button type="submit" class="btn cobra-btn-accent">Planifier l'affectation</button>
+        <a class="btn btn-outline-secondary" href="{% url 'webadmin-affectations-titulaires' %}">
+          Ouvrir la vue site ↔ vigile
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

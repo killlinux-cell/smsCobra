@@ -1,0 +1,55 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card cobra-panel">
+      <div class="card-header">
+        <i class="bi bi-phone-vibrate me-2"></i>Recevoir les alertes sur votre téléphone
+      </div>
+      <div class="card-body">
+        {% if fcm_backend_ready %}
+        <div class="alert alert-success py-2 small mb-3">
+          Le serveur est configuré pour envoyer des notifications Firebase (FCM).
+        </div>
+        {% else %}
+        <div class="alert alert-warning py-2 small mb-3">
+          <strong>Serveur :</strong> aucune clé Firebase n’est configurée pour l’instant.
+          Les alertes restent visibles sur ce tableau de bord, mais les <strong>push téléphone ne partiront pas</strong>
+          tant que l’administrateur n’a pas défini une des variables
+          <code>FCM_CREDENTIALS_PATH</code>, <code>GOOGLE_APPLICATION_CREDENTIALS</code>
+          ou <code>FCM_SERVICE_ACCOUNT_JSON</code> sur la machine qui héberge Django.
+        </div>
+        {% endif %}
+
+        <p class="text-muted small">
+          Collez ci-dessous le token FCM de votre application mobile admin (ou d’un outil de test).
+          Ce token est lié à <strong>votre compte</strong> : seuls les administrateurs peuvent l’enregistrer.
+        </p>
+
+        <form method="post" class="mt-3">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label" for="id_fcm_token">{{ form.fcm_token.label }}</label>
+            {{ form.fcm_token }}
+            {% if form.fcm_token.errors %}<div class="text-danger small">{{ form.fcm_token.errors }}</div>{% endif %}
+          </div>
+          <button type="submit" class="btn cobra-btn-accent">Enregistrer le token</button>
+          <button type="submit" name="action" value="clear" class="btn btn-outline-secondary ms-2">Supprimer le token</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 bg-light">
+      <div class="card-body small">
+        <h6 class="fw-bold">Résumé</h6>
+        <ol class="ps-3 mb-0">
+          <li class="mb-2">Console Firebase → votre projet → paramètres → Comptes de service → générer une clé JSON.</li>
+          <li class="mb-2">Sur le serveur Django : pointez la variable d’environnement vers ce fichier (voir fichier <code>FCM_SETUP.txt</code> à la racine du dépôt).</li>
+          <li class="mb-2">Sur le téléphone : installez l’app <strong>mobile_admin</strong>, connectez-vous en admin : le token s’enregistre tout seul, ou collez-le ici à la main.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

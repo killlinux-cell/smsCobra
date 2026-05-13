@@ -1,0 +1,161 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'webadmin-vigiles' %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" class="text-decoration-none">
+    <i class="bi bi-arrow-left me-1"></i>Retour à la liste des vigiles
+  </a>
+</div>
+
+<form method="post" enctype="multipart/form-data" action="{% url 'webadmin-vigile-detail' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card cobra-panel h-100">
+        <div class="card-header">Portrait</div>
+        <div class="card-body text-center">
+          {% if vigile.profile_photo %}
+          <img src="{{ vigile.profile_photo.url }}" alt="" class="rounded-3 img-fluid mb-3" style="max-height:280px;object-fit:cover;width:100%;">
+          {% else %}
+          <div class="rounded-3 bg-light d-flex align-items-center justify-content-center text-secondary mx-auto mb-3" style="width:100%;max-width:280px;height:200px;">
+            <i class="bi bi-person-badge" style="font-size:4rem;"></i>
+          </div>
+          {% endif %}
+          <div class="mb-0 text-start">
+            <label class="form-label small" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>
+            {{ form.profile_photo }}
+            {% if form.profile_photo.help_text %}<div class="form-text">{{ form.profile_photo.help_text }}</div>{% endif %}
+            {% if form.profile_photo.errors %}<div class="text-danger small">{{ form.profile_photo.errors }}</div>{% endif %}
+          </div>
+          <p class="small text-muted text-start mt-3 mb-0">Remplacez le fichier pour changer la photo. Cochez « Effacer » pour supprimer l’image actuelle.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card cobra-panel mb-4">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <span>Modifier la fiche</span>
+          <span class="small text-muted fw-normal">Enregistrez pour appliquer les changements</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+              {{ form.username }}
+              {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 d-flex align-items-end flex-wrap gap-3 pb-2">
+              <div class="form-check">
+                {{ form.is_active }}
+                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+              </div>
+              <div class="form-check">
+                {{ form.is_active_on_duty }}
+                <label class="form-check-label" for="{{ form.is_active_on_duty.id_for_label }}">{{ form.is_active_on_duty.label }}</label>
+              </div>
+              {% if form.is_active.errors %}<div class="text-danger small w-100">{{ form.is_active.errors }}</div>{% endif %}
+              {% if form.is_active_on_duty.errors %}<div class="text-danger small w-100">{{ form.is_active_on_duty.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+              {{ form.last_name }}
+              {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+              {{ form.email }}
+              {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.phone_number.id_for_label }}">{{ form.phone_number.label }}</label>
+              {{ form.phone_number }}
+              {% if form.phone_number.errors %}<div class="text-danger small">{{ form.phone_number.errors }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.domicile.id_for_label }}">{{ form.domicile.label }}</label>
+              {{ form.domicile }}
+              {% if form.domicile.errors %}<div class="text-danger small">{{ form.domicile.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.aval.id_for_label }}">{{ form.aval.label }}</label>
+              {{ form.aval }}
+              {% if form.aval.errors %}<div class="text-danger small">{{ form.aval.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.date_integration.id_for_label }}">{{ form.date_integration.label }}</label>
+              {{ form.date_integration }}
+              {% if form.date_integration.errors %}<div class="text-danger small">{{ form.date_integration.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <hr class="my-4">
+
+          <h6 class="text-muted mb-3">Mot de passe</h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.new_password1.id_for_label }}">{{ form.new_password1.label }}</label>
+              {{ form.new_password1 }}
+              {% if form.new_password1.help_text %}<div class="form-text">{{ form.new_password1.help_text }}</div>{% endif %}
+              {% if form.new_password1.errors %}<div class="text-danger small">{{ form.new_password1.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.new_password2.id_for_label }}">{{ form.new_password2.label }}</label>
+              {{ form.new_password2 }}
+              {% if form.new_password2.errors %}<div class="text-danger small">{{ form.new_password2.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <hr class="my-4">
+
+          <h6 class="text-muted mb-3">Pièce d'identité</h6>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.id_document.id_for_label }}">{{ form.id_document.label }}</label>
+            {{ form.id_document }}
+            {% if form.id_document.errors %}<div class="text-danger small">{{ form.id_document.errors }}</div>{% endif %}
+          </div>
+          {% if vigile.id_document %}
+          <div class="border rounded p-3 bg-light bg-opacity-50 mb-3">
+            <p class="small fw-semibold mb-2">Fichier actuel</p>
+            <a href="{{ vigile.id_document.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary mb-2">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Ouvrir
+            </a>
+            {% if id_document_kind == "image" %}
+            <div>
+              <img src="{{ vigile.id_document.url }}" alt="Pièce d'identité" class="img-fluid rounded border mt-1" style="max-height:220px;">
+            </div>
+            {% elif id_document_kind == "pdf" %}
+            <p class="small text-muted mb-0">Aperçu PDF : utilisez « Ouvrir ».</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          <hr class="my-4">
+
+          <dl class="row mb-0 cobra-dl-detail small">
+            <dt class="col-sm-4">Rôle</dt>
+            <dd class="col-sm-8">{{ vigile.get_role_display }}</dd>
+            <dt class="col-sm-4">Inscription</dt>
+            <dd class="col-sm-8">{% if vigile.date_joined %}{{ vigile.date_joined|date:"d/m/Y H:i" }}{% else %}—{% endif %}</dd>
+            <dt class="col-sm-4">Dernière connexion</dt>
+            <dd class="col-sm-8">{% if vigile.last_login %}{{ vigile.last_login|date:"d/m/Y H:i" }}{% else %}Jamais{% endif %}</dd>
+          </dl>
+
+          <button type="submit" class="btn cobra-btn-accent btn-lg w-100 mt-4">
+            <i class="bi bi-check2-circle me-2"></i>Enregistrer les modifications
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

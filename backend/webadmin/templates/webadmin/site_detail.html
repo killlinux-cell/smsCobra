@@ -1,0 +1,178 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'webadmin-sites' %}" class="text-decoration-none">
+    <i class="bi bi-arrow-left me-1"></i>Retour aux sites
+  </a>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card cobra-panel h-100">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span><i class="bi bi-geo-alt-fill me-2"></i>{{ site.name }}</span>
+        {% if site.is_active %}
+        <span class="badge bg-success">Actif</span>
+        {% else %}
+        <span class="badge bg-secondary">Inactif</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <dl class="row cobra-dl-detail mb-0">
+          <dt class="col-sm-3">Adresse</dt>
+          <dd class="col-sm-9">{{ site.address }}</dd>
+          <dt class="col-sm-3">Fuseau</dt>
+          <dd class="col-sm-9"><code>{{ site.timezone }}</code></dd>
+          <dt class="col-sm-3">Horaires attendus</dt>
+          <dd class="col-sm-9">{{ site.expected_start_time|time:"H:i" }} – {{ site.expected_end_time|time:"H:i" }}</dd>
+          <dt class="col-sm-3">Tolérance retard</dt>
+          <dd class="col-sm-9">{{ site.late_tolerance_minutes }} min</dd>
+          <dt class="col-sm-3">Alerte relève</dt>
+          <dd class="col-sm-9">{{ site.relief_late_alert_minutes }} min après l’heure prévue</dd>
+          <dt class="col-sm-3">Géofence</dt>
+          <dd class="col-sm-9">
+            {{ site.geofence_radius_meters }} m (+ marge GPS {{ site.geofence_gps_margin_meters }} m)<br>
+            <span class="text-muted small">Lat. {{ site.latitude }}, long. {{ site.longitude }}</span>
+          </dd>
+        </dl>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+          <a href="{% url 'webadmin-site-edit' site.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Modifier le site
+          </a>
+          <a href="{% url 'webadmin-affectations' %}?site={{ site.pk }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-calendar-week me-1"></i>Affectations de ce site
+          </a>
+          <a href="{% url 'webadmin-rapports' %}?site={{ site.pk }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-file-earmark-bar-graph me-1"></i>Rapports de pointage (ce site)
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-12">
+    <div class="card cobra-panel h-100">
+      <div class="card-header">Vigiles sur ce site</div>
+      <div class="card-body">
+        {% if guard_rows %}
+        <p class="small text-muted mb-3 mb-lg-2">
+          Période : {{ assignments_date_from|date:"d/m/Y" }} — {{ assignments_date_to|date:"d/m/Y" }} · une ligne par vigile.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm cobra-table mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Vigile</th>
+                <th>Rôle</th>
+                <th class="text-center">Créneaux <span class="fw-normal text-muted">(période)</span></th>
+                <th class="text-center">Débuts pointés</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in guard_rows %}
+              <tr>
+                <td class="fw-semibold">
+                  <a href="{% url 'webadmin-vigile-detail' row.user.pk %}">{{ row.user.display_name }}</a>
+                </td>
+                <td class="small">
+                  {% if row.roles %}
+                  {{ row.roles|join:" · " }}
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="small text-center">
+                  <span class="text-muted">{{ row.planifie }}</span> planifié{% if row.planifie != 1 %}s{% endif %}
+                  · <span class="text-success">{{ row.termine }}</span> terminé{% if row.termine != 1 %}s{% endif %}
+                  · <span class="text-danger">{{ row.manque }}</span> manqué{% if row.manque != 1 %}s{% endif %}
+                  {% if row.remplace_statut %}
+                  · <span class="text-warning">{{ row.remplace_statut }}</span> avec remplaçant
+                  {% endif %}
+                </td>
+                <td class="small text-center">
+                  {% if row.pointes %}<strong>{{ row.pointes }}</strong>{% else %}<span class="text-muted">0</span>{% endif %}
+                  {% if row.retards %}<div class="text-danger small">dont {{ row.retards }} retard{% if row.retards != 1 %}s{% endif %}</div>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Aucun vigile identifié sur cette période pour ce site.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if fixed_posts %}
+<div class="card cobra-panel mb-4">
+  <div class="card-header">Postes fixes</div>
+  <div class="table-responsive">
+    <table class="table table-sm cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Créneau</th>
+          <th>Titulaire</th>
+          <th>Remplaçant</th>
+          <th>Statut remplaçant</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fp in fixed_posts %}
+        <tr>
+          <td>{{ fp.get_shift_type_display }}</td>
+          <td><a href="{% url 'webadmin-vigile-detail' fp.titular_guard.pk %}">{{ fp.titular_guard.display_name }}</a></td>
+          <td>
+            {% if fp.replacement_guard %}
+            <a href="{% url 'webadmin-vigile-detail' fp.replacement_guard.pk %}">{{ fp.replacement_guard.display_name }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td>{% if fp.replacement_active %}<span class="badge bg-warning text-dark">Actif</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<details class="card cobra-panel mb-0 border-0 shadow-none">
+  <summary class="card-header user-select-none mb-0 rounded-3 shadow-sm" style="cursor:pointer; list-style-position: outside;">
+    <span class="fw-bold">Historique détaillé des créneaux</span>
+    <span class="small text-muted fw-normal ms-2">
+      ({{ assignments_date_from|date:"d/m/Y" }} → {{ assignments_date_to|date:"d/m/Y" }}, {{ assignments_total }} ligne{% if assignments_total != 1 %}s{% endif %}, affichage max. 250)
+    </span>
+  </summary>
+  <div class="card-body border rounded-bottom shadow-sm mt-n1 pt-3 bg-white">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover cobra-table mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Date</th>
+            <th>Créneau</th>
+            <th>Vigile</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in assignments %}
+          <tr>
+            <td class="text-nowrap">{{ a.shift_date|date:"d/m/Y" }}</td>
+            <td class="text-nowrap">{{ a.start_time|time:"H:i" }} – {{ a.end_time|time:"H:i" }}</td>
+            <td>
+              <a href="{% url 'webadmin-vigile-detail' a.guard.pk %}">{{ a.guard.display_name }}</a>
+              {% if a.original_guard_id and a.original_guard_id != a.guard_id %}
+              <div class="small text-muted">Titulaire d’origine : {{ a.original_guard.display_name }}</div>
+              {% endif %}
+            </td>
+            <td><span class="badge bg-light text-dark border">{{ a.status|statut_affectation_fr }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center py-4 text-muted">Aucune affectation sur cette période.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</details>
+{% endblock %}

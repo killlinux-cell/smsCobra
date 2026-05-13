@@ -1,0 +1,248 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+{% if replacement_needed or alerts_open_count %}
+<div class="alert cobra-critical-banner d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 {% if replacement_needed %}cobra-critical-pulse{% endif %}" role="alert">
+  <div class="d-flex align-items-center gap-2">
+    <span class="cobra-critical-dot" aria-hidden="true"></span>
+    <div>
+      <div class="fw-bold">Alerte critique en cours</div>
+      <div class="small mb-0">
+        {{ replacement_needed|length }} remplacement{% if replacement_needed|length != 1 %}s{% endif %} à traiter ·
+        {{ alerts_open_count }} alerte{% if alerts_open_count != 1 %}s{% endif %} ouverte{% if alerts_open_count != 1 %}s{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-danger"
+      id="alert-sound-toggle"
+      aria-pressed="true"
+      data-alert-sound-enabled="1"
+    >
+      <i class="bi bi-volume-up-fill me-1"></i>Son activé
+    </button>
+    <a href="{% url 'webadmin-affectations' %}" class="btn btn-sm btn-danger">
+      <i class="bi bi-lightning-charge-fill me-1"></i>Dépêcher maintenant
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<div class="card cobra-panel mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="row g-3 align-items-end flex-wrap" role="search">
+      <div class="col-auto flex-grow-1" style="min-width:220px;">
+        <label class="form-label fw-semibold mb-1" for="alertes-day">Journée à consulter</label>
+        <input type="date" id="alertes-day" name="date" class="form-control" value="{{ filter_day|date:'Y-m-d' }}">
+      </div>
+      <div class="col-auto d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-calendar3 me-1"></i>Afficher</button>
+        <a href="{% url 'webadmin-alertes' %}" class="btn btn-outline-secondary">Aujourd'hui</a>
+      </div>
+    </form>
+    <p class="small text-muted mb-0 mt-3">
+      <strong>{{ filter_day|date:"l d F Y" }}</strong>
+      — {{ alerts|length }} alerte{% if alerts|length != 1 %}s{% endif %} affichée{% if alerts|length != 1 %}s{% endif %}
+      (max. 500) · <span class="text-dark">{{ alerts_open_count }} ouverte{% if alerts_open_count != 1 %}s{% endif %}</span>
+    </p>
+    <p class="small text-muted mb-0 mt-2">
+      Pour <strong>dépêcher un remplaçant</strong>, utilisez la section dédiée sous <a href="{% url 'webadmin-affectations' %}">Affectations</a>
+      (titulaire d’origine conservé après dépêche).
+    </p>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card cobra-panel h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Vigiles remplacés sur la journée</span>
+        <span class="badge bg-light text-dark border">{{ replacement_done|length }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Site</th>
+              <th>Poste</th>
+              <th>Titulaire</th>
+              <th>En poste</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in replacement_done %}
+            <tr>
+              <td class="small">{{ a.site.name }}</td>
+              <td class="small">{% if a.start_time|time:"H:i" == "06:00" %}Jour{% else %}Nuit{% endif %}</td>
+              <td class="small">{{ a.original_guard.display_name|default:"—" }}</td>
+              <td class="small fw-semibold">{{ a.guard.display_name }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-3 text-muted">Aucun remplacement enregistré.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card cobra-panel h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Remplacement à prévoir (non en service après l'heure)</span>
+        <span class="badge bg-danger-subtle text-danger-emphasis">{{ replacement_needed|length }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Site</th>
+              <th>Vigile actuel</th>
+              <th>Retard</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in replacement_needed %}
+            <tr class="{% if row.minutes_overdue >= 30 %}cobra-critical-row{% endif %}">
+              <td class="small">{{ row.assignment.site.name }}</td>
+              <td class="small">{{ row.assignment.guard.display_name }}</td>
+              <td class="small">
+                +{{ row.minutes_overdue }} min
+                <div class="text-muted">Limite {{ row.deadline|date:"H:i" }}</div>
+              </td>
+              <td class="text-nowrap">
+                <a href="{% url 'webadmin-affectations' %}" class="btn btn-sm btn-outline-warning">Dépêcher</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-3 text-muted">Aucun remplacement nécessaire pour le moment.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card cobra-panel">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span>Historique des alertes</span>
+    <span class="small text-muted fw-normal">Retards, passations, absences, fins non pointées</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>N°</th>
+          <th>Heure</th>
+          <th>Type</th>
+          <th>Statut</th>
+          <th>Vigile (affectation)</th>
+          <th>Site</th>
+          <th>Détail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for alert in alerts %}
+        <tr class="{% if alert.status == 'open' %}cobra-critical-row{% endif %}">
+          <td class="fw-semibold">#{{ alert.id }}</td>
+          <td class="small text-nowrap">{{ alert.triggered_at|date:"d/m/Y H:i" }}</td>
+          <td><span class="badge bg-light text-dark border">{{ alert.message|alerte_kind_fr }}</span></td>
+          <td><span class="badge bg-light text-dark border">{{ alert.status|statut_alerte_fr }}</span></td>
+          <td class="small">{{ alert.assignment.guard.display_name }}</td>
+          <td class="small">{{ alert.assignment.site.name }}</td>
+          <td class="small">{{ alert.message }}</td>
+          <td class="text-nowrap">
+            {% if alert.status == 'open' %}
+            <form method="post" action="{% url 'webadmin-ack-alert' alert.id %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'webadmin-alertes' %}?date={{ filter_day|date:'Y-m-d' }}">
+              <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
+            </form>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center py-5 text-muted">Aucune alerte ce jour-là.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if replacement_needed or alerts_open_count %}
+<script>
+(() => {
+  const key = "cobra_alert_sound_enabled";
+  const toggleBtn = document.getElementById("alert-sound-toggle");
+  const criticalCount = {{ replacement_needed|length }} + {{ alerts_open_count }};
+  if (!toggleBtn || criticalCount <= 0) return;
+
+  function updateButton(enabled) {
+    toggleBtn.dataset.alertSoundEnabled = enabled ? "1" : "0";
+    toggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+    toggleBtn.innerHTML = enabled
+      ? '<i class="bi bi-volume-up-fill me-1"></i>Son activé'
+      : '<i class="bi bi-volume-mute-fill me-1"></i>Son coupé';
+  }
+
+  function beep() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      const o1 = ctx.createOscillator();
+      const g = ctx.createGain();
+      o1.type = "sine";
+      o1.frequency.setValueAtTime(840, now);
+      o1.connect(g);
+      g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.12, now + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      o1.start(now);
+      o1.stop(now + 0.25);
+
+      const o2 = ctx.createOscillator();
+      o2.type = "triangle";
+      o2.frequency.setValueAtTime(630, now + 0.28);
+      o2.connect(g);
+      o2.start(now + 0.28);
+      o2.stop(now + 0.5);
+      g.gain.exponentialRampToValueAtTime(0.1, now + 0.31);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+      setTimeout(() => ctx.close(), 800);
+    } catch (_) {}
+  }
+
+  const stored = localStorage.getItem(key);
+  let enabled = stored !== "0";
+  updateButton(enabled);
+
+  toggleBtn.addEventListener("click", () => {
+    enabled = !enabled;
+    localStorage.setItem(key, enabled ? "1" : "0");
+    updateButton(enabled);
+    if (enabled) beep();
+  });
+
+  if (enabled) {
+    setTimeout(() => {
+      if (!document.hidden) beep();
+    }, 250);
+    setInterval(() => {
+      if (!document.hidden && localStorage.getItem(key) !== "0") beep();
+    }, 45000);
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

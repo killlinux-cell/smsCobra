@@ -1,0 +1,66 @@
+================================================================================
+Cobra Protection — Notifications push (Firebase Cloud Messaging)
+================================================================================
+
+1) Console Firebase (https://console.firebase.google.com)
+   - Créez un projet ou ouvrez le vôtre.
+   - Ajoutez une application Android pour l’app « mobile_admin »
+     (identifiant attendu : com.cobrasecurity.israel — voir android/app/build.gradle.kts).
+   - Téléchargez google-services.json et placez-le dans :
+     mobile_admin/android/app/google-services.json
+     (Le build Gradle n’applique le plugin Google Services que si ce fichier
+     est présent : vous pouvez compiler le projet sans, mais sans push FCM.)
+
+   - Pour le SERVEUR Django : Paramètres du projet → Comptes de service
+     → Générer une nouvelle clé privée (fichier JSON).
+     Ne commitez JAMAIS ce fichier dans Git.
+
+2) Machine qui exécute Django
+
+   Emplacement recommandé (détecté automatiquement par le backend, dossier non versionné) :
+     backend/secrets/firebase-service-account.json
+   Renommez-y le JSON « compte de service » téléchargé depuis Firebase.
+
+   Sinon, variable d’environnement (Windows PowerShell, exemple) :
+
+   $env:FCM_CREDENTIALS_PATH = "D:\secrets\cobra-firebase-adminsdk.json"
+
+   Ou la variable standard Google :
+
+   $env:GOOGLE_APPLICATION_CREDENTIALS = "D:\secrets\cobra-firebase-adminsdk.json"
+
+   Redémarrez runserver / gunicorn (et Celery si utilisé) après modification.
+
+   Option hébergement sans fichier : définir FCM_SERVICE_ACCOUNT_JSON avec le
+   contenu JSON complet sur une seule ligne (échappement selon votre plateforme).
+
+3) Token sur le téléphone (compte admin)
+
+   A) Automatique : lancez l’app Flutter mobile_admin, connectez-vous avec un
+      utilisateur admin (super_admin, admin_societe ou superviseur). L’app
+      enregistre le token via l’API POST /api/v1/me/fcm-token.
+
+   B) Manuel : tableau de bord web → menu « Push mobile » → collez le token.
+
+4) Vérification
+
+   - Page « Push mobile » : bandeau vert si le serveur a bien chargé Firebase.
+   - Celery Beat doit tourner (tâche périodique detect_missed_shift_task, toutes les 5 min).
+
+5) Événements notifiés par push (tous les comptes admin / superviseur avec token FCM)
+
+   Pointages (API mobile vigile) :
+     · Cobra · Prise de service
+     · Cobra · Fin de service
+
+   Dépêche / remplacement de vigile (dashboard web ou API admin) :
+     · Cobra · Dépêche / remplacement
+
+   Détectés automatiquement (Celery, selon planning du jour) :
+     · Alerte retard Cobra — pas de prise de service après tolérance
+     · Alerte passation Cobra — relève en retard
+     · Alerte presence Cobra — pas de selfie de présence dans l’heure
+     · Alerte fin de service Cobra — prise enregistrée mais pas de fin après fin prévue + tolérance
+     · Alerte absence Cobra — créneau terminé sans aucune prise de service (affectation passée en « manqué »)
+
+================================================================================

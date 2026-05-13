@@ -1,0 +1,65 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="alert alert-light border mb-4 small">
+  Cette vue montre la relation <strong>site ↔ vigile titulaire</strong> pour les deux postes fixes
+  (Jour/Nuit). Le remplacement du jour peut différer du titulaire.
+</div>
+
+<div class="d-flex justify-content-end mb-3">
+  <a href="{% url 'webadmin-affectations' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Retour aux affectations
+  </a>
+</div>
+
+<div class="card cobra-panel">
+  <div class="card-header">
+    Titulaires par site — situation du {{ today|date:"d/m/Y" }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Site</th>
+          <th>Poste Jour (06:00-18:00)</th>
+          <th>Poste Nuit (18:00-06:00)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="fw-semibold">{{ row.site.name }}</td>
+          <td class="small">
+            {% if row.day_fixed %}
+              <div><span class="text-muted">Titulaire</span> <strong>{{ row.day_fixed.current_guard.display_name }}</strong></div>
+              {% if row.day_today %}
+                <div class="mt-1"><span class="text-muted">En poste aujourd'hui</span> {{ row.day_today.guard.display_name }}</div>
+              {% else %}
+                <div class="mt-1 text-danger">Aucune affectation aujourd'hui</div>
+              {% endif %}
+            {% else %}
+              <span class="text-danger">Titulaire non défini</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if row.night_fixed %}
+              <div><span class="text-muted">Titulaire</span> <strong>{{ row.night_fixed.current_guard.display_name }}</strong></div>
+              {% if row.night_today %}
+                <div class="mt-1"><span class="text-muted">En poste aujourd'hui</span> {{ row.night_today.guard.display_name }}</div>
+              {% else %}
+                <div class="mt-1 text-danger">Aucune affectation aujourd'hui</div>
+              {% endif %}
+            {% else %}
+              <span class="text-danger">Titulaire non défini</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3" class="text-center py-4 text-muted">Aucun site actif.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

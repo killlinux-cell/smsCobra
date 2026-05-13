@@ -1,0 +1,13 @@
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env local à la racine (les sous-projets ont leur propre .gitignore)
+.env
+
+# Fichier image orphelin racine (logo remplacé par assets dans les apps)
+/cobra-logo.jpeg

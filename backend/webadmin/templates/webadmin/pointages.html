@@ -1,0 +1,103 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="card cobra-panel mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="d-flex flex-wrap align-items-end gap-2">
+      <div>
+        <label for="pointages-month" class="form-label small text-muted mb-1">Mois</label>
+        <input id="pointages-month" type="month" name="month" value="{{ month_value }}" class="form-control">
+      </div>
+      <div style="min-width:260px;">
+        <label for="pointages-search" class="form-label small text-muted mb-1">Rechercher un vigile</label>
+        <input id="pointages-search" type="search" name="q" value="{{ search_q }}" class="form-control" placeholder="Nom, prénom, identifiant, email...">
+      </div>
+      <button type="submit" class="btn btn-primary">Afficher</button>
+      {% if selected_guard %}
+      <a class="btn btn-outline-secondary" href="{% url 'webadmin-pointages' %}?month={{ month_value }}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">Réinitialiser détail</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header">Résumé mensuel des vigiles — {{ month_start|date:"F Y" }}</div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      {{ total_vigiles }} vigile{% if total_vigiles != 1 %}s{% endif %} trouvé{% if total_vigiles != 1 %}s{% endif %}
+      · page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </p>
+    <div class="row g-3">
+      {% for row in summary_rows %}
+      <div class="col-xl-4 col-md-6">
+        <a class="text-decoration-none text-reset d-block h-100" href="{% url 'webadmin-pointages' %}?month={{ month_value }}&guard={{ row.guard.id }}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}&page={{ page_obj.number }}">
+          <div class="card h-100 border border-secondary border-opacity-25 shadow-sm">
+            <div class="card-body d-flex gap-3">
+              {% if row.guard.profile_photo %}
+              <img src="{{ row.guard.profile_photo.url }}" alt="" class="rounded" width="64" height="64" style="object-fit:cover;">
+              {% else %}
+              <div class="rounded bg-light d-flex align-items-center justify-content-center text-secondary" style="width:64px;height:64px;">
+                <i class="bi bi-person"></i>
+              </div>
+              {% endif %}
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ row.guard.first_name|default:"" }} {{ row.guard.last_name|default:"" }}</div>
+                <div class="small text-muted">@{{ row.guard.username }}</div>
+                <div class="small mt-2"><span class="text-muted">Site titulaire :</span> {{ row.titular_site }}</div>
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                  <span class="badge bg-success-subtle text-success-emphasis">Présence: {{ row.present_count }}</span>
+                  <span class="badge bg-danger-subtle text-danger-emphasis">Absence: {{ row.absent_count }}</span>
+                  <span class="badge bg-light text-dark border">Planifiés: {{ row.scheduled_count }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+      {% empty %}
+      <div class="col-12 text-center py-4 text-muted">Aucun vigile trouvé.</div>
+      {% endfor %}
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="mt-4" aria-label="Pagination vigiles">
+      <ul class="pagination mb-0">
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="{% if page_obj.has_previous %}?month={{ month_value }}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}&page={{ page_obj.previous_page_number }}{% else %}#{% endif %}">Précédent</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{% if page_obj.has_next %}?month={{ month_value }}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}&page={{ page_obj.next_page_number }}{% else %}#{% endif %}">Suivant</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+{% if selected_guard %}
+<div class="card cobra-panel">
+  <div class="card-header">
+    Détail journalier — {{ selected_guard.display_name }} ({{ month_start|date:"F Y" }})
+  </div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-3 small">
+      <span class="badge bg-success-subtle text-success-emphasis">Présent</span>
+      <span class="badge bg-danger-subtle text-danger-emphasis">Absent (planifié)</span>
+      <span class="badge bg-secondary-subtle text-secondary-emphasis">Non planifié</span>
+    </div>
+    <div class="row g-2">
+      {% for d in selected_calendar_days %}
+      <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="border rounded p-2 text-center
+          {% if d.status == 'present' %}bg-success-subtle border-success-subtle
+          {% elif d.status == 'absent' %}bg-danger-subtle border-danger-subtle
+          {% else %}bg-secondary-subtle border-secondary-subtle{% endif %}">
+          <div class="fw-semibold">{{ d.date|date:"d" }}</div>
+          <div class="small">{{ d.date|date:"D" }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,312 @@
+/* SMS (Sécurité Multi Services) — interface admin web */
+:root {
+  --cobra-bg: #0a0a0a;
+  --cobra-sidebar: #141010;
+  --cobra-accent: #b91c1c;
+  --cobra-accent-soft: rgba(185, 28, 28, 0.18);
+  --cobra-card: #ffffff;
+  --cobra-muted: #64748b;
+  --cobra-success: #059669;
+  --cobra-danger: #dc2626;
+  --cobra-radius: 14px;
+  --cobra-shadow: 0 4px 24px rgba(15, 20, 25, 0.08);
+}
+
+body.cobra-app {
+  font-family: "DM Sans", system-ui, sans-serif;
+  background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 50%, #f8fafc 100%);
+  min-height: 100vh;
+}
+
+.cobra-sidebar {
+  width: 260px;
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--cobra-sidebar) 0%, var(--cobra-bg) 100%);
+  color: #e2e8f0;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 4px 0 32px rgba(0, 0, 0, 0.12);
+}
+
+.cobra-sidebar-brand {
+  padding: 1.5rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cobra-sidebar-brand h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: #fff;
+}
+
+.cobra-sidebar-brand small {
+  color: var(--cobra-muted);
+  font-size: 0.75rem;
+}
+
+.cobra-brand-logo-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 56px;
+  width: auto;
+  object-fit: contain;
+}
+
+.cobra-brand-logo-img--compact {
+  max-height: 40px;
+}
+
+.cobra-login-logo {
+  max-width: min(92vw, 280px);
+  height: auto;
+  object-fit: contain;
+}
+
+.cobra-nav .nav-link {
+  color: #94a3b8;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  margin: 0.15rem 0.75rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  transition: color 0.15s, background 0.15s;
+}
+
+.cobra-nav .nav-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cobra-nav .nav-link.active {
+  color: #fff;
+  background: var(--cobra-accent-soft);
+  border-left: 3px solid var(--cobra-accent);
+  margin-left: 0.65rem;
+  padding-left: calc(1.25rem - 3px);
+}
+
+.cobra-main {
+  margin-left: 260px;
+  padding: 1.5rem 2rem 3rem;
+  max-width: 1400px;
+}
+
+.cobra-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.cobra-topbar h2 {
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  margin: 0;
+}
+
+.cobra-kpi {
+  border: none;
+  border-radius: var(--cobra-radius);
+  box-shadow: var(--cobra-shadow);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  background: var(--cobra-card);
+}
+
+.cobra-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(15, 20, 25, 0.1);
+}
+
+.cobra-kpi .card-body {
+  padding: 1.1rem 1.25rem;
+}
+
+.cobra-kpi .label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cobra-muted);
+  font-weight: 600;
+}
+
+.cobra-kpi .value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.cobra-kpi .icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.cobra-kpi.alert-open {
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+  border: 1px solid #fecaca;
+}
+
+.cobra-panel {
+  border: none;
+  border-radius: var(--cobra-radius);
+  box-shadow: var(--cobra-shadow);
+  background: var(--cobra-card);
+  overflow: hidden;
+}
+
+.cobra-panel .card-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 700;
+  padding: 1rem 1.25rem;
+  color: #0f172a;
+}
+
+.cobra-table thead th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--cobra-muted);
+  font-weight: 700;
+  border-bottom-width: 1px;
+}
+
+.cobra-btn-accent {
+  background: linear-gradient(135deg, var(--cobra-accent) 0%, #7f1d1d 100%);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  padding: 0.5rem 1.25rem;
+  border-radius: 10px;
+}
+
+.cobra-btn-accent:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}
+
+.cobra-login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #0f1419 0%, #1e293b 45%, #0f172a 100%);
+  padding: 1.5rem;
+}
+
+.cobra-login-card {
+  max-width: 420px;
+  width: 100%;
+  border-radius: var(--cobra-radius);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  color: #e2e8f0;
+}
+
+.cobra-login-card .form-control {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.cobra-login-card .form-control::placeholder {
+  color: #64748b;
+}
+
+@media (max-width: 991px) {
+  .cobra-sidebar {
+    width: 100%;
+    min-height: auto;
+    position: relative;
+  }
+  .cobra-main {
+    margin-left: 0;
+    padding: 1rem;
+  }
+}
+
+/* Vigiles : cartes cliquables */
+.cobra-vigile-card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.cobra-vigile-card-link:hover .cobra-vigile-card,
+.cobra-vigile-card-link:focus-visible .cobra-vigile-card {
+  box-shadow: var(--cobra-shadow) !important;
+  transform: translateY(-2px);
+  border-color: rgba(232, 93, 4, 0.35) !important;
+}
+.cobra-vigile-card-link:focus-visible {
+  outline: 2px solid var(--cobra-accent);
+  outline-offset: 2px;
+  border-radius: var(--cobra-radius);
+}
+
+.cobra-dl-detail dt {
+  font-weight: 600;
+  color: var(--cobra-muted);
+  font-size: 0.875rem;
+}
+.cobra-dl-detail dd {
+  margin-bottom: 0.75rem;
+}
+.cobra-dl-detail dt:not(:first-of-type) {
+  margin-top: 0.25rem;
+}
+
+/* Alertes critiques (retard/remplacement) */
+@keyframes cobraCriticalPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.32);
+    background-color: #fff5f5;
+  }
+  60% {
+    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+    background-color: #ffe4e6;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+    background-color: #fff5f5;
+  }
+}
+
+.cobra-critical-banner {
+  border: 1px solid #fecaca;
+  border-left: 5px solid var(--cobra-danger);
+  background: linear-gradient(135deg, #fff1f2 0%, #ffffff 100%);
+}
+
+.cobra-critical-pulse {
+  animation: cobraCriticalPulse 1.6s ease-in-out infinite;
+}
+
+.cobra-critical-row td {
+  background-color: #fff7ed !important;
+}
+
+.cobra-critical-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #dc2626;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  animation: cobraCriticalPulse 1.4s ease-in-out infinite;
+}

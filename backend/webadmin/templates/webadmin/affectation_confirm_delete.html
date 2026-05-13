@@ -1,0 +1,22 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card cobra-panel border-danger">
+      <div class="card-header bg-danger text-white">Supprimer une affectation</div>
+      <div class="card-body">
+        <p>
+          Affectation n°{{ assignment.id }} — {{ assignment.site.name }} — {{ assignment.guard.get_username }} —
+          {{ assignment.shift_date|date:"d/m/Y" }} ({{ assignment.status|statut_affectation_fr }}).
+        </p>
+        <form method="post">
+          {% csrf_token %}
+          <a href="{% url 'webadmin-affectations' %}" class="btn btn-outline-secondary">Annuler</a>
+          <button type="submit" class="btn btn-danger">Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

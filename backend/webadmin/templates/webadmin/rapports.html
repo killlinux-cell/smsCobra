@@ -1,0 +1,219 @@
+{% extends "webadmin/base.html" %}
+{% load tz %}
+{% block content %}
+<div class="card cobra-panel mb-4">
+  <div class="card-header"><i class="bi bi-funnel me-2"></i>Filtres</div>
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label">Site</label>
+        <select name="site" class="form-select">
+          <option value="">Tous les sites</option>
+          {% for s in sites %}
+          <option value="{{ s.id }}" {% if filter_site == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label">Vigile</label>
+        <select name="vigile" class="form-select">
+          <option value="">Tous les vigiles</option>
+          {% for v in vigiles %}
+          <option value="{{ v.id }}" {% if filter_vigile == v.id %}selected{% endif %}>{{ v.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label">Mois</label>
+        <input type="month" name="month" class="form-control" value="{{ filter_month }}" title="Filtrer tout le mois (prioritaire sur la date du jour si les deux sont remplis, sauf si vous videz le mois)">
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label">Date précise</label>
+        <input type="date" name="date" class="form-control" value="{{ filter_date }}">
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <button type="submit" class="btn btn-primary w-100">Appliquer</button>
+        <p class="small text-muted mt-2 mb-0">Si une <strong>date</strong> est renseignée, elle prime sur le mois.</p>
+        <p class="small text-muted mt-2 mb-0">
+          Le <strong>journal d'activité</strong> utilise les filtres <strong>Site</strong> et <strong>Date/Mois</strong>.
+          Le filtre <strong>Vigile</strong> reste appliqué à la <strong>synthèse des pointages</strong> et au bilan.
+        </p>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if bilan %}
+<div class="card cobra-panel mb-4 border-secondary">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-calculator me-2"></i>Bilan indicatif — {{ bilan.guard.display_name }} ({{ bilan.month|stringformat:"02d" }}/{{ bilan.year }})</span>
+  </div>
+  <div class="card-body">
+    <p class="small text-muted">
+      Aide à la décision interne uniquement. Toute retenue sur salaire ou sanction doit respecter le droit du travail et vos procédures RH.
+    </p>
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Lignes de rapport (jours/site)</div>
+          <div class="fs-4 fw-bold">{{ bilan.n_reports }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Jours avec début pointé</div>
+          <div class="fs-4 fw-bold text-success">{{ bilan.n_with_start }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Jour(s) début + fin complets</div>
+          <div class="fs-4 fw-bold">{{ bilan.n_full_day }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Retards (prise de service)</div>
+          <div class="fs-4 fw-bold {% if bilan.n_late %}text-warning{% endif %}">{{ bilan.n_late }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Sans fin de service pointée</div>
+          <div class="fs-4 fw-bold {% if bilan.n_no_end %}text-danger{% endif %}">{{ bilan.n_no_end }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Affectations planifiées (mois)</div>
+          <div class="fs-4 fw-bold">{{ bilan.n_assign }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Terminées / manquées</div>
+          <div class="fs-5 fw-bold">
+            <span class="text-success">{{ bilan.n_completed }}</span>
+            /
+            <span class="text-danger">{{ bilan.n_missed }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Planifié / remplacé</div>
+          <div class="fs-6">{{ bilan.n_scheduled }} / {{ bilan.n_replaced }}</div>
+        </div>
+      </div>
+    </div>
+    {% if bilan.points %}
+    <h6 class="text-secondary">Points d’attention</h6>
+    <ul class="list-group list-group-flush">
+      {% for level, text in bilan.points %}
+      <li class="list-group-item {% if level == 'danger' %}list-group-item-danger{% elif level == 'warning' %}list-group-item-warning{% else %}list-group-item-light{% endif %}">{{ text }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-success mb-0"><i class="bi bi-check-circle me-1"></i>Aucun point d’alerte automatique sur les métriques ci-dessus.</p>
+    {% endif %}
+  </div>
+</div>
+{% elif filter_vigile and filter_month %}
+<div class="alert alert-warning"><i class="bi bi-info-circle me-2"></i>Bilan indisponible : vigile ou mois invalide.</div>
+{% endif %}
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-journal-text me-2"></i>Journal d'activité</span>
+    <span class="small text-muted d-none d-md-inline">Sites, personnel, affectations, dépêches, postes fixes</span>
+  </div>
+  {% if filter_site %}
+  <div class="small text-muted border-bottom px-3 py-2 mb-0 bg-light">
+    <i class="bi bi-funnel me-1"></i>Événements filtrés sur le site sélectionné (les « nouveaux vigiles » sans site sont masqués).
+  </div>
+  {% endif %}
+  <div class="table-responsive">
+    <table class="table table-hover cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width:10rem">Date / heure</th>
+          <th style="width:13rem">Événement</th>
+          <th>Détail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in activity_rows %}
+        <tr>
+          <td class="small text-nowrap">
+            {% if e.occurred_dt %}
+              {{ e.occurred_dt|localtime|date:"d/m/Y H:i" }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if e.kind == 'site_created' %}
+            <span class="badge text-bg-primary text-wrap text-start"><i class="bi bi-building-add me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'vigile_created' %}
+            <span class="badge text-bg-success text-wrap text-start"><i class="bi bi-person-plus me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'assignment_planned' %}
+            <span class="badge text-bg-info text-dark text-wrap text-start"><i class="bi bi-calendar2-check me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'guard_replaced' %}
+            <span class="badge text-bg-warning text-dark text-wrap text-start"><i class="bi bi-arrow-left-right me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'fixed_post_configured' %}
+            <span class="badge text-bg-secondary text-wrap text-start"><i class="bi bi-pin-map me-1"></i>{{ e.title }}</span>
+            {% else %}
+            <span class="badge text-bg-light text-dark">{{ e.title }}</span>
+            {% endif %}
+          </td>
+          <td class="small">{{ e.body }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center py-4 text-muted">Aucun événement récent à afficher.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card cobra-panel">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span>Synthèse des pointages</span>
+    <a class="btn btn-sm btn-success" href="{% url 'webadmin-rapports-export-csv' %}{% if export_querystring %}?{{ export_querystring }}{% endif %}">
+      <i class="bi bi-download me-1"></i>Exporter CSV
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Site</th>
+          <th>Vigile</th>
+          <th>Début</th>
+          <th>Fin</th>
+          <th>Retard</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr>
+          <td>{{ report.report_date|date:"d/m/Y" }}</td>
+          <td>{{ report.site.name }}</td>
+          <td>{{ report.guard.display_name }}</td>
+          <td class="small">{{ report.started_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td class="small">{{ report.ended_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td>
+            {% if report.was_late %}
+            <span class="badge bg-warning text-dark">Oui</span>
+            {% else %}
+            <span class="badge bg-success">Non</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

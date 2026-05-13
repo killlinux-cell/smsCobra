@@ -1,0 +1,263 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card cobra-panel">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span>Équipe — vigiles</span>
+      </div>
+      <div class="card-body border-bottom">
+        <form method="get" action="{% url 'webadmin-vigiles' %}" class="mb-0" role="search" id="vigiles-search-form">
+          <label class="form-label small text-muted mb-1" for="vigiles-search-q">Rechercher un vigile</label>
+          <div class="input-group input-group-lg">
+            <span class="input-group-text bg-white"><i class="bi bi-search text-secondary"></i></span>
+            <input type="search" id="vigiles-search-q" name="q" class="form-control" placeholder="Nom, prénom, identifiant, e-mail, téléphone, domicile, aval…" value="{{ search_q }}" autocomplete="off">
+            <button class="btn btn-outline-secondary" type="submit">Rechercher</button>
+            {% if search_q %}
+            <a class="btn btn-outline-secondary" href="{% url 'webadmin-vigiles' %}">Effacer</a>
+            {% endif %}
+          </div>
+        </form>
+        {% if search_q %}
+        <p class="small text-muted mt-2 mb-0">{{ vigiles|length }} résultat{% if vigiles|length != 1 %}s{% endif %} pour « {{ search_q }} »</p>
+        {% endif %}
+      </div>
+      <div class="card-body pt-3">
+        <div class="row g-3">
+          {% for v in vigiles %}
+          <div class="col-md-6">
+            <a href="{% url 'webadmin-vigile-detail' v.pk %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}" class="text-decoration-none text-reset d-block h-100 cobra-vigile-card-link">
+              <div class="card h-100 border border-secondary border-opacity-25 shadow-sm cobra-vigile-card">
+                <div class="card-body d-flex gap-3 align-items-start">
+                  {% if v.profile_photo %}
+                  <img src="{{ v.profile_photo.url }}" alt="" class="rounded flex-shrink-0" width="64" height="64" style="object-fit:cover;">
+                  {% else %}
+                  <div class="rounded flex-shrink-0 d-flex align-items-center justify-content-center bg-light text-secondary" style="width:64px;height:64px;">
+                    <i class="bi bi-person fs-3"></i>
+                  </div>
+                  {% endif %}
+                  <div class="flex-grow-1 min-w-0">
+                    <div class="fw-bold text-truncate">{{ v.get_full_name|default:v.username }}</div>
+                    <div class="small text-muted">@{{ v.username }}</div>
+                    {% if v.email %}
+                    <div class="small text-truncate mt-1 text-secondary">{{ v.email }}</div>
+                    {% endif %}
+                    {% if v.phone_number %}
+                    <div class="small text-muted">{{ v.phone_number }}</div>
+                    {% endif %}
+                    <div class="mt-2 d-flex flex-wrap gap-1 align-items-center">
+                      {% if v.date_integration %}<span class="badge rounded-pill bg-light text-dark border">Intégr. {{ v.date_integration|date:"d/m/Y" }}</span>{% endif %}
+                      {% if v.aval %}<span class="badge rounded-pill bg-light text-dark border text-truncate" style="max-width:100%;" title="{{ v.aval }}">Aval : {{ v.aval|truncatechars:24 }}</span>{% endif %}
+                      {% if not v.is_active %}<span class="badge bg-secondary">Inactif</span>{% endif %}
+                    </div>
+                  </div>
+                  <i class="bi bi-chevron-right text-secondary flex-shrink-0 mt-1"></i>
+                </div>
+              </div>
+            </a>
+          </div>
+          {% empty %}
+          <div class="col-12 text-center py-5 text-muted">
+            {% if search_q %}Aucun vigile ne correspond à votre recherche.{% else %}Aucun vigile. Créez un compte à droite.{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card cobra-panel">
+      <div class="card-header"><i class="bi bi-person-plus me-2"></i>Nouveau vigile</div>
+      <div class="card-body">
+        <form id="vigile-create-form" method="post" action="{% url 'webadmin-vigiles' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-4 p-3 rounded border border-secondary border-opacity-25 bg-body-secondary bg-opacity-10">
+            <label class="form-label fw-semibold mb-2"><i class="bi bi-camera-video me-1"></i>Photo portrait — webcam</label>
+            <p class="small text-muted mb-2">Ouvrez la caméra de l’ordinateur, puis capturez le portrait. Vous pouvez aussi importer une image plus bas.</p>
+            <video id="cobra-webcam-video" class="rounded border w-100 bg-dark" style="max-height:240px;object-fit:cover;display:none;" playsinline muted autoplay></video>
+            <canvas id="cobra-webcam-canvas" class="d-none"></canvas>
+            <div id="cobra-webcam-preview-wrap" class="mt-2 d-none">
+              <span class="small text-muted">Aperçu enregistré :</span>
+              <img id="cobra-webcam-preview" class="rounded border mt-1 d-block" alt="" style="max-width:100%;max-height:160px;object-fit:contain;">
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+              <button type="button" class="btn btn-outline-primary btn-sm" id="cobra-btn-webcam-start"><i class="bi bi-camera-video me-1"></i>Ouvrir la caméra</button>
+              <button type="button" class="btn btn-primary btn-sm" id="cobra-btn-webcam-snap" disabled><i class="bi bi-camera-fill me-1"></i>Prendre la photo</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="cobra-btn-webcam-stop" disabled>Arrêter</button>
+            </div>
+            <p id="cobra-webcam-status" class="small text-muted mt-2 mb-0"></p>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>
+            {{ form.profile_photo }}
+            {% if form.profile_photo.help_text %}<div class="form-text">{{ form.profile_photo.help_text }}</div>{% endif %}
+            {% if form.profile_photo.errors %}<div class="text-danger small">{{ form.profile_photo.errors }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+            {{ form.username }}
+            {% if form.username.help_text %}<div class="form-text">{{ form.username.help_text }}</div>{% endif %}
+            {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.phone_number.id_for_label }}">{{ form.phone_number.label }}</label>
+            {{ form.phone_number }}
+            {% if form.phone_number.errors %}<div class="text-danger small">{{ form.phone_number.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.domicile.id_for_label }}">{{ form.domicile.label }}</label>
+            {{ form.domicile }}
+            {% if form.domicile.help_text %}<div class="form-text">{{ form.domicile.help_text }}</div>{% endif %}
+            {% if form.domicile.errors %}<div class="text-danger small">{{ form.domicile.errors }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.aval.id_for_label }}">{{ form.aval.label }}</label>
+            {{ form.aval }}
+            {% if form.aval.help_text %}<div class="form-text">{{ form.aval.help_text }}</div>{% endif %}
+            {% if form.aval.errors %}<div class="text-danger small">{{ form.aval.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.date_integration.id_for_label }}">{{ form.date_integration.label }}</label>
+            {{ form.date_integration }}
+            {% if form.date_integration.errors %}<div class="text-danger small">{{ form.date_integration.errors }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3 p-3 rounded border border-secondary border-opacity-25">
+            <label class="form-label fw-semibold" for="{{ form.id_document.id_for_label }}"><i class="bi bi-upc-scan me-1"></i>{{ form.id_document.label }}</label>
+            {{ form.id_document }}
+            {% if form.id_document.help_text %}<div class="form-text">{{ form.id_document.help_text }}</div>{% endif %}
+            {% if form.id_document.errors %}<div class="text-danger small">{{ form.id_document.errors }}</div>{% endif %}
+          </div>
+
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger small">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <button type="submit" class="btn cobra-btn-accent w-100">Créer le vigile</button>
+        </form>
+        <p class="small text-muted mt-3 mb-0">Le rôle « Vigile » est attribué automatiquement. La connexion se fait via la reconnaissance faciale.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const video = document.getElementById("cobra-webcam-video");
+  const canvas = document.getElementById("cobra-webcam-canvas");
+  const statusEl = document.getElementById("cobra-webcam-status");
+  const btnStart = document.getElementById("cobra-btn-webcam-start");
+  const btnSnap = document.getElementById("cobra-btn-webcam-snap");
+  const btnStop = document.getElementById("cobra-btn-webcam-stop");
+  const previewWrap = document.getElementById("cobra-webcam-preview-wrap");
+  const previewImg = document.getElementById("cobra-webcam-preview");
+  const photoInput = document.getElementById("{{ form.profile_photo.id_for_label }}");
+
+  if (!video || !canvas || !photoInput) return;
+
+  let stream = null;
+
+  function setStatus(msg, isError) {
+    if (!statusEl) return;
+    statusEl.textContent = msg || "";
+    statusEl.classList.toggle("text-danger", !!isError);
+    statusEl.classList.toggle("text-muted", !isError);
+  }
+
+  function stopStream() {
+    if (stream) {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      stream = null;
+    }
+    video.srcObject = null;
+    video.style.display = "none";
+    btnSnap.disabled = true;
+    btnStop.disabled = true;
+  }
+
+  btnStart.addEventListener("click", function () {
+    setStatus("");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus("La caméra n’est pas disponible dans ce navigateur ou sans HTTPS (sauf localhost).", true);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+      .then(function (s) {
+        stream = s;
+        video.srcObject = stream;
+        video.style.display = "block";
+        btnSnap.disabled = false;
+        btnStop.disabled = false;
+        setStatus("Caméra active. Cadrez le visage puis cliquez « Prendre la photo ».");
+      })
+      .catch(function (err) {
+        setStatus("Impossible d’accéder à la caméra : " + (err && err.message ? err.message : "permission refusée ou appareil indisponible."), true);
+      });
+  });
+
+  btnStop.addEventListener("click", function () {
+    stopStream();
+    setStatus("Caméra arrêtée.");
+  });
+
+  btnSnap.addEventListener("click", function () {
+    if (!stream || !video.videoWidth) {
+      setStatus("Ouvrez d’abord la caméra.", true);
+      return;
+    }
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, w, h);
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        setStatus("Échec de la capture.", true);
+        return;
+      }
+      const file = new File([blob], "portrait-webcam.jpg", { type: "image/jpeg" });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      photoInput.files = dt.files;
+      photoInput.dispatchEvent(new Event("change", { bubbles: true }));
+      const url = URL.createObjectURL(blob);
+      previewImg.src = url;
+      previewWrap.classList.remove("d-none");
+      setStatus("Portrait enregistré dans le champ « Photo portrait ». Vous pouvez arrêter la caméra ou reprendre une photo.");
+    }, "image/jpeg", 0.92);
+  });
+
+  photoInput.addEventListener("change", function () {
+    if (photoInput.files && photoInput.files.length) {
+      previewWrap.classList.remove("d-none");
+      previewImg.src = URL.createObjectURL(photoInput.files[0]);
+    }
+  });
+
+  window.addEventListener("beforeunload", stopStream);
+})();
+</script>
+{% endblock %}
