@@ -31,9 +31,12 @@ Ports firewall a ouvrir:
 
 ## 3) DNS
 
-Configurer les enregistrements DNS (chez votre registrar):
-- `A` -> `api.votre-domaine.com` vers IP publique du VPS
-- optionnel `A` -> `admin.votre-domaine.com` vers la meme IP
+**Cas le plus courant : tout sur le domaine racine** (ex. `smsapp24.com` — API + dashboard sur la meme origine) :
+- Enregistrement **`A`** pour **`@`** (racine) → IP publique du VPS (ex. `153.75.250.81`).
+- **`www`** : soit un **`A`** `www` → meme IP, soit un **`CNAME`** `www` → `smsapp24.com` (comme souvent chez l’hebergeur).
+
+**Cas optionnel avec sous-domaines** (si tu separes plus tard `api.` / `admin.`) :
+- `A` `api` → IP du VPS ; `A` `admin` → meme IP.
 
 Attendre la propagation DNS avant SSL.
 
@@ -74,12 +77,12 @@ Le projet inclut deja:
 
 Pour la production, creer `backend/.env.production` (ne pas committer ce fichier).
 
-Exemple recommande:
+Exemple **tout sur la racine** (`smsapp24.com`, API + dashboard) :
 
 ```env
 DJANGO_SECRET_KEY=remplacer-par-une-cle-longue-et-secrete
 DJANGO_DEBUG=False
-DJANGO_ALLOWED_HOSTS=api.votre-domaine.com,admin.votre-domaine.com
+DJANGO_ALLOWED_HOSTS=smsapp24.com,www.smsapp24.com,127.0.0.1,localhost
 
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=cobra
@@ -91,8 +94,8 @@ DB_PORT=5432
 CELERY_BROKER_URL=redis://redis:6379/0
 CELERY_RESULT_BACKEND=redis://redis:6379/0
 
-CORS_ALLOWED_ORIGINS=https://admin.votre-domaine.com,https://api.votre-domaine.com
-CSRF_TRUSTED_ORIGINS=https://admin.votre-domaine.com,https://api.votre-domaine.com
+CORS_ALLOWED_ORIGINS=https://smsapp24.com,https://www.smsapp24.com
+CSRF_TRUSTED_ORIGINS=https://smsapp24.com,https://www.smsapp24.com
 
 BIOMETRIC_ENFORCEMENT_MODE=enforce
 FACE_VERIFICATION_TOLERANCE=0.55
@@ -102,6 +105,8 @@ FACE_VERIFICATION_NUM_JITTERS=1
 FCM_CREDENTIALS_PATH=/app/secrets/firebase-service-account.json
 FCM_PROJECT_ID=votre-project-id-firebase
 ```
+
+Les apps mobiles : `API_BASE=https://smsapp24.com` (pas de sous-domaine `api.`).
 
 Important:
 - `DJANGO_DEBUG=False` en production.
@@ -119,7 +124,7 @@ Exemple de variables Django prod : `backend/.env.production.example` → copier 
 1. Creer `infra/.env.prod` (mot de passe Postgres uniquement) :  
    `cp infra/.env.prod.example infra/.env.prod` puis editer `POSTGRES_PASSWORD`.
 2. Creer `backend/.env.production` :  
-   `cp backend/.env.production.example backend/.env.production` puis remplir `DJANGO_SECRET_KEY`, aligner `DB_PASSWORD` avec `POSTGRES_PASSWORD`, adapter les domaines si differents de `api.smsapp24.com` / `admin.smsapp24.com`.
+   `cp backend/.env.production.example backend/.env.production` puis remplir `DJANGO_SECRET_KEY`, aligner `DB_PASSWORD` avec `POSTGRES_PASSWORD`. Pour tout a la racine, garder `smsapp24.com` et `www.smsapp24.com` dans `DJANGO_ALLOWED_HOSTS`, `CORS_*` et `CSRF_*`.
 3. (Optionnel push) Deposer `backend/secrets/firebase-service-account.json` sur le serveur si tu utilises FCM.
 4. Lancer les conteneurs depuis la racine du clone :
 
@@ -229,11 +234,30 @@ Creer le compte dashboard initial:
 docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api python manage.py seed_dashboard_admin --username cobra --password "MotDePasseTresFort"
 ```
 
-Verifier la sante API:
+Verifier la sante API :
+
+- Si `DJANGO_ALLOWED_HOSTS` **ne contient pas** `127.0.0.1`, un `curl http://127.0.0.1:8000/...` renvoie **400** (Django : hôte interdit). Ce n’est pas une panne de l’API.
+- Soit tu ajoutes `127.0.0.1,localhost` aux hotes (voir `backend/.env.production.example`), puis tu redemarres les conteneurs ;
+- soit tu testes avec l’en-tete **Host** d’un de tes domaines deja autorises :
 
 ```bash
-curl http://127.0.0.1:8000/api/docs/
+curl -s -o /dev/null -w "%{http_code}\n" -H "Host: smsapp24.com" http://127.0.0.1:8000/api/docs/
 ```
+
+Tu dois obtenir **200**. (Si tu voyais **404** avec `/api/docs/` : ancienne image ; fais `git pull` puis `docker compose ... up -d --build api`. Le code actuel accepte `/api/docs` et `/api/docs/`.)
+
+Apres modification de `.env.production` : `docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --force-recreate api`.
+
+**Si tu as encore 400 avec `-H "Host: smsapp24.com"`** : Django ne voit pas ce nom dans `ALLOWED_HOSTS`. Verifie **dans le conteneur** :
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api python -c "from django.conf import settings; print(settings.ALLOWED_HOSTS)"
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api env | grep DJANGO_ALLOWED
+```
+
+- Pas de guillemets autour de la valeur dans `.env` (ex. mauvais : `DJANGO_ALLOWED_HOSTS="smsapp24.com..."` — les guillemets peuvent faire partie du nom et casser la validation).
+- Pas d’espace avant/apres les virgules (sinon risque de noms invalides selon l’encodage).
+- Apres correction : `docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --force-recreate api`.
 
 ## 9) Nginx reverse proxy
 
@@ -242,7 +266,7 @@ Creer `/etc/nginx/sites-available/cobra`:
 ```nginx
 server {
     listen 80;
-    server_name api.votre-domaine.com admin.votre-domaine.com;
+    server_name smsapp24.com www.smsapp24.com;
 
     client_max_body_size 20M;
 
@@ -274,7 +298,7 @@ sudo systemctl reload nginx
 ## 10) SSL Let's Encrypt
 
 ```bash
-sudo certbot --nginx -d api.votre-domaine.com -d admin.votre-domaine.com
+sudo certbot --nginx -d smsapp24.com -d www.smsapp24.com
 sudo systemctl status certbot.timer
 ```
 
@@ -339,8 +363,8 @@ docker stats
 
 - [ ] DNS pointe vers le VPS
 - [ ] certif SSL actif (HTTPS OK)
-- [ ] API docs accessibles en HTTPS
-- [ ] dashboard login accessible
+- [ ] API docs : `https://smsapp24.com/api/docs/` (ou `https://www.smsapp24.com/...`)
+- [ ] Dashboard : `https://smsapp24.com/dashboard/login/`
 - [ ] creation admin OK
 - [ ] pointage mobile OK
 - [ ] reconnaissance faciale OK

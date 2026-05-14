@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -10,8 +10,9 @@ from accounts.views import ControllerFaceCheckinView, VigileFaceIdentifyView, Vi
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("dashboard/", include("webadmin.urls")),
-    path("api/schema", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    # Avec ou sans slash final (evite 404 selon la version deploiée / le client).
+    re_path(r"^api/schema/?$", SpectacularAPIView.as_view(), name="schema"),
+    re_path(r"^api/docs/?$", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/v1/auth/login", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/v1/auth/face-login", VigileFaceLoginView.as_view(), name="vigile_face_login"),
     path("api/v1/auth/face-identify", VigileFaceIdentifyView.as_view(), name="vigile_face_identify"),
