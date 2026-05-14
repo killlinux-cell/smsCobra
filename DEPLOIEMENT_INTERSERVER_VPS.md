@@ -60,7 +60,7 @@ docker compose version
 
 ```bash
 cd /opt
-sudo git clone <URL_DU_REPO_GIT> cobra
+sudo git clone https://github.com/killlinux-cell/smsCobra.git cobra
 sudo chown -R $USER:$USER /opt/cobra
 cd /opt/cobra
 ```
@@ -111,7 +111,28 @@ Important:
 ## 7) Docker Compose production (avec Celery)
 
 Le `infra/docker-compose.yml` actuel est plutot orienté dev (`runserver`, ports DB/Redis publics).  
-Pour la prod InterServer, creer `infra/docker-compose.prod.yml`:
+En prod, utiliser le fichier **deja present dans le depot** : `infra/docker-compose.prod.yml` (copie ci-dessous identique si tu dois le recreer a la main).  
+Exemple de variables Django prod : `backend/.env.production.example` → copier en `backend/.env.production` sur le VPS.
+
+**Ordre des actions sur le VPS (apres points 1–6, clone dans `/opt/cobra`) :**
+
+1. Creer `infra/.env.prod` (mot de passe Postgres uniquement) :  
+   `cp infra/.env.prod.example infra/.env.prod` puis editer `POSTGRES_PASSWORD`.
+2. Creer `backend/.env.production` :  
+   `cp backend/.env.production.example backend/.env.production` puis remplir `DJANGO_SECRET_KEY`, aligner `DB_PASSWORD` avec `POSTGRES_PASSWORD`, adapter les domaines si differents de `api.smsapp24.com` / `admin.smsapp24.com`.
+3. (Optionnel push) Deposer `backend/secrets/firebase-service-account.json` sur le serveur si tu utilises FCM.
+4. Lancer les conteneurs depuis la racine du clone :
+
+```bash
+cd /opt/cobra
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --build
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml ps
+```
+
+5. Si le build echoue (memoire), relancer une fois ; verifier les logs :  
+   `docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml logs -f api`
+
+Contenu de reference `infra/docker-compose.prod.yml` :
 
 ```yaml
 services:
@@ -198,19 +219,7 @@ volumes:
   api_media:
 ```
 
-Creer aussi `infra/.env.prod`:
-
-```env
-POSTGRES_PASSWORD=mot-de-passe-db-tres-fort
-```
-
-Lancement:
-
-```bash
-cd /opt/cobra
-docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --build
-docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml ps
-```
+Si le depot ne contient pas encore `infra/.env.prod.example`, cree `infra/.env.prod` a la main avec une seule ligne : `POSTGRES_PASSWORD=...` (meme valeur que `DB_PASSWORD` dans `backend/.env.production`).
 
 ## 8) Initialisation application
 
