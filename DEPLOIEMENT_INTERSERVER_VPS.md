@@ -273,6 +273,7 @@ server {
     location /media/ {
         proxy_pass http://127.0.0.1:8000/media/;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
@@ -287,13 +288,19 @@ server {
 }
 ```
 
-Activer le site:
+Activer le site :
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/cobra /etc/nginx/sites-enabled/cobra
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/cobra /etc/nginx/sites-enabled/cobra
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+**Lecture des tests `curl` :**
+
+- `curl http://127.0.0.1/` **sans** en-tete `Host:` : souvent **404** — normal, aucun bloc `server_name` ne correspond a `127.0.0.1`.
+- `curl -sI -H "Host: smsapp24.com" http://127.0.0.1/` : si les en-tetes contiennent `X-Frame-Options`, `Referrer-Policy`, etc., c’est **Django** qui repond → **Nginx proxifie bien**. Avant une mise a jour du code, un **404** sur la seule URL `/` voulait dire qu’il n’y avait pas de page racine ; le projet redirige maintenant `/` vers `/dashboard/login/` (**302**). Pour valider le service, prefere : `/api/docs/` ou `/dashboard/login/`.
 
 ## 10) SSL Let's Encrypt
 
@@ -305,6 +312,8 @@ sudo systemctl status certbot.timer
 Le projet supporte deja le proxy HTTPS via:
 - `SECURE_PROXY_SSL_HEADER`
 - cookies securises quand `DEBUG=False`.
+
+**Dashboard sans CSS / images cassees** : en production (`DEBUG=False`), Django ne sert pas seul les fichiers `{% static %}`. Le code utilise **WhiteNoise** et lance **`collectstatic`** au demarrage du conteneur `api`. Apres mise a jour du depot : `git pull` puis `docker compose ... up -d --build` (rebuild pour `pip install` + collecte des statiques).
 
 ## 11) Mises a jour applicatives
 

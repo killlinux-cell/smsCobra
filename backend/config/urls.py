@@ -2,12 +2,15 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.views import ControllerFaceCheckinView, VigileFaceIdentifyView, VigileFaceLoginView
 
 urlpatterns = [
+    # Racine du site : pas de page d'accueil dédiée → redirection vers le dashboard.
+    path("", RedirectView.as_view(url="/dashboard/login/", permanent=False)),
     path("admin/", admin.site.urls),
     path("dashboard/", include("webadmin.urls")),
     # Avec ou sans slash final (evite 404 selon la version deploiée / le client).

@@ -1,4 +1,5 @@
 django
+whitenoise
 djangorestframework
 djangorestframework-simplejwt
 django-filter
