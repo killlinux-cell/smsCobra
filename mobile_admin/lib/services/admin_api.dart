@@ -15,7 +15,7 @@ class AdminApi {
   /// Téléphone réel : `--dart-define=API_BASE=http://<IP_PC>:8000` (voir TEST_DEVICE.txt).
   static const apiBase = String.fromEnvironment(
     "API_BASE",
-    defaultValue: "http://192.168.1.64:8000",
+    defaultValue: "https://smsapp24.com",
   );
 
   final _storage = const FlutterSecureStorage();
