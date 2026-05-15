@@ -315,6 +315,8 @@ Le projet supporte deja le proxy HTTPS via:
 
 **Dashboard sans CSS / images cassees** : en production (`DEBUG=False`), Django ne sert pas seul les fichiers `{% static %}`. Le code utilise **WhiteNoise** et lance **`collectstatic`** au demarrage du conteneur `api`. Apres mise a jour du depot : `git pull` puis `docker compose ... up -d --build` (rebuild pour `pip install` + collecte des statiques).
 
+**Photos vigiles (icone cassee sur `/dashboard/vigiles/`)** : les fichiers sont bien enregistres dans le volume Docker `api_media` (`/app/media/profiles/...`), mais sans route `/media/` en prod le navigateur recevait une **404**. Le code sert maintenant `/media/` aussi quand `DEBUG=False` (Nginx doit continuer a proxyfer `location /media/` vers l’API). Apres `git pull` + rebuild `api`, recharger la page ; les vigiles deja crees devraient afficher leur photo.
+
 ## 11) Mises a jour applicatives
 
 Procedure standard:

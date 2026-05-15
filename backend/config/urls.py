@@ -3,6 +3,7 @@ from django.urls import include, path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
+from django.views.static import serve as media_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -32,4 +33,17 @@ urlpatterns = [
     path("api/v1/admin/reports/", include("reports.urls")),
     path("api/v1/admin/sites/", include("sites.urls")),
     path("api/v1/admin/vigiles/", include("accounts.urls_admin")),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+# Fichiers uploadés (photos vigiles, pièces d'identité). En dev, static() suffit ;
+# en prod (DEBUG=False), static() n'ajoute rien → il faut servir /media/ explicitement.
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    urlpatterns += [
+        re_path(
+            r"^media/(?P<path>.*)$",
+            media_serve,
+            {"document_root": settings.MEDIA_ROOT},
+        ),
+    ]
