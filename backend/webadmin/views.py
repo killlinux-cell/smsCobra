@@ -13,7 +13,7 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Count, Max, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -33,6 +33,7 @@ from alerts.firebase_init import is_firebase_initialized
 from .forms import (
     AdminFcmTokenForm,
     ControllerCreationForm,
+    ControllerUpdateForm,
     DispatchForm,
     ShiftAssignmentForm,
     SiteForm,
@@ -674,8 +675,20 @@ def vigiles_list_view(request):
     )
 
 
+def _parse_presence_date(raw: str):
+    """Date de référence pour la présence contrôleurs (fuseau métier)."""
+    today = timezone.localdate()
+    if not raw:
+        return today
+    try:
+        return datetime.strptime(raw.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return today
+
+
 @admin_web_required
 def controllers_list_view(request):
+    presence_date = _parse_presence_date(request.GET.get("jour", ""))
     controllers = (
         User.objects.filter(role=User.Role.CONTROLEUR)
         .prefetch_related("controller_site_assignments__site")
@@ -699,21 +712,41 @@ def controllers_list_view(request):
             messages.success(request, "Contrôleur enregistré avec ses sites autorisés.")
             return redirect("webadmin-controllers")
 
+    visits_on_day = {
+        row["controller_id"]: row["n"]
+        for row in ControllerVisit.objects.filter(visited_at__date=presence_date)
+        .values("controller_id")
+        .annotate(n=Count("id"))
+    }
+    last_visit_by_controller = {
+        row["controller_id"]: row["last"]
+        for row in ControllerVisit.objects.values("controller_id").annotate(
+            last=Max("visited_at")
+        )
+    }
+
     visits_by_controller = defaultdict(list)
     for visit in (
         ControllerVisit.objects.select_related("site", "controller")
-        .order_by("-visited_at")[:200]
+        .order_by("-visited_at")[:300]
     ):
         bucket = visits_by_controller[visit.controller_id]
-        if len(bucket) < 4:
+        if len(bucket) < 5:
             bucket.append(visit)
-    controller_rows = [
-        {
-            "controller": c,
-            "recent_visits": visits_by_controller.get(c.id, []),
-        }
-        for c in controllers
-    ]
+
+    controller_rows = []
+    for c in controllers:
+        last_at = last_visit_by_controller.get(c.id)
+        visits_day = visits_on_day.get(c.id, 0)
+        controller_rows.append(
+            {
+                "controller": c,
+                "recent_visits": visits_by_controller.get(c.id, []),
+                "visits_on_presence_date": visits_day,
+                "present_on_date": visits_day > 0,
+                "last_visit_at": last_at,
+            }
+        )
 
     return render(
         request,
@@ -724,6 +757,56 @@ def controllers_list_view(request):
             "controller_rows": controller_rows,
             "form": form,
             "search_q": search_q,
+            "presence_date": presence_date,
+            "presence_is_today": presence_date == timezone.localdate(),
+        },
+    )
+
+
+@admin_web_required
+def controller_detail_view(request, pk):
+    controller = get_object_or_404(User.objects.filter(role=User.Role.CONTROLEUR), pk=pk)
+    list_qs = request.GET.urlencode()
+    if request.method == "POST":
+        form = ControllerUpdateForm(request.POST, request.FILES, instance=controller)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Fiche du contrôleur mise à jour.")
+            redir = reverse("webadmin-controller-detail", args=[pk])
+            if list_qs:
+                redir = f"{redir}?{list_qs}"
+            return redirect(redir)
+    else:
+        form = ControllerUpdateForm(instance=controller)
+
+    presence_date = _parse_presence_date(request.GET.get("jour", ""))
+    visits_on_day = list(
+        ControllerVisit.objects.filter(
+            controller=controller,
+            visited_at__date=presence_date,
+        )
+        .select_related("site")
+        .order_by("-visited_at")
+    )
+    visit_history = (
+        ControllerVisit.objects.filter(controller=controller)
+        .select_related("site")
+        .order_by("-visited_at")[:80]
+    )
+
+    return render(
+        request,
+        "webadmin/controller_detail.html",
+        {
+            "page_title": f"Contrôleur — {controller.username}",
+            "nav_active": "controllers",
+            "controller": controller,
+            "form": form,
+            "controllers_list_querystring": list_qs,
+            "presence_date": presence_date,
+            "presence_is_today": presence_date == timezone.localdate(),
+            "visits_on_day": visits_on_day,
+            "visit_history": visit_history,
         },
     )
 

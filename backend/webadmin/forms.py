@@ -242,6 +242,88 @@ class ControllerCreationForm(forms.ModelForm):
         return user
 
 
+class ControllerUpdateForm(forms.ModelForm):
+    """Mise à jour d'un contrôleur (coordonnées, sites autorisés, photo)."""
+
+    sites = forms.ModelMultipleChoiceField(
+        label="Sites autorisés",
+        queryset=Site.objects.filter(is_active=True).order_by("name"),
+        required=False,
+        widget=forms.SelectMultiple(attrs={"class": _SEL, "size": 8}),
+        help_text="Cochez les sites où ce contrôleur peut pointer son passage (reconnaissance faciale).",
+    )
+
+    class Meta:
+        model = User
+        fields = (
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "profile_photo",
+            "is_active",
+        )
+        labels = {
+            "username": "Identifiant",
+            "first_name": "Prénom",
+            "last_name": "Nom",
+            "email": "Courriel",
+            "phone_number": "Téléphone",
+            "profile_photo": "Photo portrait",
+            "is_active": "Compte actif (peut se connecter / pointer)",
+        }
+        widgets = {
+            "username": forms.TextInput(attrs={"class": _CTRL}),
+            "first_name": forms.TextInput(attrs={"class": _CTRL}),
+            "last_name": forms.TextInput(attrs={"class": _CTRL}),
+            "email": forms.EmailInput(attrs={"class": _CTRL}),
+            "phone_number": forms.TextInput(attrs={"class": _CTRL}),
+            "profile_photo": forms.ClearableFileInput(
+                attrs={"class": "form-control", "accept": "image/*"}
+            ),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["profile_photo"].required = False
+        if self.instance and self.instance.pk:
+            assigned_ids = (
+                ControllerSiteAssignment.objects.filter(
+                    controller=self.instance,
+                    is_active=True,
+                ).values_list("site_id", flat=True)
+            )
+            self.fields["sites"].initial = list(assigned_ids)
+
+    def clean_username(self):
+        u = (self.cleaned_data.get("username") or "").strip()
+        if not u:
+            raise forms.ValidationError("L'identifiant est obligatoire.")
+        if User.objects.filter(username=u).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Cet identifiant est déjà utilisé.")
+        return u
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.role = User.Role.CONTROLEUR
+        if commit:
+            user.save()
+            selected_sites = list(self.cleaned_data.get("sites") or [])
+            selected_ids = {s.pk for s in selected_sites}
+            for site in selected_sites:
+                ControllerSiteAssignment.objects.update_or_create(
+                    controller=user,
+                    site=site,
+                    defaults={"is_active": True},
+                )
+            ControllerSiteAssignment.objects.filter(controller=user).exclude(
+                site_id__in=selected_ids
+            ).delete()
+        return user
+
+
 class VigileUpdateForm(forms.ModelForm):
     """Mise à jour d'un vigile depuis le tableau de bord (fiche détail)."""
 

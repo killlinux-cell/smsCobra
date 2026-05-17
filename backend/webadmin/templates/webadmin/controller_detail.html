@@ -1,0 +1,159 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <a href="{% url 'webadmin-controllers' %}{% if controllers_list_querystring %}?{{ controllers_list_querystring }}{% endif %}" class="text-decoration-none">
+    <i class="bi bi-arrow-left me-1"></i>Retour à la liste des contrôleurs
+  </a>
+  <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-0">
+    {% if request.GET.q %}
+    <input type="hidden" name="q" value="{{ request.GET.q }}">
+    {% endif %}
+    <label class="small text-muted mb-0" for="jour-presence">Présence le</label>
+    <input type="date" id="jour-presence" name="jour" class="form-control form-control-sm" value="{{ presence_date|date:'Y-m-d' }}" style="width:auto;">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Voir</button>
+  </form>
+</div>
+
+{% if form.non_field_errors %}
+<div class="alert alert-danger">{{ form.non_field_errors }}</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-4">
+    <div class="card cobra-panel h-100">
+      <div class="card-header">Présence — {{ presence_date|date:"d/m/Y" }}{% if presence_is_today %} (aujourd'hui){% endif %}</div>
+      <div class="card-body">
+        {% if visits_on_day %}
+        <div class="alert alert-success py-2 mb-3">
+          <i class="bi bi-check-circle-fill me-1"></i>
+          <strong>Présent</strong> — {{ visits_on_day|length }} passage{% if visits_on_day|length > 1 %}s{% endif %} enregistré{% if visits_on_day|length > 1 %}s{% endif %}.
+        </div>
+        <ul class="list-unstyled mb-0 small">
+          {% for v in visits_on_day %}
+          <li class="mb-2 pb-2 border-bottom border-secondary border-opacity-10">
+            <span class="fw-semibold">{{ v.visited_at|date:"H:i" }}</span>
+            — {{ v.site.name }}
+            {% if v.face_score %}<span class="text-muted">(score {{ v.face_score|floatformat:2 }})</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="alert alert-warning py-2 mb-0">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <strong>Absent</strong> — aucun passage facial enregistré ce jour.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card cobra-panel h-100">
+      <div class="card-header">Portrait</div>
+      <div class="card-body text-center">
+        {% if controller.profile_photo %}
+        <img src="{{ controller.profile_photo.url }}" alt="" class="rounded-3 img-fluid mb-3" style="max-height:220px;object-fit:cover;width:100%;">
+        {% else %}
+        <div class="rounded-3 bg-light d-flex align-items-center justify-content-center text-secondary mx-auto mb-3" style="width:100%;height:180px;">
+          <i class="bi bi-person-video3" style="font-size:3rem;"></i>
+        </div>
+        {% endif %}
+        <p class="small text-muted text-start mb-0">Photo pour le pointage contrôleur sur site.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card cobra-panel h-100">
+      <div class="card-header">Résumé</div>
+      <div class="card-body small">
+        <p class="mb-1"><strong>{{ controller.get_full_name|default:controller.username }}</strong></p>
+        <p class="text-muted mb-2">@{{ controller.username }}</p>
+        {% if controller.phone_number %}<p class="mb-1"><i class="bi bi-telephone me-1"></i>{{ controller.phone_number }}</p>{% endif %}
+        {% if controller.email %}<p class="mb-1 text-truncate"><i class="bi bi-envelope me-1"></i>{{ controller.email }}</p>{% endif %}
+        <p class="mb-0 mt-2">
+          {% if controller.is_active %}<span class="badge bg-success">Compte actif</span>{% else %}<span class="badge bg-secondary">Compte inactif</span>{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" action="{% url 'webadmin-controller-detail' controller.pk %}{% if controllers_list_querystring %}?{{ controllers_list_querystring }}{% endif %}" novalidate>
+  {% csrf_token %}
+  <div class="card cobra-panel mb-4">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="bi bi-pencil-square me-2"></i>Modifier la fiche</span>
+      <span class="small text-muted fw-normal">Sites, coordonnées, photo</span>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+          {{ form.username }}
+          {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-6 d-flex align-items-end pb-2">
+          <div class="form-check">
+            {{ form.is_active }}
+            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+          {{ form.first_name }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+          {{ form.last_name }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+          {{ form.email }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.phone_number.id_for_label }}">{{ form.phone_number.label }}</label>
+          {{ form.phone_number }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>
+          {{ form.profile_photo }}
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="{{ form.sites.id_for_label }}">{{ form.sites.label }}</label>
+          {{ form.sites }}
+          {% if form.sites.help_text %}<div class="form-text">{{ form.sites.help_text }}</div>{% endif %}
+          {% if form.sites.errors %}<div class="text-danger small">{{ form.sites.errors }}</div>{% endif %}
+        </div>
+      </div>
+      <button type="submit" class="btn cobra-btn-accent mt-2">Enregistrer les modifications</button>
+    </div>
+  </div>
+</form>
+
+<div class="card cobra-panel">
+  <div class="card-header"><i class="bi bi-clock-history me-2"></i>Historique des passages (80 derniers)</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Date / heure</th>
+          <th>Site</th>
+          <th>Score visage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in visit_history %}
+        <tr>
+          <td>{{ v.visited_at|date:"d/m/Y H:i" }}</td>
+          <td>{{ v.site.name }}</td>
+          <td class="text-muted">{% if v.face_score %}{{ v.face_score|floatformat:2 }}{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center py-4 text-muted">Aucun passage enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
