@@ -172,10 +172,12 @@ def _vigile_month_bilan(guard_id: int, year: int, month: int) -> dict | None:
     n_with_start = reports.exclude(started_at__isnull=True).count()
     n_with_end = reports.exclude(ended_at__isnull=True).count()
     n_late = reports.filter(was_late=True).count()
+    n_absent = reports.filter(was_absent=True).count()
     n_no_end = reports.filter(started_at__isnull=False, ended_at__isnull=True).count()
     n_full_day = reports.filter(
         started_at__isnull=False,
         ended_at__isnull=False,
+        was_absent=False,
     ).count()
 
     assign_qs = ShiftAssignment.objects.filter(
@@ -195,6 +197,13 @@ def _vigile_month_bilan(guard_id: int, year: int, month: int) -> dict | None:
             (
                 "warning",
                 f"{n_late} jour(s) avec retard enregistré à la prise de service — à qualifier avec le règlement interne.",
+            )
+        )
+    if n_absent:
+        points.append(
+            (
+                "danger",
+                f"{n_absent} jour(s) compté(s) absent(s) (fin anticipée, fin non pointée ou pas de prise de service).",
             )
         )
     if n_no_end:
@@ -229,6 +238,7 @@ def _vigile_month_bilan(guard_id: int, year: int, month: int) -> dict | None:
         "n_with_end": n_with_end,
         "n_full_day": n_full_day,
         "n_late": n_late,
+        "n_absent": n_absent,
         "n_no_end": n_no_end,
         "n_assign": n_assign,
         "n_missed": n_missed,
@@ -542,9 +552,9 @@ def site_detail_view(request, pk):
         site=site,
         report_date__gte=date_from,
         report_date__lte=date_to,
-    ).only("guard_id", "started_at", "was_late"):
+    ).only("guard_id", "started_at", "ended_at", "was_late", "was_absent"):
         guard_ids_seen.add(r.guard_id)
-        if r.started_at is not None:
+        if r.started_at is not None and r.ended_at is not None and not r.was_absent:
             attendance_by_guard[r.guard_id]["pointes"] += 1
         if r.was_late:
             attendance_by_guard[r.guard_id]["retards"] += 1
@@ -1150,6 +1160,7 @@ def export_reports_csv_view(request):
             "debut",
             "fin",
             "retard",
+            "absent",
             "notes",
         ]
     )
@@ -1163,6 +1174,7 @@ def export_reports_csv_view(request):
                 r.started_at.isoformat() if r.started_at else "",
                 r.ended_at.isoformat() if r.ended_at else "",
                 "oui" if r.was_late else "non",
+                "oui" if r.was_absent else "non",
                 (r.notes or "").replace("\n", " ").replace("\r", " ")[:500],
             ]
         )
@@ -1216,9 +1228,17 @@ def pointages_view(request):
     month_reports = AttendanceReport.objects.filter(
         report_date__range=(month_start, month_end),
         started_at__isnull=False,
+        ended_at__isnull=False,
+        was_absent=False,
     ).only("guard_id", "report_date")
     for report in month_reports:
         present_days_by_guard[report.guard_id].add(report.report_date)
+
+    month_reports_by_guard_date: dict[tuple[int, date], AttendanceReport] = {}
+    for report in AttendanceReport.objects.filter(
+        report_date__range=(month_start, month_end),
+    ).only("guard_id", "report_date", "started_at", "ended_at", "was_absent"):
+        month_reports_by_guard_date[(report.guard_id, report.report_date)] = report
 
     paginator = Paginator(vigiles_qs, 24)
     page_obj = paginator.get_page(page_raw)
@@ -1248,8 +1268,19 @@ def pointages_view(request):
         present_days = present_days_by_guard.get(selected_guard.id, set())
         for day in range(1, days_in_month + 1):
             d = date(month_start.year, month_start.month, day)
+            report = month_reports_by_guard_date.get((selected_guard.id, d))
             if d in present_days:
                 status = "present"
+            elif report and report.was_absent:
+                status = "absent"
+            elif (
+                d == today
+                and d in scheduled_days
+                and report
+                and report.started_at
+                and not report.ended_at
+            ):
+                status = "in_progress"
             elif d in scheduled_days:
                 status = "absent"
             else:

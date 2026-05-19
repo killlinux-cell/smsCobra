@@ -276,7 +276,7 @@
         {% for report in reports %}
         <li class="list-group-item small">
           <strong>{{ report.report_date|date:"d/m/Y" }}</strong> — {{ report.site.name }} — {{ report.guard.display_name }}
-          {% if report.was_late %}<span class="badge bg-warning text-dark ms-1">Retard</span>{% else %}<span class="badge bg-success ms-1">À l'heure</span>{% endif %}
+          {% if report.was_absent %}<span class="badge bg-danger ms-1">Absent</span>{% elif report.was_late %}<span class="badge bg-warning text-dark ms-1">Retard</span>{% else %}<span class="badge bg-success ms-1">Présent</span>{% endif %}
         </li>
         {% empty %}
         <li class="list-group-item text-muted text-center py-4">Aucun rapport pour le moment.</li>

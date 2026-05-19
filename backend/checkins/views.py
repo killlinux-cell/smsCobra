@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
 import secrets
-from zoneinfo import ZoneInfo
 from django.conf import settings
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -11,11 +10,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
 from alerts.models import LateAlert
+from reports.attendance import is_early_end
 from reports.models import AttendanceReport
 from shifts.models import ShiftAssignment
 from .late_utils import is_start_late
 from . import face_verify
 from .models import BiometricVerification, Checkin
+from .window import validate_end_window, validate_start_window
 from .serializers import CheckinSerializer
 
 
@@ -36,27 +37,6 @@ def _distance_meters(lat1: Decimal, lon1: Decimal, lat2: Decimal, lon2: Decimal)
     # Évite un ValueError si le flottant dépasse légèrement 1 à cause des arrondis.
     a = min(1.0, max(0.0, a))
     return 2 * r * asin(sqrt(a))
-
-
-def _site_tz(site):
-    tz_name = (getattr(site, "timezone", None) or "").strip()
-    if not tz_name:
-        return timezone.get_current_timezone()
-    try:
-        return ZoneInfo(tz_name)
-    except Exception:
-        return timezone.get_current_timezone()
-
-
-def _assignment_window(assignment):
-    """Fenêtre réelle du créneau (gère les postes de nuit qui finissent le lendemain)."""
-    tz = _site_tz(assignment.site)
-    start_at = datetime.combine(assignment.shift_date, assignment.start_time, tzinfo=tz)
-    end_day = assignment.shift_date
-    if assignment.end_time <= assignment.start_time:
-        end_day = assignment.shift_date + timedelta(days=1)
-    end_at = datetime.combine(end_day, assignment.end_time, tzinfo=tz)
-    return start_at, end_at, tz
 
 
 class CheckinBaseView(APIView):
@@ -117,19 +97,24 @@ class CheckinBaseView(APIView):
         ).first()
         if not assignment:
             return Response({"detail": "Affectation invalide."}, status=status.HTTP_400_BAD_REQUEST)
+        now = timezone.now()
         if self.checkin_type == Checkin.Type.START:
-            start_at, end_at, site_tz = _assignment_window(assignment)
-            now_local = timezone.now().astimezone(site_tz)
-            if now_local < start_at or now_local > end_at:
+            ok, message = validate_start_window(assignment, now=now)
+            if not ok:
+                return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
+        elif self.checkin_type == Checkin.Type.END:
+            if not Checkin.objects.filter(assignment=assignment, type=Checkin.Type.START).exists():
                 return Response(
                     {
                         "detail": (
-                            "Prise de service hors créneau autorisé pour cette affectation "
-                            f"({start_at.strftime('%d/%m/%Y %H:%M')} - {end_at.strftime('%d/%m/%Y %H:%M')})."
+                            "La prise de service doit etre effectuee avant la fin de service."
                         )
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            ok, message = validate_end_window(assignment, now=now)
+            if not ok:
+                return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
         verification, rejection = self._validate_verification_token(request, assignment)
         if rejection is not None:
             return rejection
@@ -189,10 +174,12 @@ class CheckinBaseView(APIView):
         if self.checkin_type == Checkin.Type.START:
             report.started_at = checkin.timestamp
             report.was_late = is_start_late(checkin.timestamp, assignment)
-            report.save(update_fields=["started_at", "was_late"])
+            report.was_absent = False
+            report.save(update_fields=["started_at", "was_late", "was_absent"])
         elif self.checkin_type == Checkin.Type.END:
             report.ended_at = checkin.timestamp
-            report.save(update_fields=["ended_at"])
+            report.was_absent = is_early_end(checkin.timestamp, assignment)
+            report.save(update_fields=["ended_at", "was_absent"])
         payload = dict(CheckinSerializer(checkin).data)
         payload["geofence_radius_meters"] = site.geofence_radius_meters
         payload["geofence_gps_margin_meters"] = site.geofence_gps_margin_meters
@@ -330,10 +317,20 @@ class BiometricChallengeView(APIView):
                 {"checkin_type": "Type de pointage invalide."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        assignment = ShiftAssignment.objects.filter(id=aid, guard=request.user).first()
+        assignment = ShiftAssignment.objects.select_related("site").filter(
+            id=aid, guard=request.user
+        ).first()
         if not assignment:
             return Response({"detail": "Affectation invalide."}, status=status.HTTP_400_BAD_REQUEST)
         now = timezone.now()
+        if checkin_type == Checkin.Type.START:
+            ok, message = validate_start_window(assignment, now=now)
+            if not ok:
+                return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
+        elif checkin_type == Checkin.Type.END:
+            ok, message = validate_end_window(assignment, now=now)
+            if not ok:
+                return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
         challenge_id = secrets.token_hex(16)
         nonce = secrets.token_hex(16)
         verification = BiometricVerification.objects.create(

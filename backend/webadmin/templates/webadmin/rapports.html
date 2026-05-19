@@ -73,6 +73,12 @@
       </div>
       <div class="col-sm-6 col-lg-3">
         <div class="rounded-3 bg-light p-3 h-100">
+          <div class="text-secondary small">Jours absents (pointage)</div>
+          <div class="fs-4 fw-bold {% if bilan.n_absent %}text-danger{% endif %}">{{ bilan.n_absent }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="rounded-3 bg-light p-3 h-100">
           <div class="text-secondary small">Retards (prise de service)</div>
           <div class="fs-4 fw-bold {% if bilan.n_late %}text-warning{% endif %}">{{ bilan.n_late }}</div>
         </div>
@@ -191,6 +197,7 @@
           <th>Début</th>
           <th>Fin</th>
           <th>Retard</th>
+          <th>Absent</th>
         </tr>
       </thead>
       <tbody>
@@ -208,9 +215,16 @@
             <span class="badge bg-success">Non</span>
             {% endif %}
           </td>
+          <td>
+            {% if report.was_absent %}
+            <span class="badge bg-danger">Oui</span>
+            {% else %}
+            <span class="badge bg-success">Non</span>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
+        <tr><td colspan="7" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
         {% endfor %}
       </tbody>
     </table>

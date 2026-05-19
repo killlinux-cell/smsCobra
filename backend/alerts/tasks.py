@@ -5,6 +5,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from checkins.models import Checkin
+from reports.attendance import refresh_attendance_report
 from shifts.models import ShiftAssignment
 from shifts.services import ensure_assignments_for_dates
 
@@ -130,6 +131,7 @@ def detect_missed_shift_task():
             alert.message,
             {"alert_id": str(alert.id), "site": assignment.site.name, "type": "fin_sans_pointage"},
         )
+        refresh_attendance_report(assignment, now=now)
 
     # Absence : créneau terminé, aucune prise de service (y compris après dépêche non honorée).
     for assignment in (
@@ -169,3 +171,14 @@ def detect_missed_shift_task():
             {"alert_id": str(alert.id), "site": assignment.site.name, "type": "absence"},
         )
         ShiftAssignment.objects.filter(pk=assignment.pk).update(status=ShiftAssignment.Status.MISSED)
+        refresh_attendance_report(assignment, now=now)
+
+    for assignment in (
+        ShiftAssignment.objects.filter(shift_date=today)
+        .select_related("site", "guard")
+        .iterator()
+    ):
+        from reports.attendance import _shift_is_over
+
+        if _shift_is_over(assignment, now):
+            refresh_attendance_report(assignment, now=now)

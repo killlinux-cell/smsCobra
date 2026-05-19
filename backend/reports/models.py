@@ -10,6 +10,13 @@ class AttendanceReport(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     was_late = models.BooleanField(default=False)
+    was_absent = models.BooleanField(
+        default=False,
+        help_text=(
+            "Journée comptée absente : pas de prise de service, fin non pointée "
+            "après le créneau, ou fin avant l'heure prévue."
+        ),
+    )
     notes = models.TextField(blank=True)
 
     class Meta:

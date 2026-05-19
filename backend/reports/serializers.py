@@ -19,5 +19,6 @@ class AttendanceReportSerializer(serializers.ModelSerializer):
             "started_at",
             "ended_at",
             "was_late",
+            "was_absent",
             "notes",
         ]

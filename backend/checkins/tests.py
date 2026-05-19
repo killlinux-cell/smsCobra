@@ -230,6 +230,7 @@ class CheckinFlowTests(TestCase):
         )
         self.assertEqual(r.status_code, 201)
 
+    @override_settings(BIOMETRIC_ENFORCEMENT_MODE="observe")
     def test_start_rejected_when_before_assignment_window(self):
         now_local = timezone.localtime()
         start_dt = now_local + timedelta(hours=2)
@@ -246,7 +247,6 @@ class CheckinFlowTests(TestCase):
                 "latitude": "5.348",
                 "longitude": "-4.024",
                 "photo": _selfie_upload(),
-                "verification_token": self._issue_verification_token("start"),
             },
             format="multipart",
         )
@@ -294,6 +294,10 @@ class IsStartLateTests(TestCase):
 
 
 class HandoverCheckinTests(TestCase):
+    """Passation jour (6h-18h) -> nuit (18h-6h) : fin bloquée sans START du relève."""
+
+    shift_day = date(2026, 5, 19)
+
     def setUp(self):
         self._face_patcher = patch(
             "checkins.face_verify.verify_selfie_against_profile",
@@ -307,25 +311,26 @@ class HandoverCheckinTests(TestCase):
         self.site = Site.objects.create(
             name="Site B",
             address="Abidjan",
+            timezone="Africa/Abidjan",
             expected_start_time=time(6, 0),
             expected_end_time=time(19, 0),
             latitude=5.348,
             longitude=-4.024,
         )
-        self.incoming = ShiftAssignment.objects.create(
+        self.night_shift = ShiftAssignment.objects.create(
             guard=self.guard_b,
             site=self.site,
-            shift_date=date.today(),
-            start_time=time(6, 30),
-            end_time=time(18, 30),
+            shift_date=self.shift_day,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
         )
-        self.outgoing = ShiftAssignment.objects.create(
+        self.day_shift = ShiftAssignment.objects.create(
             guard=self.guard_a,
             site=self.site,
-            shift_date=date.today(),
-            start_time=time(18, 0),
-            end_time=time(6, 30),
-            relieved_by=self.incoming,
+            shift_date=self.shift_day,
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            relieved_by=self.night_shift,
         )
         self.client_a = APIClient()
         self.client_a.force_authenticate(self.guard_a)
@@ -356,49 +361,110 @@ class HandoverCheckinTests(TestCase):
         self.assertEqual(verify.status_code, 200)
         return verify.data["verification_token"]
 
-    def test_end_blocked_until_relief_start(self):
-        r = self.client_a.post(
-            "/api/v1/checkins/end",
-            {
-                "assignment": str(self.outgoing.id),
-                "latitude": "5.348",
-                "longitude": "-4.024",
-                "photo": _selfie_upload(),
-                "verification_token": self._issue_verification_token(self.client_a, self.outgoing.id, "end"),
-            },
-            format="multipart",
-        )
-        self.assertEqual(r.status_code, 400)
-
-    def test_end_allowed_after_relief_start(self):
-        fake_now = datetime.combine(
-            self.incoming.shift_date,
-            time(6, 35),
-            tzinfo=ZoneInfo("Africa/Abidjan"),
-        )
-        with patch("checkins.views.timezone.now", return_value=fake_now):
-            self.client_b.post(
+    def _day_start_morning(self):
+        morning = datetime.combine(self.shift_day, time(6, 5), tzinfo=ZoneInfo("Africa/Abidjan"))
+        with patch("checkins.views.timezone.now", return_value=morning):
+            r = self.client_a.post(
                 "/api/v1/checkins/start",
                 {
-                    "assignment": str(self.incoming.id),
+                    "assignment": str(self.day_shift.id),
                     "latitude": "5.348",
                     "longitude": "-4.024",
                     "photo": _selfie_upload(),
-                    "verification_token": self._issue_verification_token(self.client_b, self.incoming.id, "start"),
+                    "verification_token": self._issue_verification_token(
+                        self.client_a, self.day_shift.id, "start"
+                    ),
                 },
                 format="multipart",
             )
-        r = self.client_a.post(
-            "/api/v1/checkins/end",
-            {
-                "assignment": str(self.outgoing.id),
-                "latitude": "5.348",
-                "longitude": "-4.024",
-                "photo": _selfie_upload(),
-                "verification_token": self._issue_verification_token(self.client_a, self.outgoing.id, "end"),
-            },
-            format="multipart",
-        )
+        self.assertEqual(r.status_code, 201)
+
+    def test_end_rejected_without_start(self):
+        evening = datetime.combine(self.shift_day, time(18, 10), tzinfo=ZoneInfo("Africa/Abidjan"))
+        with patch("checkins.views.timezone.now", return_value=evening):
+            r = self.client_a.post(
+                "/api/v1/checkins/end",
+                {
+                    "assignment": str(self.day_shift.id),
+                    "latitude": "5.348",
+                    "longitude": "-4.024",
+                    "photo": _selfie_upload(),
+                    "verification_token": self._issue_verification_token(
+                        self.client_a, self.day_shift.id, "end"
+                    ),
+                },
+                format="multipart",
+            )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("prise de service", r.data.get("detail", "").lower())
+
+    def test_end_blocked_before_shift_end_even_with_start(self):
+        self._day_start_morning()
+        mid_day = datetime.combine(self.shift_day, time(10, 0), tzinfo=ZoneInfo("Africa/Abidjan"))
+        with patch("checkins.views.timezone.now", return_value=mid_day):
+            ch = self.client_a.post(
+                "/api/v1/checkins/biometric/challenge",
+                {
+                    "assignment_id": self.day_shift.id,
+                    "checkin_type": "end",
+                    "device_id": "handover_device",
+                },
+                format="json",
+            )
+        self.assertEqual(ch.status_code, 400)
+        self.assertIn("trop tôt", ch.data.get("detail", ""))
+
+    def test_end_blocked_until_relief_start(self):
+        self._day_start_morning()
+        evening = datetime.combine(self.shift_day, time(18, 5), tzinfo=ZoneInfo("Africa/Abidjan"))
+        with patch("checkins.views.timezone.now", return_value=evening):
+            r = self.client_a.post(
+                "/api/v1/checkins/end",
+                {
+                    "assignment": str(self.day_shift.id),
+                    "latitude": "5.348",
+                    "longitude": "-4.024",
+                    "photo": _selfie_upload(),
+                    "verification_token": self._issue_verification_token(
+                        self.client_a, self.day_shift.id, "end"
+                    ),
+                },
+                format="multipart",
+            )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("releve", r.data.get("detail", ""))
+
+    def test_end_allowed_after_relief_start(self):
+        self._day_start_morning()
+        evening = datetime.combine(self.shift_day, time(18, 5), tzinfo=ZoneInfo("Africa/Abidjan"))
+        with patch("checkins.views.timezone.now", return_value=evening):
+            self.client_b.post(
+                "/api/v1/checkins/start",
+                {
+                    "assignment": str(self.night_shift.id),
+                    "latitude": "5.348",
+                    "longitude": "-4.024",
+                    "photo": _selfie_upload(),
+                    "verification_token": self._issue_verification_token(
+                        self.client_b, self.night_shift.id, "start"
+                    ),
+                },
+                format="multipart",
+            )
+        with patch("checkins.views.timezone.now", return_value=evening):
+            r = self.client_a.post(
+                "/api/v1/checkins/end",
+                {
+                    "assignment": str(self.day_shift.id),
+                    "latitude": "5.348",
+                    "longitude": "-4.024",
+                    "photo": _selfie_upload(),
+                    "verification_token": self._issue_verification_token(
+                        self.client_a, self.day_shift.id, "end"
+                    ),
+                },
+                format="multipart",
+            )
         self.assertEqual(r.status_code, 201)
 
 
@@ -415,12 +481,15 @@ class FaceBiometricVerifyRejectTests(TestCase):
             latitude=5.348,
             longitude=-4.024,
         )
+        now_local = timezone.localtime()
+        start_dt = now_local - timedelta(hours=1)
+        end_dt = now_local + timedelta(hours=8)
         self.assignment = ShiftAssignment.objects.create(
             guard=self.user,
             site=self.site,
-            shift_date=date.today(),
-            start_time=time(8, 0),
-            end_time=time(17, 0),
+            shift_date=start_dt.date(),
+            start_time=start_dt.time().replace(second=0, microsecond=0),
+            end_time=end_dt.time().replace(second=0, microsecond=0),
         )
         self.user.profile_photo = _profile_upload()
         self.user.save(update_fields=["profile_photo"])
