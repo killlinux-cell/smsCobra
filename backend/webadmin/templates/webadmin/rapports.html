@@ -131,11 +131,11 @@
 <div class="card cobra-panel mb-4">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <span><i class="bi bi-journal-text me-2"></i>Journal d'activité</span>
-    <span class="small text-muted d-none d-md-inline">Sites, personnel, affectations, dépêches, postes fixes</span>
+    <span class="small text-muted d-none d-md-inline">Sites, vigiles, contrôleurs, passages, affectations, remplacements</span>
   </div>
   {% if filter_site %}
   <div class="small text-muted border-bottom px-3 py-2 mb-0 bg-light">
-    <i class="bi bi-funnel me-1"></i>Événements filtrés sur le site sélectionné (les « nouveaux vigiles » sans site sont masqués).
+    <i class="bi bi-funnel me-1"></i>Événements filtrés sur le site sélectionné (nouveaux vigiles exclus ; contrôleurs si site autorisé).
   </div>
   {% endif %}
   <div class="table-responsive">
@@ -160,10 +160,16 @@
             <span class="badge text-bg-primary text-wrap text-start"><i class="bi bi-building-add me-1"></i>{{ e.title }}</span>
             {% elif e.kind == 'vigile_created' %}
             <span class="badge text-bg-success text-wrap text-start"><i class="bi bi-person-plus me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'controleur_created' %}
+            <span class="badge text-bg-dark text-wrap text-start"><i class="bi bi-person-video3 me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'controller_visit' %}
+            <span class="badge text-bg-primary text-wrap text-start"><i class="bi bi-geo-alt-fill me-1"></i>{{ e.title }}</span>
             {% elif e.kind == 'assignment_planned' %}
             <span class="badge text-bg-info text-dark text-wrap text-start"><i class="bi bi-calendar2-check me-1"></i>{{ e.title }}</span>
             {% elif e.kind == 'guard_replaced' %}
             <span class="badge text-bg-warning text-dark text-wrap text-start"><i class="bi bi-arrow-left-right me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'fixed_post_replacement' %}
+            <span class="badge text-bg-warning text-wrap text-start"><i class="bi bi-person-fill-gear me-1"></i>{{ e.title }}</span>
             {% elif e.kind == 'fixed_post_configured' %}
             <span class="badge text-bg-secondary text-wrap text-start"><i class="bi bi-pin-map me-1"></i>{{ e.title }}</span>
             {% else %}

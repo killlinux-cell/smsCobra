@@ -92,10 +92,16 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
         return (Icons.domain_add_rounded, CobraAdminColors.indigo);
       case 'vigile_created':
         return (Icons.person_add_alt_1_rounded, const Color(0xFF0D9488));
+      case 'controleur_created':
+        return (Icons.person_search_rounded, const Color(0xFF1E293B));
+      case 'controller_visit':
+        return (Icons.pin_drop_rounded, CobraAdminColors.indigo);
       case 'assignment_planned':
         return (Icons.event_available_rounded, const Color(0xFF7C3AED));
       case 'guard_replaced':
         return (Icons.sync_alt_rounded, const Color(0xFFEA580C));
+      case 'fixed_post_replacement':
+        return (Icons.swap_horiz_rounded, const Color(0xFFD97706));
       case 'fixed_post_configured':
         return (Icons.push_pin_rounded, const Color(0xFF2563EB));
       default:

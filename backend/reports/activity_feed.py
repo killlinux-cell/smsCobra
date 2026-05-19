@@ -1,16 +1,16 @@
-"""Journal d'activité opérationnelle pour l'app admin (sites, vigiles, affectations, dépêches, postes fixes)."""
+"""Journal d'activité opérationnelle pour l'app admin (sites, vigiles, contrôleurs, affectations, dépêches, postes fixes)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from django.db.models import F
+from django.db.models import F, Prefetch
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
+from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from accounts.permissions import IsAdminRole
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
@@ -42,8 +42,12 @@ def _user_label(first: str, last: str, username: str) -> str:
 def _event_matches_site(payload: dict, site_id: int | None) -> bool:
     if site_id is None:
         return True
-    if payload.get("kind") == "vigile_created":
+    kind = payload.get("kind")
+    if kind == "vigile_created":
         return False
+    if kind == "controleur_created":
+        site_ids = payload.get("site_ids") or []
+        return int(site_id) in {int(x) for x in site_ids}
     sid = payload.get("site_id")
     return sid is not None and int(sid) == int(site_id)
 
@@ -52,8 +56,9 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
     """Fusionne plusieurs sources et renvoie une liste triée par date décroissante.
 
     Si ``site_id`` est renseigné, ne garde que les événements liés à ce site
-    (nouveau site, affectations, remplacements, postes fixes). Les entrées
-    « nouveau vigile » sont exclues de ce filtre.
+    (nouveau site, affectations, remplacements, postes fixes, passages contrôleurs).
+    Les entrées « nouveau vigile » sans site sont exclues ; les « nouveaux contrôleurs »
+    apparaissent si au moins un de leurs sites autorisés correspond au filtre.
     """
     limit = max(10, min(int(limit or 50), 200))
     per_bucket = min(120, max(limit * 3, limit))
@@ -94,6 +99,66 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "title": "Nouveau vigile",
                     "body": f"{user.display_name} ajouté au personnel.",
                     "user_id": user.id,
+                },
+            )
+        )
+
+    controllers_qs = (
+        User.objects.filter(role=User.Role.CONTROLEUR)
+        .prefetch_related(
+            Prefetch(
+                "controller_site_assignments",
+                queryset=ControllerSiteAssignment.objects.select_related("site"),
+            )
+        )
+        .order_by("-date_joined")[:per_bucket]
+    )
+    for user in controllers_qs:
+        if user.date_joined is None:
+            continue
+        assignments = list(user.controller_site_assignments.all())
+        site_ids = [a.site_id for a in assignments if a.site_id]
+        site_names = [a.site.name for a in assignments if a.site_id]
+        sites_txt = ", ".join(site_names[:5]) if site_names else "aucun site assigné pour l'instant"
+        if len(site_names) > 5:
+            sites_txt += f" (+{len(site_names) - 5} autres)"
+        events.append(
+            (
+                user.date_joined,
+                {
+                    "kind": "controleur_created",
+                    "occurred_at": user.date_joined,
+                    "title": "Nouveau contrôleur",
+                    "body": f"{user.display_name} — sites autorisés : {sites_txt}.",
+                    "user_id": user.id,
+                    "site_ids": site_ids,
+                },
+            )
+        )
+
+    for visit in (
+        ControllerVisit.objects.select_related("site", "controller")
+        .order_by("-visited_at")[:per_bucket]
+    ):
+        if visit.visited_at is None:
+            continue
+        ctrl = visit.controller
+        site_name = visit.site.name if visit.site_id else "Site"
+        score_txt = ""
+        if visit.face_score is not None:
+            score_txt = f" (score facial {visit.face_score:.2f})"
+        events.append(
+            (
+                visit.visited_at,
+                {
+                    "kind": "controller_visit",
+                    "occurred_at": visit.visited_at,
+                    "title": "Passage contrôleur",
+                    "body": f"{ctrl.display_name} sur « {site_name} »{score_txt}.",
+                    "site_id": visit.site_id,
+                    "site_name": site_name,
+                    "controller_id": ctrl.id,
+                    "visit_id": visit.id,
                 },
             )
         )
@@ -168,7 +233,7 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                 {
                     "kind": "guard_replaced",
                     "occurred_at": a.updated_at,
-                    "title": "Remplacement de vigile",
+                    "title": "Dépêche / remplacement vigile",
                     "body": (
                         f"Sur « {site_name} », le {_fmt_date(a.shift_date)} "
                         f"({_fmt_time(a.start_time)} – {_fmt_time(a.end_time)}) : "
@@ -202,6 +267,40 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "occurred_at": fp.created_at,
                     "title": "Poste fixe (jour / nuit)",
                     "body": f"« {site_name} » — {st_label}. Titulaire : {tit}.{extra}",
+                    "site_id": fp.site_id,
+                    "site_name": site_name,
+                    "fixed_post_id": fp.id,
+                },
+            )
+        )
+
+    for fp in (
+        FixedPost.objects.filter(
+            replacement_active=True,
+            replacement_guard_id__isnull=False,
+        )
+        .select_related("site", "titular_guard", "replacement_guard")
+        .order_by("-updated_at")[:per_bucket]
+    ):
+        if fp.updated_at is None or fp.created_at is None:
+            continue
+        if fp.updated_at <= fp.created_at + timedelta(seconds=10):
+            continue
+        st_label = fp.get_shift_type_display()
+        site_name = fp.site.name if fp.site_id else "Site"
+        tit = fp.titular_guard.display_name if fp.titular_guard_id else "Titulaire"
+        rep = fp.replacement_guard.display_name if fp.replacement_guard_id else "Remplaçant"
+        events.append(
+            (
+                fp.updated_at,
+                {
+                    "kind": "fixed_post_replacement",
+                    "occurred_at": fp.updated_at,
+                    "title": "Remplaçant activé (poste fixe)",
+                    "body": (
+                        f"« {site_name} » — {st_label} : {tit} remplacé par {rep} "
+                        f"(remplaçant en poste)."
+                    ),
                     "site_id": fp.site_id,
                     "site_name": site_name,
                     "fixed_post_id": fp.id,
