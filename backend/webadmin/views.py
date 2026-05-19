@@ -696,6 +696,22 @@ def _parse_presence_date(raw: str):
         return today
 
 
+def _latest_controller_visits_by_id() -> dict[int, ControllerVisit]:
+    """Dernier passage par contrôleur (objet avec site), en une requête ciblée."""
+    pairs = list(
+        ControllerVisit.objects.values("controller_id").annotate(last_at=Max("visited_at"))
+    )
+    if not pairs:
+        return {}
+    q = Q()
+    for row in pairs:
+        q |= Q(controller_id=row["controller_id"], visited_at=row["last_at"])
+    return {
+        v.controller_id: v
+        for v in ControllerVisit.objects.filter(q).select_related("site")
+    }
+
+
 @admin_web_required
 def controllers_list_view(request):
     presence_date = _parse_presence_date(request.GET.get("jour", ""))
@@ -728,30 +744,33 @@ def controllers_list_view(request):
         .values("controller_id")
         .annotate(n=Count("id"))
     }
-    last_visit_by_controller = {
-        row["controller_id"]: row["last"]
-        for row in ControllerVisit.objects.values("controller_id").annotate(
-            last=Max("visited_at")
-        )
-    }
+    last_visit_by_controller = _latest_controller_visits_by_id()
 
     visits_by_controller = defaultdict(list)
     for visit in (
-        ControllerVisit.objects.select_related("site", "controller")
-        .order_by("-visited_at")[:300]
+        ControllerVisit.objects.select_related("site")
+        .order_by("-visited_at")[:400]
     ):
         bucket = visits_by_controller[visit.controller_id]
-        if len(bucket) < 5:
+        if len(bucket) < 4:
             bucket.append(visit)
 
     controller_rows = []
+    present_count = 0
     for c in controllers:
-        last_at = last_visit_by_controller.get(c.id)
+        last_visit = last_visit_by_controller.get(c.id)
+        last_at = last_visit.visited_at if last_visit else None
         visits_day = visits_on_day.get(c.id, 0)
+        if visits_day > 0:
+            present_count += 1
+        recent = visits_by_controller.get(c.id, [])
+        extra_recent_count = max(0, len(recent) - 1) if recent else 0
         controller_rows.append(
             {
                 "controller": c,
-                "recent_visits": visits_by_controller.get(c.id, []),
+                "last_visit": last_visit,
+                "recent_visits": recent,
+                "extra_recent_count": extra_recent_count,
                 "visits_on_presence_date": visits_day,
                 "present_on_date": visits_day > 0,
                 "last_visit_at": last_at,
@@ -765,6 +784,8 @@ def controllers_list_view(request):
             "page_title": "Contrôleurs",
             "nav_active": "controllers",
             "controller_rows": controller_rows,
+            "controllers_total": len(controller_rows),
+            "controllers_present": present_count,
             "form": form,
             "search_q": search_q,
             "presence_date": presence_date,

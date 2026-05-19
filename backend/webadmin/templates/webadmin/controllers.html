@@ -1,10 +1,16 @@
 {% extends "webadmin/base.html" %}
 {% block content %}
 <div class="row g-4">
-  <div class="col-xl-7">
+  <div class="col-xl-8">
     <div class="card cobra-panel">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <span>Liste des contrôleurs</span>
+        <div>
+          <span class="d-block fw-semibold">Liste des contrôleurs</span>
+          <div class="controller-stats mt-2">
+            <span class="controller-stat-pill"><i class="bi bi-people"></i>{{ controllers_total }} contrôleur{% if controllers_total > 1 %}s{% endif %}</span>
+            <span class="controller-stat-pill controller-stat-pill--ok"><i class="bi bi-check-circle"></i>{{ controllers_present }} présent{% if controllers_present > 1 %}s{% endif %} le {{ presence_date|date:"d/m/Y" }}</span>
+          </div>
+        </div>
         <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-0">
           {% if search_q %}
           <input type="hidden" name="q" value="{{ search_q }}">
@@ -44,9 +50,9 @@
             <tr>
               <th>Contrôleur</th>
               <th>Sites autorisés</th>
-              <th>Présence {{ presence_date|date:"d/m/Y" }}</th>
-              <th>Derniers passages</th>
-              <th></th>
+              <th class="controller-presence-cell">Présence {{ presence_date|date:"d/m/Y" }}</th>
+              <th>Dernier passage</th>
+              <th class="text-end" style="width:7rem;"></th>
             </tr>
           </thead>
           <tbody>
@@ -54,48 +60,97 @@
             {% with c=row.controller %}
             <tr class="{% if row.present_on_date %}table-success table-success-subtle{% elif not c.is_active %}table-secondary table-opacity-50{% endif %}">
               <td>
-                <div class="fw-semibold">{{ c.get_full_name|default:c.username }}</div>
-                <div class="small text-muted">{{ c.username }}{% if c.phone_number %} · {{ c.phone_number }}{% endif %}</div>
-                {% if not c.is_active %}<span class="badge bg-secondary mt-1">Inactif</span>{% endif %}
-              </td>
-              <td class="small">
-                {% with ass=c.controller_site_assignments.all %}
-                  {% if ass %}
-                    {% for a in ass %}
-                      <span class="badge bg-light text-dark border">{{ a.site.name }}</span>
-                    {% endfor %}
+                <div class="d-flex align-items-center gap-2">
+                  {% if c.profile_photo %}
+                  <img src="{{ c.profile_photo.url }}" alt="" class="rounded-circle flex-shrink-0" width="36" height="36" style="object-fit:cover;">
                   {% else %}
-                    <span class="text-muted">Aucun site</span>
+                  <span class="rounded-circle bg-light border d-flex align-items-center justify-content-center flex-shrink-0 text-secondary" style="width:36px;height:36px;">
+                    <i class="bi bi-person-badge"></i>
+                  </span>
                   {% endif %}
-                {% endwith %}
+                  <div class="min-w-0">
+                    <div class="fw-semibold text-truncate">{{ c.get_full_name|default:c.username }}</div>
+                    <div class="small text-muted">{{ c.username }}{% if c.phone_number %} · {{ c.phone_number }}{% endif %}</div>
+                    {% if not c.is_active %}<span class="badge bg-secondary mt-1">Inactif</span>{% endif %}
+                  </div>
+                </div>
               </td>
-              <td class="small">
+              <td>
+                <div class="controller-sites-wrap small">
+                  {% with ass=c.controller_site_assignments.all %}
+                    {% if ass %}
+                      {% for a in ass %}
+                        <span class="badge bg-light text-dark border">{{ a.site.name }}</span>
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-muted">Aucun site</span>
+                    {% endif %}
+                  {% endwith %}
+                </div>
+              </td>
+              <td class="controller-presence-cell small">
                 {% if row.present_on_date %}
                 <span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Présent</span>
-                <div class="text-muted d-block mt-1">{{ row.visits_on_presence_date }} passage{% if row.visits_on_presence_date > 1 %}s{% endif %}</div>
+                <div class="text-muted mt-1" style="font-size:0.8rem;">{{ row.visits_on_presence_date }} passage{% if row.visits_on_presence_date > 1 %}s{% endif %} ce jour</div>
                 {% else %}
                 <span class="badge bg-warning text-dark"><i class="bi bi-x-lg me-1"></i>Absent</span>
                 {% endif %}
-                {% if row.last_visit_at %}
-                <div class="text-muted mt-1" style="font-size:0.8rem;">Dernier : {{ row.last_visit_at|date:"d/m/Y H:i" }}</div>
-                {% else %}
-                <div class="text-muted mt-1" style="font-size:0.8rem;">Jamais pointé</div>
-                {% endif %}
               </td>
-              <td class="small">
-                {% with visits=row.recent_visits %}
-                  {% if visits %}
-                    {% for v in visits %}
-                      <div><span class="text-muted">{{ v.visited_at|date:"d/m H:i" }}</span> — {{ v.site.name }}</div>
-                    {% endfor %}
-                  {% else %}
-                    <span class="text-muted">—</span>
+              <td>
+                <div class="controller-activity">
+                  {% if row.last_visit %}
+                  <div class="controller-last-visit" title="Dernier passage enregistré">
+                    <span class="controller-last-visit__pin"><i class="bi bi-geo-alt-fill"></i></span>
+                    <div class="min-w-0">
+                      <div class="controller-last-visit__site">{{ row.last_visit.site.name }}</div>
+                      <div class="controller-last-visit__when">{{ row.last_visit.visited_at|date:"d/m/Y · H:i" }}</div>
+                    </div>
+                  </div>
+                  {% if row.recent_visits %}
+                  <div class="dropdown">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary controller-history-btn dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      title="Voir les passages récents"
+                    >
+                      {% if row.extra_recent_count %}+{{ row.extra_recent_count }}{% else %}<i class="bi bi-clock-history"></i>{% endif %}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end controller-visit-menu">
+                      <li class="controller-visit-menu__title">Passages récents</li>
+                      {% for v in row.recent_visits %}
+                      <li>
+                        <div class="controller-visit-timeline-item">
+                          <span class="controller-visit-timeline-item__dot{% if not forloop.first %} controller-visit-timeline-item__dot--muted{% endif %}"></span>
+                          <div>
+                            <div class="controller-visit-timeline-item__time">{{ v.visited_at|date:"d/m/Y · H:i" }}</div>
+                            <div class="controller-visit-timeline-item__site">{{ v.site.name }}</div>
+                          </div>
+                        </div>
+                      </li>
+                      {% endfor %}
+                      <li><hr class="dropdown-divider my-1"></li>
+                      <li>
+                        <a
+                          class="dropdown-item small fw-semibold text-center py-2"
+                          href="{% url 'webadmin-controller-detail' c.pk %}?jour={{ presence_date|date:'Y-m-d' }}{% if search_q %}&amp;q={{ search_q|urlencode }}{% endif %}"
+                        >
+                          Historique complet <i class="bi bi-arrow-right-short"></i>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
                   {% endif %}
-                {% endwith %}
+                  {% else %}
+                  <span class="small text-muted"><i class="bi bi-dash-circle me-1"></i>Aucun passage</span>
+                  {% endif %}
+                </div>
               </td>
               <td class="text-end text-nowrap">
-                <a href="{% url 'webadmin-controller-detail' c.pk %}?jour={{ presence_date|date:'Y-m-d' }}{% if search_q %}&amp;q={{ search_q|urlencode }}{% endif %}" class="btn btn-sm btn-outline-primary">
-                  <i class="bi bi-pencil-square me-1"></i>Modifier
+                <a href="{% url 'webadmin-controller-detail' c.pk %}?jour={{ presence_date|date:'Y-m-d' }}{% if search_q %}&amp;q={{ search_q|urlencode }}{% endif %}" class="btn btn-sm btn-outline-primary" title="Fiche et historique">
+                  <i class="bi bi-pencil-square"></i>
+                  <span class="d-none d-xl-inline ms-1">Fiche</span>
                 </a>
               </td>
             </tr>
@@ -109,7 +164,7 @@
     </div>
   </div>
 
-  <div class="col-xl-5">
+  <div class="col-xl-4">
     <div class="card cobra-panel">
       <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Nouveau contrôleur</div>
       <div class="card-body">

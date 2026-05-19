@@ -132,28 +132,31 @@
 </form>
 
 <div class="card cobra-panel">
-  <div class="card-header"><i class="bi bi-clock-history me-2"></i>Historique des passages (80 derniers)</div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover cobra-table mb-0 align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Date / heure</th>
-          <th>Site</th>
-          <th>Score visage</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for v in visit_history %}
-        <tr>
-          <td>{{ v.visited_at|date:"d/m/Y H:i" }}</td>
-          <td>{{ v.site.name }}</td>
-          <td class="text-muted">{% if v.face_score %}{{ v.face_score|floatformat:2 }}{% else %}—{% endif %}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="3" class="text-center py-4 text-muted">Aucun passage enregistré.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-clock-history me-2"></i>Historique des passages</span>
+    <span class="small text-muted fw-normal">{{ visit_history|length }} enregistrement{% if visit_history|length > 1 %}s{% endif %} (80 max)</span>
+  </div>
+  <div class="card-body p-0">
+    {% if visit_history %}
+    <ul class="controller-detail-timeline mb-0">
+      {% for v in visit_history %}
+      <li>
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-semibold">{{ v.site.name }}</div>
+            <div class="small text-muted">{{ v.visited_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if v.face_score %}
+          <span class="badge bg-light text-dark border">Score {{ v.face_score|floatformat:2 }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-center text-muted py-5 mb-0">Aucun passage enregistré.</p>
+    {% endif %}
   </div>
 </div>
+
 {% endblock %}
