@@ -2,6 +2,11 @@
 Cobra Protection — Notifications push (Firebase Cloud Messaging)
 ================================================================================
 
+Deploiement VPS (scp, Docker, variables prod) : voir DEPLOIEMENT_INTERSERVER_VPS.md
+section « 8) Notifications push (FCM) ».
+
+================================================================================
+
 1) Console Firebase (https://console.firebase.google.com)
    - Créez un projet ou ouvrez le vôtre.
    - Ajoutez une application Android pour l’app « mobile_admin »

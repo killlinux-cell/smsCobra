@@ -125,7 +125,7 @@ Exemple de variables Django prod : `backend/.env.production.example` → copier 
    `cp infra/.env.prod.example infra/.env.prod` puis editer `POSTGRES_PASSWORD`.
 2. Creer `backend/.env.production` :  
    `cp backend/.env.production.example backend/.env.production` puis remplir `DJANGO_SECRET_KEY`, aligner `DB_PASSWORD` avec `POSTGRES_PASSWORD`. Pour tout a la racine, garder `smsapp24.com` et `www.smsapp24.com` dans `DJANGO_ALLOWED_HOSTS`, `CORS_*` et `CSRF_*`.
-3. (Optionnel push) Deposer `backend/secrets/firebase-service-account.json` sur le serveur si tu utilises FCM.
+3. (Notifications push) Copier le JSON Firebase sur le VPS — voir **section 8** (les fichiers dans `backend/secrets/` ne sont pas dans Git).
 4. Lancer les conteneurs depuis la racine du clone :
 
 ```bash
@@ -226,7 +226,150 @@ volumes:
 
 Si le depot ne contient pas encore `infra/.env.prod.example`, cree `infra/.env.prod` a la main avec une seule ligne : `POSTGRES_PASSWORD=...` (meme valeur que `DB_PASSWORD` dans `backend/.env.production`).
 
-## 8) Initialisation application
+## 8) Notifications push (FCM) — alertes sur l'app Admin
+
+Les fichiers `backend/secrets/*.json` sont **ignores par Git** : un `git pull` sur le VPS **ne les copie pas**. Il faut les deposer **a la main** et configurer **le serveur** + **l'APK Android**.
+
+Guide complementaire a la racine du depot : `FCM_SETUP.txt`.
+
+### 8.1) Deux fichiers distincts
+
+| Fichier | Role | Ou |
+|--------|------|-----|
+| Compte de service Firebase (`firebase-service-account.json` ou `cobra-security-...json`) | **Serveur** Django envoie les push | VPS : `/opt/cobra/backend/secrets/` |
+| `google-services.json` | **App Android** recoit les push | PC : `mobile_admin/android/app/` (puis rebuild APK) |
+
+Un **seul** JSON compte de service suffit sur le VPS (renomme en `firebase-service-account.json` si besoin). Les deux noms locaux (`firebase-service-account.json` et `cobra-security-fabff-...json`) designent en general le **meme projet** : garde un seul fichier sur le serveur.
+
+Telechargement compte de service : Console Firebase → Parametres du projet → **Comptes de service** → Generer une nouvelle cle privee (JSON).
+
+### 8.2) Copier le secret sur le VPS (depuis ton PC)
+
+Sur le VPS, preparer le dossier :
+
+```bash
+ssh root@VOTRE_IP_VPS
+mkdir -p /opt/cobra/backend/secrets
+chmod 700 /opt/cobra/backend/secrets
+```
+
+Depuis **PowerShell sur Windows** (adapter utilisateur SSH et chemin) :
+
+```powershell
+scp "d:\cobra\backend\secrets\firebase-service-account.json" root@VOTRE_IP_VPS:/opt/cobra/backend/secrets/firebase-service-account.json
+```
+
+Si tu n'as que l'autre nom de fichier local :
+
+```powershell
+scp "d:\cobra\backend\secrets\cobra-security-fabff-firebase-adminsdk-fbsvc-a5d3ea80d5.json" root@VOTRE_IP_VPS:/opt/cobra/backend/secrets/firebase-service-account.json
+```
+
+Sur le VPS :
+
+```bash
+chmod 600 /opt/cobra/backend/secrets/firebase-service-account.json
+ls -la /opt/cobra/backend/secrets/
+```
+
+Le fichier `infra/docker-compose.prod.yml` monte deja `../backend/secrets` vers `/app/secrets` dans les conteneurs `api`, `celery_worker` et `celery_beat`.
+
+### 8.3) Variables dans `backend/.env.production`
+
+Ouvrir le JSON et noter `"project_id"` (ex. `cobra-security-fabff`).
+
+Dans `/opt/cobra/backend/.env.production` :
+
+```env
+FCM_CREDENTIALS_PATH=/app/secrets/firebase-service-account.json
+FCM_PROJECT_ID=cobra-security-fabff
+```
+
+(`FCM_PROJECT_ID` est optionnel pour l'envoi ; le chemin fichier est obligatoire en prod Docker.)
+
+Redemarrer les services qui envoient ou declenchent des alertes :
+
+```bash
+cd /opt/cobra
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d api celery_worker celery_beat
+```
+
+Verifier dans les logs API :
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml logs api 2>&1 | tail -50
+```
+
+Message attendu : **Firebase Admin initialise** (envoi des notifications push possible).  
+Sinon : chemin incorrect, permissions, ou JSON invalide.
+
+**Tableau de bord web** : menu **Push mobile** → bandeau **vert** = serveur pret a envoyer.
+
+### 8.4) Application mobile Admin (Android)
+
+1. Console [Firebase](https://console.firebase.google.com) → meme projet que le compte de service.
+2. Ajouter une application **Android** si besoin.
+3. **ID du package** : `com.cobrasecurity.israel` (voir `mobile_admin/android/app/build.gradle.kts`).
+4. Telecharger `google-services.json` → placer dans :
+
+   `mobile_admin/android/app/google-services.json`
+
+   (Fichier gitignore : il n'est pas sur le VPS, seulement dans l'APK compile.)
+
+5. Rebuild l'app pointee vers la prod :
+
+```powershell
+cd d:\cobra\mobile_admin
+flutter build apk --release --dart-define=API_BASE=https://smsapp24.com
+```
+
+6. Installer l'APK sur le telephone.
+
+### 8.5) Enregistrement du token sur le telephone
+
+1. Se connecter avec un compte **admin** : `super_admin`, `admin_societe` ou `superviseur` (pas un vigile).
+2. **Accepter** les notifications quand l'app le demande.
+3. Apres connexion, l'app appelle `POST /api/v1/me/fcm-token` automatiquement.
+4. Banniere attendue dans l'app : *Notifications : token enregistre*.
+
+Si le message indique *configurez Firebase (google-services.json)* → l'APK a ete compile **sans** ce fichier.
+
+**Alternative** : tableau de bord web → **Push mobile** → coller le token FCM manuellement.
+
+### 8.6) Qui recoit les push et quand
+
+Les notifications partent vers tous les comptes `super_admin`, `admin_societe`, `superviseur` qui ont un `fcm_token` renseigne en base.
+
+| Source | Exemples |
+|--------|----------|
+| **Celery** (tache periodique ~5 min) | Retard prise de service, passation en retard, absence, fin non pointee… |
+| **API / web** | Prise et fin de service vigile, depêche / remplacement |
+
+**Obligatoire** : conteneurs `celery_worker` et `celery_beat` actifs sur le VPS (deja dans `docker-compose.prod.yml`). Sans eux, pas d'alertes automatiques planifiees.
+
+### 8.7) Verification rapide
+
+- [ ] Fichier present : `/opt/cobra/backend/secrets/firebase-service-account.json`
+- [ ] `FCM_CREDENTIALS_PATH=/app/secrets/firebase-service-account.json` dans `.env.production`
+- [ ] Logs API : Firebase Admin initialise
+- [ ] Web → Push mobile : bandeau vert
+- [ ] APK rebuild avec `google-services.json` + `API_BASE=https://smsapp24.com`
+- [ ] Connexion admin sur telephone + notifications autorisees
+- [ ] Declencher une alerte test (retard, pointage, etc.)
+
+### 8.8) Alternative sans fichier sur disque (VPS)
+
+Si tu ne peux pas utiliser `scp`, tu peux coller le JSON entier dans une variable d'environnement (une ligne, selon ton hebergeur) :
+
+```env
+FCM_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+```
+
+Le backend lit `FCM_SERVICE_ACCOUNT_JSON` en priorite si le fichier n'existe pas. Moins pratique a maintenir ; le fichier dans `secrets/` reste recommande.
+
+---
+
+## 9) Initialisation application
 
 Creer le compte dashboard initial:
 
@@ -259,7 +402,7 @@ docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec 
 - Pas d’espace avant/apres les virgules (sinon risque de noms invalides selon l’encodage).
 - Apres correction : `docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --force-recreate api`.
 
-## 9) Nginx reverse proxy
+## 10) Nginx reverse proxy
 
 Creer `/etc/nginx/sites-available/cobra`:
 
@@ -302,7 +445,7 @@ sudo systemctl reload nginx
 - `curl http://127.0.0.1/` **sans** en-tete `Host:` : souvent **404** — normal, aucun bloc `server_name` ne correspond a `127.0.0.1`.
 - `curl -sI -H "Host: smsapp24.com" http://127.0.0.1/` : si les en-tetes contiennent `X-Frame-Options`, `Referrer-Policy`, etc., c’est **Django** qui repond → **Nginx proxifie bien**. Avant une mise a jour du code, un **404** sur la seule URL `/` voulait dire qu’il n’y avait pas de page racine ; le projet redirige maintenant `/` vers `/dashboard/login/` (**302**). Pour valider le service, prefere : `/api/docs/` ou `/dashboard/login/`.
 
-## 10) SSL Let's Encrypt
+## 11) SSL Let's Encrypt
 
 ```bash
 sudo certbot --nginx -d smsapp24.com -d www.smsapp24.com
@@ -317,7 +460,7 @@ Le projet supporte deja le proxy HTTPS via:
 
 **Photos vigiles (icone cassee sur `/dashboard/vigiles/`)** : les fichiers sont bien enregistres dans le volume Docker `api_media` (`/app/media/profiles/...`), mais sans route `/media/` en prod le navigateur recevait une **404**. Le code sert maintenant `/media/` aussi quand `DEBUG=False` (Nginx doit continuer a proxyfer `location /media/` vers l’API). Apres `git pull` + rebuild `api`, recharger la page ; les vigiles deja crees devraient afficher leur photo.
 
-## 11) Mises a jour applicatives
+## 12) Mises a jour applicatives
 
 Procedure standard:
 
@@ -328,7 +471,7 @@ docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d
 docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api python manage.py migrate --noinput
 ```
 
-## 12) Sauvegardes
+## 13) Sauvegardes
 
 Base PostgreSQL:
 
@@ -344,7 +487,7 @@ docker run --rm -v cobra_api_media:/data -v /opt/backup:/backup alpine sh -c "ta
 
 Planifier via cron (quotidien + retention).
 
-## 13) Observabilite et logs
+## 14) Observabilite et logs
 
 Logs services:
 
@@ -360,7 +503,7 @@ Verifier ressources VPS:
 docker stats
 ```
 
-## 14) Points de securite obligatoires
+## 15) Points de securite obligatoires
 
 - changer tous les mots de passe par defaut (`cobra/cobra` interdit en prod)
 - `DJANGO_SECRET_KEY` fort et unique
@@ -369,8 +512,9 @@ docker stats
 - limiter `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` aux vrais domaines
 - sauvegardes automatiques + test de restauration
 - mises a jour OS et Docker regulieres
+- ne jamais committer `backend/secrets/*.json` ni `google-services.json` (FCM)
 
-## 15) Check-list go-live
+## 16) Check-list go-live
 
 - [ ] DNS pointe vers le VPS
 - [ ] certif SSL actif (HTTPS OK)
@@ -380,6 +524,8 @@ docker stats
 - [ ] pointage mobile OK
 - [ ] reconnaissance faciale OK
 - [ ] taches Celery executees (alertes automatiques)
+- [ ] **FCM** : `backend/secrets/firebase-service-account.json` sur le VPS + `FCM_CREDENTIALS_PATH` (section 8)
+- [ ] **FCM** : `google-services.json` dans l'APK Admin + token enregistre apres connexion
 - [ ] sauvegarde quotidienne active
 
 ## Notes importantes sur l'etat actuel du projet
