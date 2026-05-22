@@ -1,4 +1,5 @@
 django
+gunicorn
 whitenoise
 djangorestframework
 djangorestframework-simplejwt

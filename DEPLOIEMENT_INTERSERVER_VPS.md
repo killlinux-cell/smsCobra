@@ -491,7 +491,39 @@ Planifier via cron (quotidien + retention).
 
 ## 14) Observabilite et logs
 
-Logs services:
+Le conteneur `api` demarre avec **Gunicorn** (voir `backend/docker-entrypoint.sh`). Si le site affiche **502 Bad Gateway** ou **Server Error (500)** :
+
+```bash
+cd /opt/cobra
+# Etat des conteneurs (api doit etre "Up", pas "Restarting" / "Exited")
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml ps
+
+# Dernieres lignes d'erreur Gunicorn / Django
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml logs --tail=80 api
+
+# Redemarrer uniquement l'API
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --build api
+
+# Tester depuis le VPS (remplacer le Host si besoin)
+curl -sI -H "Host: smsapp24.com" http://127.0.0.1:8000/dashboard/login/
+```
+
+**Lecture des symptomes :**
+
+| Symptome | Cause frequente | Action |
+|----------|-----------------|--------|
+| **502** / connexion refusee | Conteneur `api` arrete, Gunicorn plante au boot | `logs api`, puis `up -d --build api` |
+| **500** sur `/dashboard/` | Exception Django (souvent scan alertes ou passation jour/nuit) | `logs api`, `git pull` + rebuild (correctifs recents) |
+| **400** avec curl sur `127.0.0.1` | `DJANGO_ALLOWED_HOSTS` sans `127.0.0.1` | Normal ; tester avec `-H "Host: smsapp24.com"` |
+
+Apres `git pull`, toujours **rebuild** l'image `api` (Gunicorn + dependances) :
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --build api celery_worker celery_beat
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api python manage.py migrate --noinput
+```
+
+Logs services :
 
 ```bash
 docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml logs -f api
@@ -499,7 +531,7 @@ docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml logs 
 docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml logs -f celery_beat
 ```
 
-Verifier ressources VPS:
+Verifier ressources VPS :
 
 ```bash
 docker stats
@@ -532,6 +564,5 @@ docker stats
 
 ## Notes importantes sur l'etat actuel du projet
 
-- L'entree de conteneur backend utilise `runserver` (fonctionne, mais pour haute charge preferer Gunicorn + Nginx).
-- Le compose fourni dans le depot est oriente dev; le fichier `docker-compose.prod.yml` ci-dessus est la base recommandee pour InterServer VPS.
-- Si vous souhaitez, je peux vous preparer une version `Gunicorn + WhiteNoise` prete a l'emploi dans le code.
+- L'entree du conteneur `api` en production utilise **Gunicorn** + WhiteNoise (statiques).
+- Le compose `infra/docker-compose.yml` reste oriente dev local ; `infra/docker-compose.prod.yml` pour le VPS InterServer.

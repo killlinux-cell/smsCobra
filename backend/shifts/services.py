@@ -1,8 +1,12 @@
+import logging
 from datetime import date, time, timedelta
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .models import FixedPost, ShiftAssignment
+
+_logger = logging.getLogger(__name__)
 
 
 def _slot_for(shift_type: str):
@@ -66,9 +70,7 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
                 shift_date=day,
                 start_time=time(18, 0),
             ).first()
-            if row.relieved_by_id != (incoming.id if incoming else None):
-                row.relieved_by = incoming
-                row.save(update_fields=["relieved_by"])
+            _link_relieved_by(row, incoming)
 
         night_rows = ShiftAssignment.objects.select_related("site").filter(
             shift_date=day,
@@ -80,6 +82,21 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
                 shift_date=next_day,
                 start_time=time(6, 0),
             ).first()
-            if row.relieved_by_id != (incoming.id if incoming else None):
-                row.relieved_by = incoming
-                row.save(update_fields=["relieved_by"])
+            _link_relieved_by(row, incoming)
+
+
+def _link_relieved_by(row: ShiftAssignment, incoming: ShiftAssignment | None) -> None:
+    incoming_id = incoming.id if incoming else None
+    if row.relieved_by_id == incoming_id:
+        return
+    row.relieved_by = incoming
+    try:
+        row.save(update_fields=["relieved_by"])
+    except ValidationError:
+        _logger.warning(
+            "Passation non liee (affectation %s, relève %s) : validation refusee.",
+            row.pk,
+            incoming_id,
+            exc_info=True,
+        )
+        row.refresh_from_db(fields=["relieved_by"])

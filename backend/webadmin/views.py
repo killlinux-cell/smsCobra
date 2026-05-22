@@ -1,5 +1,6 @@
 import csv
 import calendar
+import logging
 from collections import defaultdict
 from urllib.parse import urlencode
 from datetime import date, datetime, timedelta
@@ -45,6 +46,7 @@ from .templatetags.cobra_tags import ASSIGNMENT_STATUS_FR
 
 _ALERT_SCAN_CACHE_KEY = "cobra:webadmin_alert_scan"
 _ALERT_SCAN_INTERVAL_SEC = 180
+_logger = logging.getLogger(__name__)
 
 
 def _dashboard_map_payload(assignments_qs):
@@ -127,7 +129,9 @@ def _refresh_late_alerts_if_due() -> None:
         detect_missed_shift_task()
     except Exception:
         cache.delete(_ALERT_SCAN_CACHE_KEY)
-        raise
+        _logger.exception(
+            "Echec du scan d'alertes depuis le tableau de bord (la page reste accessible)."
+        )
 
 
 def _reports_queryset(request):
