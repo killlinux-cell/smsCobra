@@ -29,6 +29,7 @@
             <tr>
               <th>Nom</th>
               <th>Adresse</th>
+              <th>Responsable</th>
               <th>Horaires</th>
               <th>Statut</th>
               <th class="text-end">Actions</th>
@@ -41,6 +42,13 @@
                 <a href="{% url 'webadmin-site-detail' s.pk %}" class="text-decoration-none">{{ s.name }}</a>
               </td>
               <td class="small text-muted">{{ s.address }}</td>
+              <td class="small">
+                {% if s.site_manager_phone %}
+                <a href="tel:{{ s.site_manager_phone }}" class="text-decoration-none">{{ s.site_manager_phone }}</a>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
               <td class="small">{{ s.expected_start_time|time:"H:i" }} – {{ s.expected_end_time|time:"H:i" }}</td>
               <td>{% if s.is_active %}<span class="badge bg-success">Actif</span>{% else %}<span class="badge bg-secondary">Inactif</span>{% endif %}</td>
               <td class="text-end">
@@ -50,7 +58,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
+            <tr><td colspan="6" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -83,4 +91,7 @@
     </div>
   </div>
 </div>
+{% endblock %}
+{% block extra_scripts %}
+{% include "webadmin/_site_tolerance_sync_script.html" %}
 {% endblock %}

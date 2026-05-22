@@ -26,11 +26,13 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _address;
+  late final TextEditingController _managerPhone;
   late final TextEditingController _lat;
   late final TextEditingController _lng;
   late final TextEditingController _radius;
   late final TextEditingController _gpsMargin;
   late final TextEditingController _lateTol;
+  late final TextEditingController _reliefLate;
   late final TextEditingController _timezone;
   bool _active = true;
   bool _saving = false;
@@ -41,6 +43,9 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     final m = widget.existing;
     _name = TextEditingController(text: m?['name']?.toString() ?? '');
     _address = TextEditingController(text: m?['address']?.toString() ?? '');
+    _managerPhone = TextEditingController(
+      text: m?['site_manager_phone']?.toString() ?? '',
+    );
     _lat = TextEditingController(text: m?['latitude']?.toString() ?? '');
     _lng = TextEditingController(text: m?['longitude']?.toString() ?? '');
     _radius = TextEditingController(
@@ -49,9 +54,9 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     _gpsMargin = TextEditingController(
       text: (m?['geofence_gps_margin_meters'] ?? 75).toString(),
     );
-    _lateTol = TextEditingController(
-      text: (m?['late_tolerance_minutes'] ?? 15).toString(),
-    );
+    final lateMin = m?['late_tolerance_minutes'] ?? m?['relief_late_alert_minutes'] ?? 15;
+    _lateTol = TextEditingController(text: lateMin.toString());
+    _reliefLate = TextEditingController(text: lateMin.toString());
     final tz = m?['timezone'];
     _timezone = TextEditingController(
       text: tz != null && tz.toString().isNotEmpty
@@ -67,11 +72,13 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
   void dispose() {
     _name.dispose();
     _address.dispose();
+    _managerPhone.dispose();
     _lat.dispose();
     _lng.dispose();
     _radius.dispose();
     _gpsMargin.dispose();
     _lateTol.dispose();
+    _reliefLate.dispose();
     _timezone.dispose();
     super.dispose();
   }
@@ -81,50 +88,85 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     return v ?? fallback;
   }
 
+  void _syncTolerancePair() {
+    _reliefLate.text = _lateTol.text;
+  }
+
+  int _toleranceMinutes() => _parseInt(_lateTol.text, 15) ?? 15;
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final lat = double.tryParse(_lat.text.trim().replaceAll(',', '.'));
-    final lng = double.tryParse(_lng.text.trim().replaceAll(',', '.'));
-    if (lat == null || lng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Latitude / longitude invalides.')),
-      );
-      return;
+    final latStr = _lat.text.trim().replaceAll(',', '.');
+    final lngStr = _lng.text.trim().replaceAll(',', '.');
+    double? lat;
+    double? lng;
+    if (latStr.isNotEmpty || lngStr.isNotEmpty) {
+      if (latStr.isEmpty || lngStr.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Renseignez la latitude et la longitude ensemble, ou laissez les deux vides.',
+            ),
+          ),
+        );
+        return;
+      }
+      lat = double.tryParse(latStr);
+      lng = double.tryParse(lngStr);
+      if (lat == null || lng == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Latitude / longitude invalides.')),
+        );
+        return;
+      }
     }
 
     setState(() => _saving = true);
     try {
       if (widget.isEdit) {
         final id = (widget.existing!['id'] as num).toInt();
-        await widget.api.updateSite(id, {
+        final body = <String, dynamic>{
           'name': _name.text.trim(),
           'address': _address.text.trim(),
-          'latitude': lat.toString(),
-          'longitude': lng.toString(),
+          'site_manager_phone': _managerPhone.text.trim(),
           'geofence_radius_meters': _parseInt(_radius.text, 250),
           'geofence_gps_margin_meters': _parseInt(_gpsMargin.text, 75),
-          'late_tolerance_minutes': _parseInt(_lateTol.text, 15),
+          'late_tolerance_minutes': _toleranceMinutes(),
+          'relief_late_alert_minutes': _toleranceMinutes(),
           'timezone': _timezone.text.trim().isEmpty
               ? 'Africa/Abidjan'
               : _timezone.text.trim(),
           'is_active': _active,
-        });
+        };
+        if (lat != null && lng != null) {
+          body['latitude'] = lat.toString();
+          body['longitude'] = lng.toString();
+        } else {
+          body['latitude'] = null;
+          body['longitude'] = null;
+        }
+        await widget.api.updateSite(id, body);
       } else {
-        await widget.api.createSite({
+        final body = <String, dynamic>{
           'name': _name.text.trim(),
           'address': _address.text.trim(),
-          'latitude': lat.toString(),
-          'longitude': lng.toString(),
+          'site_manager_phone': _managerPhone.text.trim(),
           'timezone': _timezone.text.trim().isEmpty
               ? 'Africa/Abidjan'
               : _timezone.text.trim(),
           'expected_start_time': '06:00:00',
           'expected_end_time': '18:00:00',
-          'late_tolerance_minutes': _parseInt(_lateTol.text, 15),
+          'late_tolerance_minutes': _toleranceMinutes(),
+          'relief_late_alert_minutes': _toleranceMinutes(),
           'geofence_radius_meters': _parseInt(_radius.text, 250),
           'geofence_gps_margin_meters': _parseInt(_gpsMargin.text, 75),
           'is_active': _active,
-        });
+        };
+        if (lat != null && lng != null) {
+          body['latitude'] = lat.toString();
+          body['longitude'] = lng.toString();
+        }
+        await widget.api.createSite(body);
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -174,18 +216,29 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
               style: GoogleFonts.outfit(),
             ),
             const SizedBox(height: 12),
+            TextFormField(
+              controller: _managerPhone,
+              decoration: _dec('Numéro du responsable du site *'),
+              keyboardType: TextInputType.phone,
+              validator: (v) {
+                final t = v?.trim() ?? '';
+                if (t.isEmpty) return 'Obligatoire';
+                if (t.length < 8) return 'Numéro trop court';
+                return null;
+              },
+              style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: TextFormField(
                     controller: _lat,
-                    decoration: _dec('Latitude *'),
+                    decoration: _dec('Latitude (optionnel)'),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                       signed: true,
                     ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Obligatoire' : null,
                     style: GoogleFonts.outfit(),
                   ),
                 ),
@@ -193,13 +246,11 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
                 Expanded(
                   child: TextFormField(
                     controller: _lng,
-                    decoration: _dec('Longitude *'),
+                    decoration: _dec('Longitude (optionnel)'),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                       signed: true,
                     ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Obligatoire' : null,
                     style: GoogleFonts.outfit(),
                   ),
                 ),
@@ -222,9 +273,22 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _lateTol,
-              decoration: _dec('Tolérance retard (min)'),
+              decoration: _dec('Tolérance de retard (prise de service, min)'),
               keyboardType: TextInputType.number,
+              onChanged: (_) => _syncTolerancePair(),
               style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _reliefLate,
+              readOnly: true,
+              decoration: _dec(
+                'Alerte relève non arrivée (min) — synchronisé',
+              ),
+              keyboardType: TextInputType.number,
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF64748B),
+              ),
             ),
             const SizedBox(height: 12),
             TextFormField(

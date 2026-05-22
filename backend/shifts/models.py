@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -69,9 +71,20 @@ class ShiftAssignment(models.Model):
             raise ValidationError(
                 {"relieved_by": "Le relève doit être sur le même site que ce créneau."}
             )
-        if rb.shift_date != self.shift_date:
+        same_day = rb.shift_date == self.shift_date
+        # Poste jour → relève le soir (même date). Poste nuit → relève le lendemain matin.
+        overnight_handover = (
+            self.end_time <= self.start_time
+            and rb.shift_date == self.shift_date + timedelta(days=1)
+        )
+        if not same_day and not overnight_handover:
             raise ValidationError(
-                {"relieved_by": "Le relève doit être planifié le même jour."}
+                {
+                    "relieved_by": (
+                        "Le relève doit être planifié le même jour (poste jour) "
+                        "ou le lendemain matin (poste nuit)."
+                    )
+                }
             )
         if rb.guard_id == self.guard_id:
             raise ValidationError(

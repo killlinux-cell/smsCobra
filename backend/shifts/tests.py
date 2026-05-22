@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
@@ -43,6 +43,24 @@ class PassationWindowTests(TestCase):
             shift_date=d,
             start_time=time(18, 0),
             end_time=time(6, 30),
+            relieved_by=incoming,
+        )
+
+    def test_night_shift_relief_next_morning_ok(self):
+        d = date.today()
+        incoming = ShiftAssignment.objects.create(
+            guard=self.guard_b,
+            site=self.site,
+            shift_date=d + timedelta(days=1),
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+        )
+        ShiftAssignment.objects.create(
+            guard=self.guard_a,
+            site=self.site,
+            shift_date=d,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
             relieved_by=incoming,
         )
 
@@ -92,6 +110,34 @@ class FixedPostMaterializationTests(TestCase):
         self.assertIsNotNone(a)
         self.assertEqual(a.guard_id, self.guard_a.id)
         self.assertEqual(a.status, ShiftAssignment.Status.SCHEDULED)
+
+    def test_day_and_night_fixed_posts_link_handover(self):
+        """Jour + nuit sur le même site : liaison passation sans erreur de validation."""
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.guard_a,
+            is_active=True,
+        )
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.guard_b,
+            is_active=True,
+        )
+        d = date.today()
+        ensure_assignments_for_dates([d, d + timedelta(days=1)])
+        day_row = ShiftAssignment.objects.get(
+            site=self.site, shift_date=d, start_time=time(6, 0)
+        )
+        night_row = ShiftAssignment.objects.get(
+            site=self.site, shift_date=d, start_time=time(18, 0)
+        )
+        day_next = ShiftAssignment.objects.get(
+            site=self.site, shift_date=d + timedelta(days=1), start_time=time(6, 0)
+        )
+        self.assertEqual(day_row.relieved_by_id, night_row.id)
+        self.assertEqual(night_row.relieved_by_id, day_next.id)
 
     def test_fixed_post_uses_active_replacement(self):
         FixedPost.objects.create(

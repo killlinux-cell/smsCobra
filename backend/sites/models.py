@@ -7,6 +7,13 @@ from django.utils.dateparse import parse_time
 class Site(models.Model):
     name = models.CharField(max_length=200)
     address = models.CharField(max_length=300)
+    site_manager_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="Numéro du responsable du site",
+        help_text="Téléphone du responsable sur place (contact opérationnel).",
+    )
     timezone = models.CharField(max_length=64, default="Africa/Abidjan")
     expected_start_time = models.TimeField()
     expected_end_time = models.TimeField()
@@ -25,8 +32,19 @@ class Site(models.Model):
         default=45,
         help_text="Après l'heure de prise de service du relève, délai avant alerte admin (minutes).",
     )
-    latitude = models.DecimalField(max_digits=9, decimal_places=6)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="Optionnel : sans coordonnées, la géofence au pointage est désactivée.",
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
     geofence_radius_meters = models.PositiveIntegerField(default=250)
     geofence_gps_margin_meters = models.PositiveSmallIntegerField(
         default=75,

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -69,6 +70,8 @@ def _dashboard_map_payload(assignments_qs):
 
     for _site_id, group in by_site.items():
         site = group[0].site
+        if site.latitude is None or site.longitude is None:
+            continue
         lat0 = float(site.latitude)
         lon0 = float(site.longitude)
         if site.id not in seen_circle_site:
@@ -463,7 +466,11 @@ def sites_list_view(request):
     search_q = (request.GET.get("q") or "").strip()
     sites = Site.objects.all().order_by("name")
     if search_q:
-        sites = sites.filter(Q(name__icontains=search_q) | Q(address__icontains=search_q))
+        sites = sites.filter(
+            Q(name__icontains=search_q)
+            | Q(address__icontains=search_q)
+            | Q(site_manager_phone__icontains=search_q)
+        )
     form = SiteForm()
     if request.method == "POST":
         form = SiteForm(request.POST)
@@ -908,16 +915,27 @@ def affectations_list_view(request):
     if request.method == "POST":
         form = ShiftAssignmentForm(request.POST)
         if form.is_valid():
-            obj = form.save()
-            ensure_assignments_for_dates(horizon_days)
-            messages.success(
-                request,
-                (
-                    "Affectation créée comme poste titulaire quotidien "
-                    "(reconduction automatique active)."
-                ),
-            )
-            return redirect("webadmin-affectations")
+            try:
+                form.save()
+                ensure_assignments_for_dates(horizon_days)
+            except ValidationError as exc:
+                if hasattr(exc, "message_dict"):
+                    for field, errs in exc.message_dict.items():
+                        form.add_error(
+                            None if field == "__all__" else field,
+                            errs,
+                        )
+                else:
+                    form.add_error(None, exc.messages)
+            else:
+                messages.success(
+                    request,
+                    (
+                        "Affectation créée comme poste titulaire quotidien "
+                        "(reconduction automatique active)."
+                    ),
+                )
+                return redirect("webadmin-affectations")
     return render(
         request,
         "webadmin/affectations.html",

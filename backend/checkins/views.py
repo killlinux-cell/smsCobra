@@ -155,16 +155,25 @@ class CheckinBaseView(APIView):
             verification.save(update_fields=["consumed_at"])
 
         site = assignment.site
-        distance = _distance_meters(
-            checkin.latitude,
-            checkin.longitude,
-            site.latitude,
-            site.longitude,
-        )
-        effective_radius = float(site.geofence_radius_meters + site.geofence_gps_margin_meters)
-        checkin.distance_from_site_meters = round(distance, 1)
-        checkin.within_geofence = distance <= effective_radius + _GEOFENCE_COMPARE_SLACK_M
-        checkin.save(update_fields=["within_geofence", "distance_from_site_meters"])
+        if site.latitude is not None and site.longitude is not None:
+            distance = _distance_meters(
+                checkin.latitude,
+                checkin.longitude,
+                site.latitude,
+                site.longitude,
+            )
+            effective_radius = float(
+                site.geofence_radius_meters + site.geofence_gps_margin_meters
+            )
+            checkin.distance_from_site_meters = round(distance, 1)
+            checkin.within_geofence = (
+                distance <= effective_radius + _GEOFENCE_COMPARE_SLACK_M
+            )
+            checkin.save(update_fields=["within_geofence", "distance_from_site_meters"])
+        else:
+            checkin.distance_from_site_meters = None
+            checkin.within_geofence = True
+            checkin.save(update_fields=["within_geofence", "distance_from_site_meters"])
 
         report, _ = AttendanceReport.objects.get_or_create(
             site=site,

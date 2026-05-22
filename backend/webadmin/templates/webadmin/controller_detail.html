@@ -120,8 +120,10 @@
           {{ form.profile_photo }}
         </div>
         <div class="col-12">
-          <label class="form-label" for="{{ form.sites.id_for_label }}">{{ form.sites.label }}</label>
-          {{ form.sites }}
+          <label class="form-label">{{ form.sites.label }}</label>
+          <div class="cobra-site-checklist">
+            {{ form.sites }}
+          </div>
           {% if form.sites.help_text %}<div class="form-text">{{ form.sites.help_text }}</div>{% endif %}
           {% if form.sites.errors %}<div class="text-danger small">{{ form.sites.errors }}</div>{% endif %}
         </div>

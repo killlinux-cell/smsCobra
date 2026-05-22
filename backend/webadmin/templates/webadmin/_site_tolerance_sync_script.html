@@ -1,0 +1,22 @@
+<script>
+(function () {
+  function bindTolerancePair() {
+    var late = document.getElementById("id_late_tolerance_minutes");
+    var relief = document.getElementById("id_relief_late_alert_minutes");
+    if (!late || !relief) return;
+    function sync() {
+      relief.value = late.value;
+    }
+    late.addEventListener("input", sync);
+    late.addEventListener("change", sync);
+    sync();
+    relief.readOnly = true;
+    relief.classList.add("bg-light");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindTolerancePair);
+  } else {
+    bindTolerancePair();
+  }
+})();
+</script>

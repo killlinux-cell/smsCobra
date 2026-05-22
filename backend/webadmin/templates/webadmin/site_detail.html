@@ -22,18 +22,30 @@
         <dl class="row cobra-dl-detail mb-0">
           <dt class="col-sm-3">Adresse</dt>
           <dd class="col-sm-9">{{ site.address }}</dd>
+          <dt class="col-sm-3">Responsable du site</dt>
+          <dd class="col-sm-9">
+            {% if site.site_manager_phone %}
+            <a href="tel:{{ site.site_manager_phone }}" class="text-decoration-none">
+              <i class="bi bi-telephone me-1"></i>{{ site.site_manager_phone }}
+            </a>
+            {% else %}
+            <span class="text-muted">Non renseigné</span>
+            {% endif %}
+          </dd>
           <dt class="col-sm-3">Fuseau</dt>
           <dd class="col-sm-9"><code>{{ site.timezone }}</code></dd>
           <dt class="col-sm-3">Horaires attendus</dt>
           <dd class="col-sm-9">{{ site.expected_start_time|time:"H:i" }} – {{ site.expected_end_time|time:"H:i" }}</dd>
-          <dt class="col-sm-3">Tolérance retard</dt>
-          <dd class="col-sm-9">{{ site.late_tolerance_minutes }} min</dd>
-          <dt class="col-sm-3">Alerte relève</dt>
-          <dd class="col-sm-9">{{ site.relief_late_alert_minutes }} min après l’heure prévue</dd>
+          <dt class="col-sm-3">Délai retard / relève</dt>
+          <dd class="col-sm-9">{{ site.late_tolerance_minutes }} min (prise de service et alerte relève)</dd>
           <dt class="col-sm-3">Géofence</dt>
           <dd class="col-sm-9">
             {{ site.geofence_radius_meters }} m (+ marge GPS {{ site.geofence_gps_margin_meters }} m)<br>
+            {% if site.latitude is not None and site.longitude is not None %}
             <span class="text-muted small">Lat. {{ site.latitude }}, long. {{ site.longitude }}</span>
+            {% else %}
+            <span class="text-muted small">Coordonnées GPS non renseignées (géofence inactive)</span>
+            {% endif %}
           </dd>
         </dl>
         <div class="mt-3 d-flex flex-wrap gap-2">

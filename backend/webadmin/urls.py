@@ -1,8 +1,10 @@
 from django.urls import path
 
-from . import views
+from . import pwa, views
 
 urlpatterns = [
+    path("manifest.webmanifest", pwa.manifest_view, name="webadmin-pwa-manifest"),
+    path("service-worker.js", pwa.service_worker_view, name="webadmin-pwa-service-worker"),
     path(
         "map-tiles/<int:z>/<int:x>/<int:y>.png",
         views.map_tile_proxy_view,

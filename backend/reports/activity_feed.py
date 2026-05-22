@@ -77,7 +77,14 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "kind": "site_created",
                     "occurred_at": site.created_at,
                     "title": "Nouveau site",
-                    "body": f"{site.name} — {site.address}",
+                    "body": (
+                        f"{site.name} — {site.address}"
+                        + (
+                            f" — resp. {site.site_manager_phone}"
+                            if getattr(site, "site_manager_phone", "")
+                            else ""
+                        )
+                    ),
                     "site_id": site.id,
                     "site_name": site.name,
                 },

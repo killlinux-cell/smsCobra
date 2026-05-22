@@ -87,6 +87,7 @@ Les applications doivent être configurées pour pointer vers le serveur de prod
 
 - URL type : `https://votre-domaine.com/dashboard/`
 - Navigateur récent (Chrome, Edge, Firefox).
+- **Installation sur le bureau (recommandé)** : depuis la page de connexion ou le menu latéral, utilisez **« Installer sur le bureau »** (Chrome/Edge : icône dans la barre d’adresse ou menu ⋮ → *Installer l’application* ; Safari Mac : *Fichier → Ajouter au Dock*). L’application s’ouvre alors comme un programme indépendant, sans repasser par les favoris du navigateur. Connexion **HTTPS** obligatoire en production.
 - Fonctions complètes : sites, vigiles, affectations, alertes, rapports, exports, dépêches.
 
 ### 3.2 SMS Admin (Android)
@@ -119,12 +120,13 @@ Après connexion, le menu latéral donne accès aux modules suivants.
 | Information | Usage |
 |-------------|--------|
 | Nom, adresse | Identification |
+| **Numéro du responsable du site** | Contact opérationnel sur place (**obligatoire** à la création) |
 | Fuseau horaire | Calcul des créneaux (ex. Africa/Abidjan) |
 | Heures prévues début / fin | Référence planning |
-| Tolérance retard (minutes) | Retard à la prise de service |
+| Tolérance retard (minutes) | Retard à la prise de service ; **la même valeur** est appliquée à l’alerte « relève non arrivée » |
 | Fenêtres passation matin / soir | Relève nuit→jour, jour→nuit |
-| Rayon géofence + marge GPS | Vérification position au pointage |
-| Latitude / longitude | Centre de la zone autorisée |
+| Rayon géofence + marge GPS | Vérification position au pointage (si GPS renseigné) |
+| Latitude / longitude *(optionnel)* | Centre de la zone autorisée ; si vide, pas de contrôle géofence |
 
 **Actions** : créer un site, modifier, consulter la fiche, désactiver si besoin.
 
@@ -142,7 +144,7 @@ Sans photo valide, les pointages biométriques peuvent être refusés.
 
 **Objectif** : personnes habilitées à **passer sur les sites** (contrôle qualité / ronde).
 
-- Création : identifiant, nom, téléphone, **photo portrait**, **sites autorisés**.
+- Création : identifiant, nom, téléphone, **photo portrait**, **sites autorisés** (cases à cocher, sélection multiple sans Ctrl).
 - Liste : présence par jour (filtre date), **dernier passage** (site + date/heure), historique via **Fiche**.
 - Un contrôleur n’est **présent** un jour donné que s’au moins un passage facial a été enregistré ce jour-là sur un site autorisé.
 

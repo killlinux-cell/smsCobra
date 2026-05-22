@@ -10,6 +10,11 @@ from sites.models import Site
 _CTRL = "form-control"
 _SEL = "form-select"
 
+# Sélection multi-sites par cases à cocher (évite Ctrl+clic sur une liste).
+_SITE_CHECKBOX_WIDGET = forms.CheckboxSelectMultiple(
+    attrs={"class": "form-check-input"},
+)
+
 
 class AssignmentChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
@@ -33,6 +38,7 @@ class SiteForm(forms.ModelForm):
         fields = [
             "name",
             "address",
+            "site_manager_phone",
             "timezone",
             "expected_start_time",
             "expected_end_time",
@@ -47,30 +53,77 @@ class SiteForm(forms.ModelForm):
         labels = {
             "name": "Nom du site",
             "address": "Adresse",
+            "site_manager_phone": "Numéro du responsable du site",
             "timezone": "Fuseau horaire",
             "expected_start_time": "Heure de prise de service attendue",
             "expected_end_time": "Heure de fin de service attendue",
             "late_tolerance_minutes": "Tolérance de retard (prise de service, minutes)",
-            "relief_late_alert_minutes": "Alerte releve non arrive (minutes apres heure prevue)",
-            "latitude": "Latitude",
-            "longitude": "Longitude",
+            "relief_late_alert_minutes": (
+                "Alerte releve non arrive (minutes apres heure prevue) — "
+                "identique a la tolerance de retard"
+            ),
+            "latitude": "Latitude (optionnel)",
+            "longitude": "Longitude (optionnel)",
             "geofence_radius_meters": "Rayon géofence (mètres)",
             "is_active": "Site actif",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": _CTRL}),
             "address": forms.TextInput(attrs={"class": _CTRL}),
+            "site_manager_phone": forms.TextInput(
+                attrs={
+                    "class": _CTRL,
+                    "type": "tel",
+                    "placeholder": "Ex. +225 07 00 00 00 00",
+                    "autocomplete": "tel",
+                }
+            ),
             "timezone": forms.TextInput(attrs={"class": _CTRL}),
             "expected_start_time": forms.TimeInput(attrs={"class": _CTRL, "type": "time"}),
             "expected_end_time": forms.TimeInput(attrs={"class": _CTRL, "type": "time"}),
-            "late_tolerance_minutes": forms.NumberInput(attrs={"class": _CTRL}),
-            "relief_late_alert_minutes": forms.NumberInput(attrs={"class": _CTRL}),
+            "late_tolerance_minutes": forms.NumberInput(
+                attrs={"class": _CTRL, "id": "id_late_tolerance_minutes", "min": "0"}
+            ),
+            "relief_late_alert_minutes": forms.NumberInput(
+                attrs={
+                    "class": _CTRL,
+                    "id": "id_relief_late_alert_minutes",
+                    "min": "0",
+                    "readonly": "readonly",
+                    "tabindex": "-1",
+                }
+            ),
             "latitude": forms.NumberInput(attrs={"class": _CTRL, "step": "any"}),
             "longitude": forms.NumberInput(attrs={"class": _CTRL, "step": "any"}),
             "geofence_radius_meters": forms.NumberInput(attrs={"class": _CTRL}),
             "geofence_gps_margin_meters": forms.NumberInput(attrs={"class": _CTRL}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+    def clean_site_manager_phone(self):
+        phone = (self.cleaned_data.get("site_manager_phone") or "").strip()
+        if not phone:
+            raise forms.ValidationError(
+                "Le numéro du responsable du site est obligatoire."
+            )
+        if len(phone) < 8:
+            raise forms.ValidationError(
+                "Saisissez un numéro valide (au moins 8 caractères)."
+            )
+        return phone
+
+    def clean(self):
+        cleaned = super().clean()
+        late = cleaned.get("late_tolerance_minutes")
+        if late is not None:
+            cleaned["relief_late_alert_minutes"] = late
+        lat = cleaned.get("latitude")
+        lon = cleaned.get("longitude")
+        if (lat is None) != (lon is None):
+            raise forms.ValidationError(
+                "Renseignez la latitude et la longitude ensemble, ou laissez les deux vides."
+            )
+        return cleaned
 
 
 class VigileCreationForm(forms.ModelForm):
@@ -188,8 +241,8 @@ class ControllerCreationForm(forms.ModelForm):
         label="Sites autorisés",
         queryset=Site.objects.filter(is_active=True).order_by("name"),
         required=False,
-        widget=forms.SelectMultiple(attrs={"class": _SEL, "size": 8}),
-        help_text="Sites sur lesquels ce contrôleur peut enregistrer son passage.",
+        widget=_SITE_CHECKBOX_WIDGET,
+        help_text="Cochez un ou plusieurs sites où ce contrôleur peut enregistrer son passage.",
     )
 
     class Meta:
@@ -198,6 +251,7 @@ class ControllerCreationForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["sites"].widget.attrs.setdefault("class", "form-check-input")
         self.fields["username"].label = "Identifiant (généré automatiquement)"
         self.fields["username"].required = False
         self.fields["username"].help_text = "Laissez vide pour génération automatique (CTR-XXX)."
@@ -249,7 +303,7 @@ class ControllerUpdateForm(forms.ModelForm):
         label="Sites autorisés",
         queryset=Site.objects.filter(is_active=True).order_by("name"),
         required=False,
-        widget=forms.SelectMultiple(attrs={"class": _SEL, "size": 8}),
+        widget=_SITE_CHECKBOX_WIDGET,
         help_text="Cochez les sites où ce contrôleur peut pointer son passage (reconnaissance faciale).",
     )
 
@@ -288,6 +342,7 @@ class ControllerUpdateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["profile_photo"].required = False
+        self.fields["sites"].widget.attrs.setdefault("class", "form-check-input")
         if self.instance and self.instance.pk:
             assigned_ids = (
                 ControllerSiteAssignment.objects.filter(
