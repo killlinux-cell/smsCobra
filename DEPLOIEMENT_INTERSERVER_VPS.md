@@ -516,7 +516,54 @@ curl -sI -H "Host: smsapp24.com" http://127.0.0.1:8000/dashboard/login/
 | **500** sur `/dashboard/` | Exception Django (souvent scan alertes ou passation jour/nuit) | `logs api`, `git pull` + rebuild (correctifs recents) |
 | **400** avec curl sur `127.0.0.1` | `DJANGO_ALLOWED_HOSTS` sans `127.0.0.1` | Normal ; tester avec `-H "Host: smsapp24.com"` |
 
-Apres `git pull`, toujours **rebuild** l'image `api` (Gunicorn + dependances) :
+### Correctif rapide erreur 500 dashboard (sans rebuild)
+
+Si `docker compose build` **bloque** sur `Building wheel for dlib` (30 min à plusieurs heures), **annulez** le build (`Ctrl+C`). L’ancienne image continue de tourner ; vous pouvez corriger le 500 en copiant le code à chaud :
+
+```bash
+cd /opt/cobra
+git pull
+chmod +x scripts/vps-hotfix-dashboard.sh
+./scripts/vps-hotfix-dashboard.sh
+```
+
+Ou manuellement :
+
+```bash
+cd /opt/cobra
+git pull
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml cp backend/webadmin/views.py api:/app/webadmin/views.py
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml cp backend/shifts/models.py api:/app/shifts/models.py
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml cp backend/shifts/services.py api:/app/shifts/services.py
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml restart api
+```
+
+Test du scan (affiche la traceback si échec) :
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api python -c "
+from datetime import timedelta
+from django.utils import timezone
+from shifts.services import ensure_assignments_for_dates
+from alerts.tasks import detect_missed_shift_task
+d = timezone.localdate()
+ensure_assignments_for_dates([d, d + timedelta(days=1)])
+detect_missed_shift_task()
+print('OK')
+"
+```
+
+### Rebuild complet (apres correctif dlib)
+
+Le fichier `requirements-face.txt` impose **dlib 19.24.6** (roue binaire) pour éviter la compilation C++ sur le VPS. Rebuild uniquement quand le hotfix ne suffit plus :
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml build --no-cache api
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d api celery_worker celery_beat
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api python manage.py migrate --noinput
+```
+
+Apres `git pull`, en temps normal :
 
 ```bash
 docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d --build api celery_worker celery_beat

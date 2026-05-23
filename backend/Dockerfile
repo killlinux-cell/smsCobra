@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt requirements-face.txt ./
+# dlib 19.24.6 : roue binaire sur Linux amd64 (évite compilation 30–90 min sur petit VPS).
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt -r requirements-face.txt
 
