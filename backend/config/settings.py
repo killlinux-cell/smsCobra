@@ -198,3 +198,23 @@ FACE_VERIFICATION_TOLERANCE = float(os.getenv("FACE_VERIFICATION_TOLERANCE", "0.
 # hog = rapide ; cnn = plus précis mais plus lent (GPU recommandé).
 FACE_VERIFICATION_MODEL = os.getenv("FACE_VERIFICATION_MODEL", "hog")
 FACE_VERIFICATION_NUM_JITTERS = int(os.getenv("FACE_VERIFICATION_NUM_JITTERS", "1"))
+
+# Tracebacks des erreurs 500 visibles dans `docker compose logs api` (Gunicorn / runserver).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
