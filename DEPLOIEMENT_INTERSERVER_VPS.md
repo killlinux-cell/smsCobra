@@ -516,6 +516,21 @@ curl -sI -H "Host: smsapp24.com" http://127.0.0.1:8000/dashboard/login/
 | **500** sur `/dashboard/` | Exception Django (souvent scan alertes ou passation jour/nuit) | `logs api`, `git pull` + rebuild (correctifs recents) |
 | **400** avec curl sur `127.0.0.1` | `DJANGO_ALLOWED_HOSTS` sans `127.0.0.1` | Normal ; tester avec `-H "Host: smsapp24.com"` |
 
+### Synchroniser toutes les fonctionnalités web (sans rebuild image)
+
+Si le tableau de bord fonctionne mais il manque : **numéro responsable site**, **lat/lng optionnels**, **cases à cocher contrôleurs**, **tolérance = alerte relève**, c’est que le VPS tourne encore avec une **ancienne image** (le hotfix 500 ne copiait que 3 fichiers Python).
+
+```bash
+cd /opt/cobra
+git pull
+chmod +x scripts/vps-sync-all-features.sh
+./scripts/vps-sync-all-features.sh
+```
+
+Contrôle : `showmigrations sites` doit afficher `[X] 0007_site_site_manager_phone` et `[X] 0008_site_latitude_longitude_optional`.
+
+**Application mobile Admin** : les écrans Flutter (`add_edit_site_page.dart`, etc.) exigent une **nouvelle compilation APK** ; Docker ne met pas à jour l’app sur le téléphone.
+
 ### Correctif rapide erreur 500 dashboard (sans rebuild)
 
 Si `docker compose build` **bloque** sur `Building wheel for dlib` (30 min à plusieurs heures), **annulez** le build (`Ctrl+C`). L’ancienne image continue de tourner ; vous pouvez corriger le 500 en copiant le code à chaud :
