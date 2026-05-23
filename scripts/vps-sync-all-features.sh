@@ -1,14 +1,39 @@
 #!/bin/sh
-# Synchronise TOUT le backend web (sites, contrôleurs, formulaires, templates, migrations)
-# dans le conteneur api SANS rebuild complet. Puis migrate + collectstatic.
-#
-# À lancer sur le VPS : cd /opt/cobra && chmod +x scripts/vps-sync-all-features.sh && ./scripts/vps-sync-all-features.sh
+# Synchronise le backend dans le conteneur api + migrations. Vérifie que le code est bien présent.
 set -e
 cd "$(dirname "$0")/.."
 COMPOSE="docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml"
 
-echo "==> git pull"
-git pull
+echo "==> Mise à jour Git (forcée sur origin/main)"
+git fetch origin
+git reset --hard origin/main
+echo "    Commit : $(git log -1 --oneline)"
+
+echo "==> Vérification des fichiers sur le VPS (disque)"
+MISSING=0
+for f in \
+  backend/sites/migrations/0007_site_site_manager_phone.py \
+  backend/sites/migrations/0008_site_latitude_longitude_optional.py \
+  backend/webadmin/forms.py \
+  backend/webadmin/templates/webadmin/_site_tolerance_sync_script.html
+do
+  if [ ! -f "$f" ]; then
+    echo "    MANQUANT : $f"
+    MISSING=1
+  fi
+done
+if [ "$MISSING" = 1 ]; then
+  echo ""
+  echo "ERREUR : ces fichiers ne sont pas sur le VPS."
+  echo "Depuis votre PC : git push origin main"
+  echo "Puis sur le VPS : git fetch origin && git reset --hard origin/main"
+  exit 1
+fi
+if ! grep -q site_manager_phone backend/webadmin/forms.py; then
+  echo "ERREUR : backend/webadmin/forms.py est une ancienne version (pas de site_manager_phone)."
+  exit 1
+fi
+echo "    OK — fichiers présents sur le disque du VPS"
 
 echo "==> Copie du code backend dans le conteneur api"
 for dir in webadmin sites accounts shifts checkins alerts reports config; do
@@ -18,22 +43,34 @@ for dir in webadmin sites accounts shifts checkins alerts reports config; do
   fi
 done
 
-echo "==> Migrations (0007 responsable site, 0008 lat/lng optionnels, etc.)"
+echo "==> Vérification dans le conteneur"
+$COMPOSE exec api sh -c '
+  test -f /app/sites/migrations/0007_site_site_manager_phone.py || exit 10
+  test -f /app/sites/migrations/0008_site_latitude_longitude_optional.py || exit 11
+  grep -q site_manager_phone /app/webadmin/forms.py || exit 12
+  echo "    OK — 0007, 0008 et forms.py dans le conteneur"
+' || {
+  echo "ERREUR : la copie Docker n a pas mis à jour le conteneur. Réessayez ou rebuild l image api."
+  exit 1
+}
+
+echo "==> Migrations sites (0007 responsable, 0008 GPS optionnel)"
+$COMPOSE exec api python manage.py migrate sites --noinput
+
+echo "==> Toutes les migrations"
 $COMPOSE exec api python manage.py migrate --noinput
 
-echo "==> Fichiers statiques (CSS cases à cocher, PWA…)"
+echo "==> Fichiers statiques"
 $COMPOSE exec api python manage.py collectstatic --noinput
 
 echo "==> Redémarrage api"
 $COMPOSE restart api
 sleep 4
 
-echo "==> Vérification migrations sites"
-$COMPOSE exec api python manage.py showmigrations sites | tail -5
+echo "==> État migrations sites"
+$COMPOSE exec api python manage.py showmigrations sites | tail -6
 
 echo ""
-echo "Terminé. Vérifiez sur le site web :"
-echo "  - Sites : numéro responsable, lat/lng optionnels, tolérance = alerte relève"
-echo "  - Contrôleurs : cases à cocher pour les sites"
-echo ""
-echo "App mobile Admin : recompiler l'APK si vous utilisez l'app (les changements Flutter ne passent pas par Docker)."
+echo "Terminé. Rechargez la page Sites (Ctrl+F5)."
+echo "Vous devez voir : Numéro du responsable, Latitude/Longitude (optionnel),"
+echo "tolérance retard liée à l alerte relève (champ relève en lecture seule)."

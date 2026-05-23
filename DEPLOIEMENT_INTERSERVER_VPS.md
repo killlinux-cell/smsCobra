@@ -529,6 +529,19 @@ chmod +x scripts/vps-sync-all-features.sh
 
 Contrôle : `showmigrations sites` doit afficher `[X] 0007_site_site_manager_phone` et `[X] 0008_site_latitude_longitude_optional`.
 
+Si après sync vous ne voyez que jusqu à `0006`, le dépôt sur le VPS est en retard :
+
+```bash
+cd /opt/cobra
+git fetch origin
+git log -1 --oneline          # doit être récent (ex. contient « ok modifications » ou « script depl »)
+ls backend/sites/migrations/  # doit lister 0007 et 0008
+git reset --hard origin/main
+./scripts/vps-sync-all-features.sh
+```
+
+Depuis votre PC, si besoin : `git push origin main` puis refaire les commandes sur le VPS.
+
 **Application mobile Admin** : les écrans Flutter (`add_edit_site_page.dart`, etc.) exigent une **nouvelle compilation APK** ; Docker ne met pas à jour l’app sur le téléphone.
 
 ### Correctif rapide erreur 500 dashboard (sans rebuild)
