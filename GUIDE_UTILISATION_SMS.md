@@ -313,7 +313,10 @@ Le **contrôleur** se présente sur un site où il est **autorisé**. Il effectu
 
 - Créer le contrôleur et lier les **sites autorisés**.
 - Consulter **Présence** par date et **dernier passage** dans la liste.
-- Historique complet sur la **Fiche contrôleur**.
+- Historique complet sur la **Fiche contrôleur** (comme sur votre capture : site, date/heure, score facial).
+- **Rapports → Suivi passages contrôleurs** : tableau **présent / absent**, **sites visités** vs **sites non visités** pour la date choisie, plus l’historique filtré par site ou mois.
+- **Fiche site** : historique des passages contrôleurs enregistrés sur ce site.
+- **App admin → Rapports → onglet Passages** : même suivi pour le superviseur sur mobile.
 
 ### 7.3 Présence / absence contrôleur
 

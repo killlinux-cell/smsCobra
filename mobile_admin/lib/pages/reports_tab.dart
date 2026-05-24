@@ -20,6 +20,7 @@ class ReportsTab extends StatefulWidget {
 class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
   List<dynamic> _activityRows = [];
   List<dynamic> _reportRows = [];
+  Map<String, dynamic> _controllerVisits = const {};
   bool _loading = true;
   late final AnimationController _staggerCtrl;
   late final TabController _tabCtrl;
@@ -31,7 +32,7 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 680),
     );
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -45,14 +46,18 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final results = await Future.wait<List<dynamic>>([
+      final results = await Future.wait<dynamic>([
         widget.api.fetchActivityFeed(limit: 80),
         widget.api.fetchReports(limit: 50),
+        widget.api.fetchControllerVisits(),
       ]);
       if (!mounted) return;
       setState(() {
-        _activityRows = results[0];
-        _reportRows = results[1];
+        _activityRows = results[0] as List<dynamic>;
+        _reportRows = results[1] as List<dynamic>;
+        _controllerVisits = Map<String, dynamic>.from(
+          results[2] as Map? ?? {},
+        );
       });
     } on AdminSessionExpiredException {
       await widget.onSessionExpired();
@@ -312,6 +317,223 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildPassagesList() {
+    if (_loading) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: const [
+          AdminShimmerScope(
+            child: Column(
+              children: [
+                ListRowSkeletonCard(),
+                ListRowSkeletonCard(),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    final coverage = (_controllerVisits['coverage'] as List<dynamic>?) ?? [];
+    final visits = (_controllerVisits['visits'] as List<dynamic>?) ?? [];
+    if (coverage.isEmpty && visits.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: [
+          GlassPanel(
+            child: Text(
+              'Aucun passage contrôleur enregistré.',
+              style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
+            ),
+          ),
+        ],
+      );
+    }
+    final children = <Widget>[];
+    if (coverage.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Text(
+            'Couverture sites (jour)',
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: CobraAdminColors.ink,
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < coverage.length; i++) {
+        final row = Map<String, dynamic>.from(coverage[i] as Map);
+        final name = (row['controller_name'] ?? 'Contrôleur').toString();
+        final present = row['present_on_day'] == true;
+        final visited = (row['visited_site_names'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+        final missing = (row['missing_site_names'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+        children.add(
+          cobraStaggerItem(
+            controller: _staggerCtrl,
+            index: i + 2,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: GlassPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: present
+                                ? CobraAdminColors.success.withAlpha(35)
+                                : Colors.orange.withAlpha(40),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            present ? 'Présent' : 'Absent',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: present
+                                  ? CobraAdminColors.success
+                                  : Colors.orange.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (visited.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Visités : ${visited.join(', ')}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: CobraAdminColors.success,
+                        ),
+                      ),
+                    ],
+                    if (missing.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Non visités : ${missing.join(', ')}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: CobraAdminColors.accent,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    if (visits.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            'Historique des passages',
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: CobraAdminColors.ink,
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < visits.length; i++) {
+        final v = Map<String, dynamic>.from(visits[i] as Map);
+        final ctrl = (v['controller_name'] ?? '').toString();
+        final site = (v['site_name'] ?? '').toString();
+        final when = _formatOccurred(v['visited_at']?.toString());
+        final score = v['face_score'];
+        children.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: GlassPanel(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 6, right: 10),
+                    decoration: const BoxDecoration(
+                      color: CobraAdminColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          site,
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Text(
+                          ctrl,
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                        Text(
+                          when,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (score != null)
+                    Text(
+                      'Score ${(score as num).toStringAsFixed(2)}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 100),
+      children: children,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -335,7 +557,7 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Journal opérationnel (sites, personnel, affectations, remplacements) et synthèse des pointages.',
+                  'Journal opérationnel, pointages vigiles et suivi des passages contrôleurs sur les sites.',
                   style: GoogleFonts.outfit(
                     color: const Color(0xFF64748B),
                     fontSize: 13,
@@ -360,6 +582,7 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
               tabs: const [
                 Tab(text: 'Activité'),
                 Tab(text: 'Pointages'),
+                Tab(text: 'Passages'),
               ],
             ),
           ),
@@ -377,6 +600,11 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
                 color: CobraAdminColors.indigo,
                 onRefresh: _load,
                 child: _buildPointageList(),
+              ),
+              RefreshIndicator(
+                color: CobraAdminColors.indigo,
+                onRefresh: _load,
+                child: _buildPassagesList(),
               ),
             ],
           ),

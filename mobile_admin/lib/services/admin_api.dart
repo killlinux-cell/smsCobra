@@ -310,4 +310,25 @@ class AdminApi {
     }
     return [];
   }
+
+  /// Passages contrôleurs : historique + couverture sites (superviseur).
+  Future<Map<String, dynamic>> fetchControllerVisits({
+    String? date,
+    String? month,
+    int? siteId,
+  }) async {
+    final params = <String, String>{};
+    if (date != null && date.isNotEmpty) params['date'] = date;
+    if (month != null && month.isNotEmpty) params['month'] = month;
+    if (siteId != null) params['site'] = '$siteId';
+    final uri = Uri.parse(
+      "$apiBase/api/v1/admin/reports/controller-visits/",
+    ).replace(queryParameters: params.isEmpty ? null : params);
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("controller_visits_failed");
+    final decoded = jsonDecode(resp.body);
+    if (decoded is Map<String, dynamic>) return decoded;
+    return {};
+  }
 }

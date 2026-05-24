@@ -35,7 +35,7 @@
         <button type="submit" class="btn btn-primary w-100">Appliquer</button>
         <p class="small text-muted mt-2 mb-0">Si une <strong>date</strong> est renseignée, elle prime sur le mois.</p>
         <p class="small text-muted mt-2 mb-0">
-          Le <strong>journal d'activité</strong> utilise les filtres <strong>Site</strong> et <strong>Date/Mois</strong>.
+          Le <strong>journal d'activité</strong> et le <strong>suivi passages contrôleurs</strong> utilisent les filtres <strong>Site</strong> et <strong>Date/Mois</strong>.
           Le filtre <strong>Vigile</strong> reste appliqué à la <strong>synthèse des pointages</strong> et au bilan.
         </p>
       </div>
@@ -127,6 +127,110 @@
 {% elif filter_vigile and filter_month %}
 <div class="alert alert-warning"><i class="bi bi-info-circle me-2"></i>Bilan indisponible : vigile ou mois invalide.</div>
 {% endif %}
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-person-video3 me-2"></i>Suivi passages contrôleurs</span>
+    {% if controller_visits.show_coverage and controller_visits.coverage_date %}
+    <span class="small text-muted fw-normal">Présence et couverture sites — {{ controller_visits.coverage_date|date:"d/m/Y" }}</span>
+    {% elif filter_date %}
+    <span class="small text-muted fw-normal">Historique — {{ filter_date }}</span>
+    {% elif filter_month %}
+    <span class="small text-muted fw-normal">Historique — mois {{ filter_month }}</span>
+    {% else %}
+    <span class="small text-muted fw-normal">Couverture du jour + historique récent</span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if controller_visits.show_coverage %}
+    <p class="small text-muted">
+      Pour chaque contrôleur : sites autorisés, sites visités ce jour (reconnaissance faciale) et sites non encore passés.
+      <a href="{% url 'webadmin-controllers' %}?jour={{ controller_visits.coverage_date|date:'Y-m-d' }}">Liste contrôleurs</a>
+    </p>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm table-hover cobra-table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Contrôleur</th>
+            <th>Présence</th>
+            <th>Sites visités</th>
+            <th>Sites non visités</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in controller_visits.coverage_rows %}
+          <tr>
+            <td class="fw-semibold">{{ row.controller.display_name }}</td>
+            <td>
+              {% if not row.authorized_sites %}
+              <span class="badge bg-secondary">Aucun site autorisé</span>
+              {% elif row.present_on_day %}
+              <span class="badge bg-success">Présent</span>
+              {% else %}
+              <span class="badge bg-warning text-dark">Absent</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if row.visited_sites %}
+              {% for s in row.visited_sites %}
+              <span class="badge bg-success-subtle text-success border me-1 mb-1">{{ s.name }}</span>
+              {% endfor %}
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if row.missing_sites %}
+              {% for s in row.missing_sites %}
+              <span class="badge bg-danger-subtle text-danger border me-1 mb-1">{{ s.name }}</span>
+              {% endfor %}
+              {% else %}
+              {% if row.authorized_sites %}
+              <span class="text-success small"><i class="bi bi-check2-all me-1"></i>Tous visités</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <a href="{% url 'webadmin-controller-detail' row.controller.pk %}?jour={{ controller_visits.coverage_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary">Fiche</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center py-4 text-muted">Aucun contrôleur enregistré.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="small text-muted mb-3">
+      <i class="bi bi-info-circle me-1"></i>Sélectionnez une <strong>date précise</strong> (ou laissez vide pour le jour actuel) pour afficher le tableau présence / sites visités vs non visités.
+    </p>
+    {% endif %}
+
+    <h6 class="text-secondary mb-2"><i class="bi bi-clock-history me-1"></i>Historique des passages{% if controller_visits.visit_history %} ({{ controller_visits.visit_history|length }}){% endif %}</h6>
+    {% if controller_visits.visit_history %}
+    <ul class="controller-detail-timeline mb-0">
+      {% for v in controller_visits.visit_history %}
+      <li>
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-semibold">{{ v.controller.display_name }} · {{ v.site.name }}</div>
+            <div class="small text-muted">{{ v.visited_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if v.face_score %}
+          <span class="badge bg-light text-dark border">Score {{ v.face_score|floatformat:2 }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted small mb-0">Aucun passage enregistré pour les filtres sélectionnés.</p>
+    {% endif %}
+  </div>
+</div>
 
 <div class="card cobra-panel mb-4">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">

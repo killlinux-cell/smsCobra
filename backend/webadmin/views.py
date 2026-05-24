@@ -605,6 +605,12 @@ def site_detail_view(request, pk):
             }
         )
 
+    site_controller_visits = list(
+        ControllerVisit.objects.filter(site=site)
+        .select_related("controller")
+        .order_by("-visited_at")[:80]
+    )
+
     return render(
         request,
         "webadmin/site_detail.html",
@@ -618,6 +624,7 @@ def site_detail_view(request, pk):
             "guard_rows": guard_rows,
             "assignments_date_from": date_from,
             "assignments_date_to": date_to,
+            "site_controller_visits": site_controller_visits,
         },
     )
 
@@ -1168,6 +1175,14 @@ def rapports_view(request):
             and row["occurred_dt"].month == m
         ]
 
+    from reports.controller_visits import build_controller_visit_report
+
+    controller_visits = build_controller_visit_report(
+        filter_day=filter_day,
+        filter_month=filter_month_tuple,
+        site_id=filter_site_pk,
+    )
+
     return render(
         request,
         "webadmin/rapports.html",
@@ -1185,6 +1200,7 @@ def rapports_view(request):
             "filter_month": month_str,
             "bilan": bilan,
             "export_querystring": request.GET.urlencode(),
+            "controller_visits": controller_visits,
         },
     )
 
