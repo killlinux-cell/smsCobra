@@ -544,6 +544,28 @@ Depuis votre PC, si besoin : `git push origin main` puis refaire les commandes s
 
 **Application mobile Admin** : les écrans Flutter (`add_edit_site_page.dart`, etc.) exigent une **nouvelle compilation APK** ; Docker ne met pas à jour l’app sur le téléphone.
 
+### Déployer acquittements dans les rapports (sans rebuild)
+
+Commit attendu sur `origin/main` : message du type `fonctionnalite acquiter` (fichiers `reports/alert_ack.py`, `activity_feed.py`, templates `rapports.html`).
+
+```bash
+cd /opt/cobra
+git fetch origin
+git reset --hard origin/main
+git log -1 --oneline
+chmod +x scripts/vps-deploy-acquittement.sh
+./scripts/vps-deploy-acquittement.sh
+```
+
+Contrôle dans le conteneur :
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml exec api \
+  grep -c alert_acknowledged /app/reports/activity_feed.py
+```
+
+Doit afficher au moins `1`. Sinon le conteneur tourne encore avec une ancienne image : relancer le script ou `./scripts/vps-sync-all-features.sh`.
+
 ### Correctif rapide erreur 500 dashboard (sans rebuild)
 
 Si `docker compose build` **bloque** sur `Building wheel for dlib` (30 min à plusieurs heures), **annulez** le build (`Ctrl+C`). L’ancienne image continue de tourner ; vous pouvez corriger le 500 en copiant le code à chaud :

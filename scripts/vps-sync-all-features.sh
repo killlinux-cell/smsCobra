@@ -15,7 +15,9 @@ for f in \
   backend/sites/migrations/0007_site_site_manager_phone.py \
   backend/sites/migrations/0008_site_latitude_longitude_optional.py \
   backend/webadmin/forms.py \
-  backend/webadmin/templates/webadmin/_site_tolerance_sync_script.html
+  backend/webadmin/templates/webadmin/_site_tolerance_sync_script.html \
+  backend/reports/alert_ack.py \
+  backend/webadmin/templates/webadmin/rapports.html
 do
   if [ ! -f "$f" ]; then
     echo "    MANQUANT : $f"
@@ -71,6 +73,6 @@ echo "==> État migrations sites"
 $COMPOSE exec api python manage.py showmigrations sites | tail -6
 
 echo ""
-echo "Terminé. Rechargez la page Sites (Ctrl+F5)."
-echo "Vous devez voir : Numéro du responsable, Latitude/Longitude (optionnel),"
-echo "tolérance retard liée à l alerte relève (champ relève en lecture seule)."
+echo "Terminé. Rechargez les pages (Ctrl+F5)."
+echo "Sites : responsable, GPS optionnel, tolérance relève."
+echo "Rapports : colonne Notes + événements « Alerte acquittée » après acquittement."
