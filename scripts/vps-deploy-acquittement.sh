@@ -31,19 +31,49 @@ if ! grep -q 'Notes (acquittements' backend/webadmin/templates/webadmin/rapports
 fi
 echo "    OK — sources présentes"
 
-echo "==> Copie reports, alerts, webadmin dans le conteneur api"
-$COMPOSE cp backend/reports api:/app/reports
-$COMPOSE cp backend/alerts api:/app/alerts
-$COMPOSE cp backend/webadmin api:/app/webadmin
+echo "==> Copie reports, alerts, webadmin (contenu du dossier, sans sous-répertoire reports/reports)"
+# Important : « dir » vers « /app/dir » imbrique souvent en « /app/dir/dir/ » ; utiliser dir/.
+$COMPOSE cp backend/reports/. api:/app/reports/
+$COMPOSE cp backend/alerts/. api:/app/alerts/
+$COMPOSE cp backend/webadmin/. api:/app/webadmin/
 
 echo "==> Vérification dans le conteneur"
 $COMPOSE exec api sh -c '
-  test -f /app/reports/alert_ack.py || exit 20
-  grep -q alert_acknowledged /app/reports/activity_feed.py || exit 21
-  grep -q "Notes (acquittements" /app/webadmin/templates/webadmin/rapports.html || exit 22
-  echo "    OK — alert_ack + rapports.html dans le conteneur"
+  ok=1
+  if test -f /app/reports/alert_ack.py; then
+    echo "    OK alert_ack.py"
+  elif test -f /app/reports/reports/alert_ack.py; then
+    echo "    Réparation : fichiers dans /app/reports/reports/ (ancienne copie)"
+    cp -a /app/reports/reports/. /app/reports/
+    rm -rf /app/reports/reports
+  else
+    echo "    MANQUANT : /app/reports/alert_ack.py"
+    ok=0
+  fi
+  if grep -q alert_acknowledged /app/reports/activity_feed.py 2>/dev/null; then
+    echo "    OK activity_feed (alert_acknowledged)"
+  else
+    echo "    MANQUANT : alert_acknowledged dans activity_feed.py"
+    ok=0
+  fi
+  if grep -q "Notes (acquittements" /app/webadmin/templates/webadmin/rapports.html 2>/dev/null; then
+    echo "    OK rapports.html"
+  elif test -f /app/webadmin/webadmin/templates/webadmin/rapports.html; then
+    echo "    Réparation : webadmin imbriqué"
+    cp -a /app/webadmin/webadmin/. /app/webadmin/
+    rm -rf /app/webadmin/webadmin
+    grep -q "Notes (acquittements" /app/webadmin/templates/webadmin/rapports.html || ok=0
+  else
+    echo "    MANQUANT : colonne Notes dans rapports.html"
+    ok=0
+  fi
+  test "$ok" -eq 1 || exit 1
+  echo "    OK — acquittement déployé dans le conteneur"
 ' || {
-  echo "ERREUR : copie Docker échouée. Essayez : ./scripts/vps-sync-all-features.sh"
+  echo ""
+  echo "ERREUR : diagnostic :"
+  echo "  $COMPOSE exec api ls -la /app/reports/"
+  echo "  $COMPOSE exec api ls -la /app/reports/reports/ 2>/dev/null || true"
   exit 1
 }
 

@@ -13,6 +13,8 @@ $COMPOSE cp backend/webadmin/views.py api:/app/webadmin/views.py
 $COMPOSE cp backend/shifts/models.py api:/app/shifts/models.py
 $COMPOSE cp backend/shifts/services.py api:/app/shifts/services.py
 $COMPOSE cp backend/config/settings.py api:/app/config/settings.py
+$COMPOSE cp backend/reports/. api:/app/reports/
+$COMPOSE cp backend/alerts/. api:/app/alerts/
 if [ -d backend/webadmin/management ]; then
   $COMPOSE cp backend/webadmin/management api:/app/webadmin/
 fi

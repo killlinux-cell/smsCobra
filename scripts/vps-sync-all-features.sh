@@ -37,11 +37,11 @@ if ! grep -q site_manager_phone backend/webadmin/forms.py; then
 fi
 echo "    OK — fichiers présents sur le disque du VPS"
 
-echo "==> Copie du code backend dans le conteneur api"
+echo "==> Copie du code backend dans le conteneur api (contenu des dossiers, pas d imbrication dir/dir)"
 for dir in webadmin sites accounts shifts checkins alerts reports config; do
   if [ -d "backend/$dir" ]; then
-    echo "    backend/$dir"
-    $COMPOSE cp "backend/$dir" "api:/app/$dir"
+    echo "    backend/$dir -> /app/$dir/"
+    $COMPOSE cp "backend/$dir/." "api:/app/$dir/"
   fi
 done
 
