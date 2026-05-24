@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from accounts.models import ControllerSiteAssignment, ControllerVisit
+from alerts.models import LateAlert
 from reports.activity_feed import build_activity_events
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
@@ -68,6 +69,38 @@ class ActivityFeedTests(TestCase):
     def test_site_filter_includes_controleur_when_assigned(self):
         events = build_activity_events(limit=50, site_id=self.site.id)
         self.assertTrue(any(e["kind"] == "controleur_created" for e in events))
+
+    def test_includes_alert_acknowledged(self):
+        admin = User.objects.create_user(
+            username="admin_ack",
+            password="x",
+            role=User.Role.ADMIN_SOCIETE,
+            first_name="Marie",
+            last_name="Admin",
+        )
+        assignment = ShiftAssignment.objects.create(
+            guard=self.vigile,
+            site=self.site,
+            shift_date=timezone.localdate(),
+            start_time="06:00",
+            end_time="18:00",
+        )
+        ack_time = timezone.now()
+        LateAlert.objects.create(
+            assignment=assignment,
+            message="Retard prise de service : v_feed sur Site Feed",
+            status=LateAlert.Status.ACKNOWLEDGED,
+            admin_recipient=admin,
+            acknowledged_at=ack_time,
+        )
+        matches = [
+            e
+            for e in build_activity_events(limit=200)
+            if e["kind"] == "alert_acknowledged"
+        ]
+        self.assertEqual(len(matches), 1)
+        self.assertIn("Marie", matches[0]["body"])
+        self.assertIn("acquitté", matches[0]["body"].lower())
 
     def test_fixed_post_replacement_on_update(self):
         titular = User.objects.create_user(username="tit_feed", password="x", role=User.Role.VIGILE)

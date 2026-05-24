@@ -12,6 +12,8 @@ from rest_framework.views import APIView
 
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from accounts.permissions import IsAdminRole
+from alerts.models import LateAlert
+from reports.alert_ack import alert_kind_label
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
 
@@ -311,6 +313,46 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "site_id": fp.site_id,
                     "site_name": site_name,
                     "fixed_post_id": fp.id,
+                },
+            )
+        )
+
+    for alert in (
+        LateAlert.objects.filter(
+            acknowledged_at__isnull=False,
+            admin_recipient__isnull=False,
+        )
+        .select_related(
+            "assignment__site",
+            "assignment__guard",
+            "admin_recipient",
+        )
+        .order_by("-acknowledged_at")[:per_bucket]
+    ):
+        admin = alert.admin_recipient
+        assignment = alert.assignment
+        admin_name = admin.get_full_name() or admin.username or "Administrateur"
+        site_name = assignment.site.name if assignment.site_id else "Site"
+        guard_name = (
+            assignment.guard.display_name if assignment.guard_id else "Vigile"
+        )
+        kind_short = alert_kind_label(alert.message)
+        events.append(
+            (
+                alert.acknowledged_at,
+                {
+                    "kind": "alert_acknowledged",
+                    "occurred_at": alert.acknowledged_at,
+                    "title": "Alerte acquittée",
+                    "body": (
+                        f"{admin_name} a acquitté l'alerte n°{alert.id} ({kind_short}) "
+                        f"— {guard_name} sur « {site_name} »."
+                    ),
+                    "site_id": assignment.site_id,
+                    "site_name": site_name,
+                    "alert_id": alert.id,
+                    "admin_id": admin.id,
+                    "admin_name": admin_name,
                 },
             )
         )

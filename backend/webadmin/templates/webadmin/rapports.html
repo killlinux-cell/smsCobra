@@ -131,7 +131,7 @@
 <div class="card cobra-panel mb-4">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <span><i class="bi bi-journal-text me-2"></i>Journal d'activité</span>
-    <span class="small text-muted d-none d-md-inline">Sites, vigiles, contrôleurs, passages, affectations, remplacements</span>
+    <span class="small text-muted d-none d-md-inline">Sites, vigiles, contrôleurs, passages, affectations, alertes acquittées</span>
   </div>
   {% if filter_site %}
   <div class="small text-muted border-bottom px-3 py-2 mb-0 bg-light">
@@ -172,6 +172,8 @@
             <span class="badge text-bg-warning text-wrap text-start"><i class="bi bi-person-fill-gear me-1"></i>{{ e.title }}</span>
             {% elif e.kind == 'fixed_post_configured' %}
             <span class="badge text-bg-secondary text-wrap text-start"><i class="bi bi-pin-map me-1"></i>{{ e.title }}</span>
+            {% elif e.kind == 'alert_acknowledged' %}
+            <span class="badge text-bg-danger text-wrap text-start"><i class="bi bi-check2-circle me-1"></i>{{ e.title }}</span>
             {% else %}
             <span class="badge text-bg-light text-dark">{{ e.title }}</span>
             {% endif %}
@@ -204,6 +206,7 @@
           <th>Fin</th>
           <th>Retard</th>
           <th>Absent</th>
+          <th>Notes (acquittements, etc.)</th>
         </tr>
       </thead>
       <tbody>
@@ -228,9 +231,10 @@
             <span class="badge bg-success">Non</span>
             {% endif %}
           </td>
+          <td class="small text-muted" style="max-width:18rem;white-space:pre-wrap;">{{ report.notes|default:"—" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
+        <tr><td colspan="8" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
         {% endfor %}
       </tbody>
     </table>

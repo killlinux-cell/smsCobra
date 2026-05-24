@@ -381,7 +381,10 @@ Le pointage est accepté si la position est dans le **rayon du site** + **marge 
 
 ### 9.3 Acquittement
 
-Traiter l’alerte dans **Alertes** (web ou app) pour suivre ce qui a été pris en charge.
+Traiter l’alerte dans **Alertes** (web ou app) pour suivre ce qui a été pris en charge. L’**administrateur qui acquitte** est enregistré automatiquement :
+
+- dans le **journal d’activité** des **Rapports** (événement « Alerte acquittée ») ;
+- dans la colonne **Notes** de la **synthèse des pointages** et dans l’**export CSV** (ligne horodatée : qui a acquitté, type d’alerte, détail).
 
 ---
 
@@ -389,11 +392,11 @@ Traiter l’alerte dans **Alertes** (web ou app) pour suivre ce qui a été pris
 
 ### 10.1 Journal d’activité
 
-Filtre par **site** et par **date** ou **mois**. Idéal pour audit : qui a été créé, qui a pointé, quels remplacements.
+Filtre par **site** et par **date** ou **mois**. Idéal pour audit : qui a été créé, qui a pointé, quels remplacements, **quelles alertes ont été acquittées et par qui**.
 
 ### 10.2 Synthèse pointages
 
-Export **CSV** : date, site, vigile, début, fin, retard (oui/non), absent (oui/non).
+Export **CSV** : date, site, vigile, début, fin, retard (oui/non), absent (oui/non), **notes** (acquittements d’alertes, etc.).
 
 ### 10.3 Pointages mensuels
 

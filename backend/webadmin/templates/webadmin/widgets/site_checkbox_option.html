@@ -1,0 +1,4 @@
+<label class="cobra-site-checklist__option"{% if widget.attrs.id %} for="{{ widget.attrs.id }}"{% endif %}>
+{% include "django/forms/widgets/input.html" %}
+<span class="cobra-site-checklist__label-text">{{ widget.label }}</span>
+</label>

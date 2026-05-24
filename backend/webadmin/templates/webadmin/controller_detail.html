@@ -119,16 +119,20 @@
           <label class="form-label" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>
           {{ form.profile_photo }}
         </div>
-        <div class="col-12">
-          <label class="form-label">{{ form.sites.label }}</label>
+        <div class="col-12 cobra-site-checklist-block">
+          <label class="form-label d-block mb-1">{{ form.sites.label }}</label>
+          {% if form.sites.help_text %}
+          <div class="form-text mb-2">{{ form.sites.help_text }}</div>
+          {% endif %}
           <div class="cobra-site-checklist">
             {{ form.sites }}
           </div>
-          {% if form.sites.help_text %}<div class="form-text">{{ form.sites.help_text }}</div>{% endif %}
-          {% if form.sites.errors %}<div class="text-danger small">{{ form.sites.errors }}</div>{% endif %}
+          {% if form.sites.errors %}<div class="text-danger small mt-2">{{ form.sites.errors }}</div>{% endif %}
         </div>
       </div>
-      <button type="submit" class="btn cobra-btn-accent mt-2">Enregistrer les modifications</button>
+    </div>
+    <div class="card-footer bg-white border-top py-3 px-4">
+      <button type="submit" class="btn cobra-btn-accent">Enregistrer les modifications</button>
     </div>
   </div>
 </form>

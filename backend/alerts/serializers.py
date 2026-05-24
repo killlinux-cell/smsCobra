@@ -16,6 +16,7 @@ class LateAlertSerializer(serializers.ModelSerializer):
     site_name = serializers.CharField(source="assignment.site.name", read_only=True)
     guard_display = serializers.CharField(source="assignment.guard.display_name", read_only=True)
     assignment_id = serializers.IntegerField(source="assignment.id", read_only=True)
+    admin_recipient_display = serializers.SerializerMethodField()
 
     class Meta:
         model = LateAlert
@@ -26,12 +27,19 @@ class LateAlertSerializer(serializers.ModelSerializer):
             "site_name",
             "guard_display",
             "admin_recipient",
+            "admin_recipient_display",
             "status",
             "message",
             "triggered_at",
             "acknowledged_at",
             "resolved_at",
         ]
+
+    def get_admin_recipient_display(self, obj: LateAlert) -> str | None:
+        if not obj.admin_recipient_id:
+            return None
+        u = obj.admin_recipient
+        return (u.get_full_name() or "").strip() or u.username
 
 
 class ShiftAssignmentDispatchSerializer(serializers.ModelSerializer):

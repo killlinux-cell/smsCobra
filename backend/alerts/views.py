@@ -44,7 +44,10 @@ class AckAlertView(APIView):
         alert.status = LateAlert.Status.ACKNOWLEDGED
         alert.acknowledged_at = timezone.now()
         alert.admin_recipient = request.user
-        alert.save()
+        alert.save(update_fields=["status", "acknowledged_at", "admin_recipient"])
+        from reports.alert_ack import log_alert_acknowledged_to_report
+
+        log_alert_acknowledged_to_report(alert, request.user)
         return Response(LateAlertSerializer(alert).data)
 
 

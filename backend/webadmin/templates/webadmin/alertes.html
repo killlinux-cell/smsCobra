@@ -162,8 +162,13 @@
               <input type="hidden" name="next" value="{% url 'webadmin-alertes' %}?date={{ filter_day|date:'Y-m-d' }}">
               <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
             </form>
+            {% elif alert.admin_recipient %}
+            <span class="small text-success" title="{{ alert.acknowledged_at|date:'d/m/Y H:i' }}">
+              <i class="bi bi-check2-circle"></i>
+              {{ alert.admin_recipient.get_full_name|default:alert.admin_recipient.username }}
+            </span>
             {% else %}
-            <span class="text-muted small">—</span>
+            <span class="text-muted small">Acquittée</span>
             {% endif %}
           </td>
         </tr>

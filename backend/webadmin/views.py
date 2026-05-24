@@ -1407,7 +1407,14 @@ def ack_alert_view(request, alert_id: int):
     alert.acknowledged_at = timezone.now()
     alert.admin_recipient = request.user
     alert.save(update_fields=["status", "acknowledged_at", "admin_recipient"])
-    messages.success(request, f"Alerte n°{alert.id} acquittée.")
+    from reports.alert_ack import log_alert_acknowledged_to_report
+
+    log_alert_acknowledged_to_report(alert, request.user)
+    messages.success(
+        request,
+        f"Alerte n°{alert.id} acquittée par {request.user.get_full_name() or request.user.username} "
+        f"(enregistré dans les rapports).",
+    )
     return redirect(request.POST.get("next") or "webadmin-alertes")
 
 

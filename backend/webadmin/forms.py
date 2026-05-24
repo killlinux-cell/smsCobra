@@ -10,10 +10,22 @@ from sites.models import Site
 _CTRL = "form-control"
 _SEL = "form-select"
 
-# Sélection multi-sites par cases à cocher (évite Ctrl+clic sur une liste).
-_SITE_CHECKBOX_WIDGET = forms.CheckboxSelectMultiple(
-    attrs={"class": "form-check-input"},
-)
+class SiteCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
+    """Liste de sites en cases à cocher (template dédié, lisible sur la fiche contrôleur)."""
+
+    template_name = "webadmin/widgets/site_checkbox_select.html"
+    option_template_name = "webadmin/widgets/site_checkbox_option.html"
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(
+            name, value, label, selected, index, subindex=subindex, attrs=attrs
+        )
+        option.setdefault("attrs", {})
+        option["attrs"]["class"] = "form-check-input"
+        return option
+
+
+_SITE_CHECKBOX_WIDGET = SiteCheckboxSelectMultiple()
 
 
 class AssignmentChoiceField(forms.ModelChoiceField):
@@ -251,7 +263,6 @@ class ControllerCreationForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["sites"].widget.attrs.setdefault("class", "form-check-input")
         self.fields["username"].label = "Identifiant (généré automatiquement)"
         self.fields["username"].required = False
         self.fields["username"].help_text = "Laissez vide pour génération automatique (CTR-XXX)."
@@ -342,7 +353,6 @@ class ControllerUpdateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["profile_photo"].required = False
-        self.fields["sites"].widget.attrs.setdefault("class", "form-check-input")
         if self.instance and self.instance.pk:
             assigned_ids = (
                 ControllerSiteAssignment.objects.filter(

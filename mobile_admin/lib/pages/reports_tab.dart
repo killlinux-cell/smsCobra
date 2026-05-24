@@ -104,6 +104,8 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
         return (Icons.swap_horiz_rounded, const Color(0xFFD97706));
       case 'fixed_post_configured':
         return (Icons.push_pin_rounded, const Color(0xFF2563EB));
+      case 'alert_acknowledged':
+        return (Icons.verified_rounded, CobraAdminColors.accent);
       default:
         return (Icons.article_rounded, const Color(0xFF64748B));
     }

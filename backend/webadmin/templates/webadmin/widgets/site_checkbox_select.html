@@ -1,0 +1,12 @@
+<div class="cobra-site-checklist__scroll"{% include "django/forms/widgets/attrs.html" %}>
+{% for group, options, index in widget.optgroups %}
+  {% if group %}
+  <div class="cobra-site-checklist__group">{{ group }}</div>
+  {% endif %}
+  {% for option in options %}
+  <div class="cobra-site-checklist__row">
+    {% include option.template_name with widget=option %}
+  </div>
+  {% endfor %}
+{% endfor %}
+</div>
