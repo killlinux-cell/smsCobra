@@ -700,8 +700,8 @@ class ShiftAssignmentForm(forms.ModelForm):
                     start_time=start_time,
                     end_time=end_time,
                     status=ShiftAssignment.Status.EXTRA,
+                    relieved_by=None,
                 )
-                self._apply_times_and_relief(assignment)
                 if commit:
                     assignment.save()
                 if first is None:

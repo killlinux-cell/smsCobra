@@ -54,6 +54,13 @@
   <div class="card-body">
     <form method="post" novalidate id="cobra-affectation-create-form">
       {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger mb-3">
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
       <div class="row g-3">
         <div class="col-md-6">
           <label class="form-label" for="{{ form.planning_mode.id_for_label }}">{{ form.planning_mode.label }}</label>
