@@ -392,18 +392,6 @@ class ControllerUpdateForm(forms.ModelForm):
 class VigileUpdateForm(forms.ModelForm):
     """Mise à jour d'un vigile depuis le tableau de bord (fiche détail)."""
 
-    new_password1 = forms.CharField(
-        label="Nouveau mot de passe (facultatif)",
-        required=False,
-        widget=forms.PasswordInput(attrs={"class": _CTRL, "autocomplete": "new-password"}),
-        help_text="Laissez vide pour ne pas modifier. Au moins 8 caractères si renseigné.",
-    )
-    new_password2 = forms.CharField(
-        label="Confirmer le mot de passe",
-        required=False,
-        widget=forms.PasswordInput(attrs={"class": _CTRL, "autocomplete": "new-password"}),
-    )
-
     class Meta:
         model = User
         fields = [
@@ -466,25 +454,8 @@ class VigileUpdateForm(forms.ModelForm):
             raise forms.ValidationError("Cet identifiant est déjà utilisé.")
         return u
 
-    def clean(self):
-        cleaned = super().clean()
-        p1 = (cleaned.get("new_password1") or "").strip()
-        p2 = (cleaned.get("new_password2") or "").strip()
-        if p1 or p2:
-            if p1 != p2:
-                self.add_error("new_password2", "Les mots de passe ne correspondent pas.")
-            elif len(p1) < 8:
-                self.add_error("new_password1", "Au moins 8 caractères.")
-        return cleaned
-
     def save(self, commit=True):
-        user = super().save(commit=False)
-        p1 = (self.cleaned_data.get("new_password1") or "").strip()
-        if p1:
-            user.set_password(p1)
-        if commit:
-            user.save()
-        return user
+        return super().save(commit=commit)
 
 
 class ShiftAssignmentForm(forms.ModelForm):

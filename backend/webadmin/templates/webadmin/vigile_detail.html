@@ -102,23 +102,6 @@
 
           <hr class="my-4">
 
-          <h6 class="text-muted mb-3">Mot de passe</h6>
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label" for="{{ form.new_password1.id_for_label }}">{{ form.new_password1.label }}</label>
-              {{ form.new_password1 }}
-              {% if form.new_password1.help_text %}<div class="form-text">{{ form.new_password1.help_text }}</div>{% endif %}
-              {% if form.new_password1.errors %}<div class="text-danger small">{{ form.new_password1.errors }}</div>{% endif %}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="{{ form.new_password2.id_for_label }}">{{ form.new_password2.label }}</label>
-              {{ form.new_password2 }}
-              {% if form.new_password2.errors %}<div class="text-danger small">{{ form.new_password2.errors }}</div>{% endif %}
-            </div>
-          </div>
-
-          <hr class="my-4">
-
           <h6 class="text-muted mb-3">Pièce d'identité</h6>
           <div class="mb-3">
             <label class="form-label" for="{{ form.id_document.id_for_label }}">{{ form.id_document.label }}</label>
