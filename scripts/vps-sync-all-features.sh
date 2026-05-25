@@ -14,7 +14,9 @@ MISSING=0
 for f in \
   backend/sites/migrations/0007_site_site_manager_phone.py \
   backend/sites/migrations/0008_site_latitude_longitude_optional.py \
+  backend/shifts/migrations/0009_shiftassignment_status_extra.py \
   backend/webadmin/forms.py \
+  backend/webadmin/templates/webadmin/affectations.html \
   backend/webadmin/templates/webadmin/_site_tolerance_sync_script.html \
   backend/reports/alert_ack.py \
   backend/webadmin/templates/webadmin/rapports.html
@@ -50,7 +52,9 @@ $COMPOSE exec api sh -c '
   test -f /app/sites/migrations/0007_site_site_manager_phone.py || exit 10
   test -f /app/sites/migrations/0008_site_latitude_longitude_optional.py || exit 11
   grep -q site_manager_phone /app/webadmin/forms.py || exit 12
-  echo "    OK — 0007, 0008 et forms.py dans le conteneur"
+  test -f /app/shifts/migrations/0009_shiftassignment_status_extra.py || exit 13
+  grep -q cobra-extra-panel /app/webadmin/templates/webadmin/affectations.html || exit 14
+  echo "    OK — sites, shifts 0009, forms, affectations Extra dans le conteneur"
 ' || {
   echo "ERREUR : la copie Docker n a pas mis à jour le conteneur. Réessayez ou rebuild l image api."
   exit 1
