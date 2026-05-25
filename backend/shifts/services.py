@@ -2,7 +2,7 @@ import logging
 from datetime import date, time, timedelta
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 
 from .models import FixedPost, ShiftAssignment
 
@@ -50,22 +50,32 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
                 else None,
             }
             # Ne modifie pas une affectation existante (historique / ajustements manuels).
-            ShiftAssignment.objects.get_or_create(
+            # Exclure les Extras (renforts temporaires) du lookup — ils coexistent avec le titulaire.
+            existing = ShiftAssignment.objects.filter(
                 site=post.site,
                 shift_date=day,
                 start_time=start_time,
-                defaults=defaults,
-            )
+            ).exclude(status=ShiftAssignment.Status.EXTRA).first()
+            if not existing:
+                ShiftAssignment.objects.create(
+                    site=post.site,
+                    shift_date=day,
+                    start_time=start_time,
+                    **defaults,
+                )
 
-    # (Re)lier la passation jour -> nuit du même site.
+    # (Re)lier la passation jour -> nuit du même site (exclure les extras).
+    _non_extra = ~models.Q(status=ShiftAssignment.Status.EXTRA)
     for day in unique_days:
         next_day = day + timedelta(days=1)
         day_rows = ShiftAssignment.objects.select_related("site").filter(
+            _non_extra,
             shift_date=day,
             start_time=time(6, 0),
         )
         for row in day_rows:
             incoming = ShiftAssignment.objects.filter(
+                _non_extra,
                 site=row.site,
                 shift_date=day,
                 start_time=time(18, 0),
@@ -73,11 +83,13 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
             _link_relieved_by(row, incoming)
 
         night_rows = ShiftAssignment.objects.select_related("site").filter(
+            _non_extra,
             shift_date=day,
             start_time=time(18, 0),
         )
         for row in night_rows:
             incoming = ShiftAssignment.objects.filter(
+                _non_extra,
                 site=row.site,
                 shift_date=next_day,
                 start_time=time(6, 0),
