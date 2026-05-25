@@ -1,0 +1,60 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'webadmin-vigile-detail' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" class="text-decoration-none">
+    <i class="bi bi-arrow-left me-1"></i>Retour à la fiche
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card cobra-panel border-danger">
+      <div class="card-header bg-danger text-white d-flex align-items-center gap-2">
+        <i class="bi bi-person-x-fill"></i>
+        <span>Supprimer un vigile</span>
+      </div>
+      <div class="card-body">
+        <p class="mb-3">
+          Confirmez-vous la suppression définitive de
+          <strong>{{ vigile.display_name|default:vigile.username }}</strong> (@{{ vigile.username }}) ?
+        </p>
+
+        {% if delete_ctx.blockers %}
+        <div class="alert alert-warning">
+          <p class="fw-semibold mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Suppression impossible pour l'instant</p>
+          <ul class="mb-0 small">
+            {% for msg in delete_ctx.blockers %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% else %}
+        <div class="alert alert-danger small mb-3">
+          <p class="fw-semibold mb-2">Cette action est irréversible.</p>
+          <p class="mb-1">Seront également supprimés ou détachés :</p>
+          <ul class="mb-0">
+            {% if delete_ctx.counts.assignments %}<li>{{ delete_ctx.counts.assignments }} affectation(s)</li>{% endif %}
+            {% if delete_ctx.counts.checkins %}<li>{{ delete_ctx.counts.checkins }} pointage(s)</li>{% endif %}
+            {% if delete_ctx.counts.reports %}<li>{{ delete_ctx.counts.reports }} ligne(s) de rapport de pointage</li>{% endif %}
+            {% if delete_ctx.counts.fixed_posts_titular %}<li>{{ delete_ctx.counts.fixed_posts_titular }} poste(s) fixe(s) où il était titulaire (historique)</li>{% endif %}
+            <li>Photo de profil et pièce d'identité enregistrées</li>
+          </ul>
+        </div>
+        {% endif %}
+
+        <form method="post" class="d-flex flex-wrap gap-2 justify-content-end">
+          {% csrf_token %}
+          <a href="{% url 'webadmin-vigile-detail' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" class="btn btn-outline-secondary">Annuler</a>
+          {% if delete_ctx.can_delete %}
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash3 me-1"></i>Supprimer définitivement
+          </button>
+          {% else %}
+          <button type="button" class="btn btn-danger" disabled>Supprimer définitivement</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

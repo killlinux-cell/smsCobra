@@ -21,6 +21,7 @@ urlpatterns = [
     path("controllers/", views.controllers_list_view, name="webadmin-controllers"),
     path("controllers/<int:pk>/", views.controller_detail_view, name="webadmin-controller-detail"),
     path("vigiles/<int:pk>/", views.vigile_detail_view, name="webadmin-vigile-detail"),
+    path("vigiles/<int:pk>/supprimer/", views.vigile_delete_view, name="webadmin-vigile-delete"),
     path("affectations/", views.affectations_list_view, name="webadmin-affectations"),
     path(
         "affectations/titulaires/",

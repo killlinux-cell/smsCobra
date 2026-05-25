@@ -155,6 +155,15 @@
           <button type="submit" class="btn cobra-btn-accent btn-lg w-100 mt-4">
             <i class="bi bi-check2-circle me-2"></i>Enregistrer les modifications
           </button>
+
+          <hr class="my-4">
+          <div class="rounded-3 border border-danger border-opacity-25 p-3 bg-danger bg-opacity-10">
+            <p class="small fw-semibold text-danger mb-2"><i class="bi bi-exclamation-octagon me-1"></i>Zone sensible</p>
+            <p class="small text-muted mb-3">Supprime définitivement le compte, les affectations et l'historique de pointage liés à ce vigile.</p>
+            <a href="{% url 'webadmin-vigile-delete' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" class="btn btn-outline-danger">
+              <i class="bi bi-trash3 me-1"></i>Supprimer ce vigile…
+            </a>
+          </div>
         </div>
       </div>
     </div>

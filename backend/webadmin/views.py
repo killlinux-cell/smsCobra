@@ -908,6 +908,49 @@ def vigile_detail_view(request, pk):
 
 
 @admin_web_required
+def vigile_delete_view(request, pk):
+    vigile = get_object_or_404(User.objects.filter(role=User.Role.VIGILE), pk=pk)
+    list_qs = request.GET.urlencode()
+    from webadmin.vigile_delete import delete_vigile, get_vigile_delete_context
+
+    delete_ctx = get_vigile_delete_context(vigile)
+
+    if request.method == "POST":
+        if not delete_ctx["can_delete"]:
+            messages.error(request, delete_ctx["blockers"][0])
+            redir = reverse("webadmin-vigile-delete", args=[pk])
+            if list_qs:
+                redir = f"{redir}?{list_qs}"
+            return redirect(redir)
+        try:
+            label = vigile.display_name
+            delete_vigile(vigile)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            redir = reverse("webadmin-vigile-delete", args=[pk])
+            if list_qs:
+                redir = f"{redir}?{list_qs}"
+            return redirect(redir)
+        messages.success(request, f"Le vigile {label} a été supprimé définitivement.")
+        redir = reverse("webadmin-vigiles")
+        if list_qs:
+            redir = f"{redir}?{list_qs}"
+        return redirect(redir)
+
+    return render(
+        request,
+        "webadmin/vigile_confirm_delete.html",
+        {
+            "page_title": "Supprimer un vigile",
+            "nav_active": "vigiles",
+            "vigile": vigile,
+            "delete_ctx": delete_ctx,
+            "vigiles_list_querystring": list_qs,
+        },
+    )
+
+
+@admin_web_required
 def affectations_list_view(request):
     today = timezone.localdate()
     horizon_days = [today + timedelta(days=i) for i in range(31)]

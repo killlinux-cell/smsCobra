@@ -136,7 +136,8 @@ Après connexion, le menu latéral donne accès aux modules suivants.
 
 - Création avec **photo portrait obligatoire** (reconnaissance faciale).
 - Coordonnées, domicile, pièce d’identité (scan), date d’intégration.
-- Fiche détaillée : historique, affectations liées.
+- Fiche détaillée : **site(s) de poste** (bandeau visible), historique, modification.
+- **Suppression** : bouton « Supprimer ce vigile » en bas de fiche → page de confirmation. Impossible si le vigile est encore **titulaire** ou **remplaçant actif** sur un poste fixe (réassigner d’abord). Sinon : compte, affectations et pointages liés sont effacés (irréversible).
 
 Sans photo valide, les pointages biométriques peuvent être refusés.
 
