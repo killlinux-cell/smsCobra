@@ -155,3 +155,81 @@ class FixedPostMaterializationTests(TestCase):
         self.assertEqual(a.guard_id, self.guard_b.id)
         self.assertEqual(a.original_guard_id, self.guard_a.id)
         self.assertEqual(a.status, ShiftAssignment.Status.REPLACED)
+
+
+class ExtraAssignmentFormTests(TestCase):
+    def setUp(self):
+        self.titular = User.objects.create_user(username="tit", password="x", role="vigile")
+        self.extra_guard = User.objects.create_user(username="ext", password="x", role="vigile")
+        self.site = Site.objects.create(
+            name="Site Extra",
+            address="Addr",
+            expected_start_time=time(6, 0),
+            expected_end_time=time(18, 0),
+            latitude=1,
+            longitude=1,
+        )
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.titular,
+            is_active=True,
+        )
+        ShiftAssignment.objects.create(
+            guard=self.titular,
+            site=self.site,
+            shift_date=date.today(),
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+
+    def test_extra_mode_creates_consecutive_assignments(self):
+        from webadmin.forms import ShiftAssignmentForm
+
+        start = date.today()
+        form = ShiftAssignmentForm(
+            {
+                "planning_mode": ShiftAssignmentForm.MODE_EXTRA,
+                "extra_days": "3",
+                "guard": str(self.extra_guard.pk),
+                "site": str(self.site.pk),
+                "shift_date": start.isoformat(),
+                "shift_type": ShiftAssignmentForm.SHIFT_TYPE_DAY,
+            },
+            for_create=True,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        extras = ShiftAssignment.objects.filter(
+            guard=self.extra_guard,
+            site=self.site,
+            status=ShiftAssignment.Status.EXTRA,
+        )
+        self.assertEqual(extras.count(), 3)
+        dates = sorted(a.shift_date for a in extras)
+        self.assertEqual(dates, [start, start + timedelta(days=1), start + timedelta(days=2)])
+
+    def test_extra_requires_titular_on_site(self):
+        from webadmin.forms import ShiftAssignmentForm
+
+        site2 = Site.objects.create(
+            name="Sans titulaire",
+            address="X",
+            expected_start_time=time(6, 0),
+            expected_end_time=time(18, 0),
+            latitude=1,
+            longitude=1,
+        )
+        form = ShiftAssignmentForm(
+            {
+                "planning_mode": ShiftAssignmentForm.MODE_EXTRA,
+                "extra_days": "2",
+                "guard": str(self.extra_guard.pk),
+                "site": str(site2.pk),
+                "shift_date": date.today().isoformat(),
+                "shift_type": ShiftAssignmentForm.SHIFT_TYPE_DAY,
+            },
+            for_create=True,
+        )
+        self.assertFalse(form.is_valid())

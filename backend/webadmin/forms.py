@@ -462,6 +462,31 @@ class ShiftAssignmentForm(forms.ModelForm):
     SHIFT_TYPE_DAY = "day"
     SHIFT_TYPE_NIGHT = "night"
 
+    MODE_PLANIFIER = "planifier"
+    MODE_EXTRA = "extra"
+
+    planning_mode = forms.ChoiceField(
+        choices=(
+            (MODE_PLANIFIER, "Planifier"),
+            (MODE_EXTRA, "Extra"),
+        ),
+        label="Mode",
+        initial=MODE_PLANIFIER,
+        widget=forms.Select(attrs={"class": _SEL, "id": "id_planning_mode"}),
+        help_text=(
+            "Planifier : titulaire reconduit chaque jour. "
+            "Extra : vigile(s) supplémentaire(s) sur une durée limitée alors qu'un titulaire est déjà en place."
+        ),
+    )
+    extra_days = forms.IntegerField(
+        label="Nombre de jours",
+        min_value=1,
+        max_value=31,
+        initial=5,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": _CTRL, "id": "id_extra_days", "min": "1", "max": "31"}),
+        help_text="Durée du renfort Extra sur le site (ex. 5 jours consécutifs).",
+    )
     shift_type = forms.ChoiceField(
         choices=(
             (SHIFT_TYPE_DAY, "Jour (06:00 - 18:00)"),
@@ -482,21 +507,20 @@ class ShiftAssignmentForm(forms.ModelForm):
 
     class Meta:
         model = ShiftAssignment
-        fields = ["guard", "site", "shift_date", "shift_type", "status"]
+        fields = ["guard", "site", "shift_date", "shift_type"]
         labels = {
             "guard": "Vigile",
             "site": "Site",
-            "shift_date": "Date",
-            "status": "Statut",
+            "shift_date": "Date de début",
         }
         widgets = {
             "guard": forms.Select(attrs={"class": _SEL}),
             "site": forms.Select(attrs={"class": _SEL}),
             "shift_date": forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
-            "status": forms.Select(attrs={"class": _SEL}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, for_create=True, **kwargs):
+        self.for_create = for_create
         super().__init__(*args, **kwargs)
         self.fields["guard"].queryset = User.objects.filter(role=User.Role.VIGILE).order_by("username")
         self.fields["guard"] = GuardChoiceField(
@@ -505,11 +529,31 @@ class ShiftAssignmentForm(forms.ModelForm):
         )
         self.fields["guard"].widget.attrs.setdefault("class", _SEL)
         self.fields["site"].queryset = Site.objects.filter(is_active=True).order_by("name")
-        if self.instance and self.instance.pk:
+        if not for_create:
+            for name in ("planning_mode", "extra_days", "create_fixed_post"):
+                self.fields.pop(name, None)
+            if self.instance and self.instance.pk:
+                if self.instance.start_time == time(6, 0):
+                    self.fields["shift_type"].initial = self.SHIFT_TYPE_DAY
+                elif self.instance.start_time == time(18, 0):
+                    self.fields["shift_type"].initial = self.SHIFT_TYPE_NIGHT
+        elif self.instance and self.instance.pk:
             if self.instance.start_time == time(6, 0):
                 self.fields["shift_type"].initial = self.SHIFT_TYPE_DAY
             elif self.instance.start_time == time(18, 0):
                 self.fields["shift_type"].initial = self.SHIFT_TYPE_NIGHT
+        else:
+            self.order_fields(
+                ["planning_mode", "extra_days", "guard", "site", "shift_date", "shift_type", "create_fixed_post"]
+            )
+
+    def _slot_times(self, shift_type: str) -> tuple[time, time]:
+        if shift_type == self.SHIFT_TYPE_DAY:
+            return time(6, 0), time(18, 0)
+        return time(18, 0), time(6, 0)
+
+    def _fixed_post_shift_type(self, shift_type: str) -> str:
+        return FixedPost.ShiftType.DAY if shift_type == self.SHIFT_TYPE_DAY else FixedPost.ShiftType.NIGHT
 
     def clean(self):
         cleaned = super().clean()
@@ -520,25 +564,54 @@ class ShiftAssignmentForm(forms.ModelForm):
         if not (site and guard and shift_date and shift_type):
             return cleaned
 
-        if shift_type == self.SHIFT_TYPE_DAY:
-            start_time = time(6, 0)
-            end_time = time(18, 0)
-        else:
-            start_time = time(18, 0)
-            end_time = time(6, 0)
-
+        start_time, end_time = self._slot_times(shift_type)
         cleaned["start_time"] = start_time
         cleaned["end_time"] = end_time
 
-        same_slot = ShiftAssignment.objects.filter(
-            site=site,
-            shift_date=shift_date,
-            start_time=start_time,
-        )
-        if self.instance.pk:
-            same_slot = same_slot.exclude(pk=self.instance.pk)
-        if same_slot.exists():
-            raise forms.ValidationError("Ce poste (jour/nuit) est deja attribue pour ce site et cette date.")
+        mode = cleaned.get("planning_mode", self.MODE_PLANIFIER) if self.for_create else None
+        extra_days = cleaned.get("extra_days") or 1
+
+        if self.for_create and mode == self.MODE_EXTRA:
+            if extra_days < 1 or extra_days > 31:
+                raise forms.ValidationError({"extra_days": "Indiquez une durée entre 1 et 31 jours."})
+            fp_shift = self._fixed_post_shift_type(shift_type)
+            titular_post = FixedPost.objects.filter(
+                site=site,
+                shift_type=fp_shift,
+                is_active=True,
+            ).first()
+            if not titular_post or not titular_post.titular_guard_id:
+                raise forms.ValidationError(
+                    "Un titulaire doit déjà être en place sur ce site (poste jour ou nuit) "
+                    "avant d'ajouter un vigile Extra."
+                )
+            if titular_post.titular_guard_id == guard.pk:
+                raise forms.ValidationError(
+                    "Le vigile Extra doit être différent du titulaire actuel du poste."
+                )
+            for offset in range(extra_days):
+                day = shift_date + timedelta(days=offset)
+                if ShiftAssignment.objects.filter(
+                    site=site,
+                    shift_date=day,
+                    start_time=start_time,
+                    guard=guard,
+                ).exists():
+                    raise forms.ValidationError(
+                        f"Ce vigile a déjà une affectation sur ce créneau le {day.strftime('%d/%m/%Y')}."
+                    )
+        else:
+            same_slot = ShiftAssignment.objects.filter(
+                site=site,
+                shift_date=shift_date,
+                start_time=start_time,
+            )
+            if self.instance.pk:
+                same_slot = same_slot.exclude(pk=self.instance.pk)
+            if same_slot.exists():
+                raise forms.ValidationError(
+                    "Ce poste (jour/nuit) est déjà attribué pour ce site et cette date."
+                )
 
         if shift_type == self.SHIFT_TYPE_DAY:
             opposite_date = shift_date - timedelta(days=1)
@@ -556,13 +629,13 @@ class ShiftAssignmentForm(forms.ModelForm):
             opposite = opposite.exclude(pk=self.instance.pk)
         if opposite.exists():
             raise forms.ValidationError(
-                "Ce vigile est deja affecte au poste oppose autour de cette passation. Choisissez un autre vigile."
+                "Ce vigile est déjà affecté au poste opposé autour de cette passation. Choisissez un autre vigile."
             )
 
+        cleaned["extra_days"] = extra_days
         return cleaned
 
-    def save(self, commit=True):
-        obj = super().save(commit=False)
+    def _apply_times_and_relief(self, obj: ShiftAssignment) -> None:
         shift_type = self.cleaned_data["shift_type"]
         if shift_type == self.SHIFT_TYPE_DAY:
             obj.start_time = time(6, 0)
@@ -579,30 +652,69 @@ class ShiftAssignmentForm(forms.ModelForm):
             shift_date=incoming_date,
             start_time=incoming_start,
         ).first()
+
+    def _ensure_fixed_post(self, obj: ShiftAssignment) -> None:
+        shift_type = (
+            FixedPost.ShiftType.DAY
+            if obj.start_time == time(6, 0)
+            else FixedPost.ShiftType.NIGHT
+        )
+        existing = (
+            FixedPost.objects.filter(site=obj.site, shift_type=shift_type, is_active=True)
+            .exclude(titular_guard=obj.guard)
+            .first()
+        )
+        if existing:
+            existing.is_active = False
+            existing.save(update_fields=["is_active"])
+        FixedPost.objects.update_or_create(
+            site=obj.site,
+            shift_type=shift_type,
+            is_active=True,
+            defaults={"titular_guard": obj.guard},
+        )
+
+    def save(self, commit=True):
+        if not self.for_create:
+            obj = super().save(commit=False)
+            self._apply_times_and_relief(obj)
+            if commit:
+                obj.save()
+            return obj
+
+        mode = self.cleaned_data.get("planning_mode", self.MODE_PLANIFIER)
+        if mode == self.MODE_EXTRA:
+            guard = self.cleaned_data["guard"]
+            site = self.cleaned_data["site"]
+            shift_date = self.cleaned_data["shift_date"]
+            shift_type = self.cleaned_data["shift_type"]
+            extra_days = self.cleaned_data["extra_days"]
+            start_time, end_time = self._slot_times(shift_type)
+            first = None
+            for offset in range(extra_days):
+                day = shift_date + timedelta(days=offset)
+                assignment = ShiftAssignment(
+                    guard=guard,
+                    site=site,
+                    shift_date=day,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=ShiftAssignment.Status.EXTRA,
+                )
+                self._apply_times_and_relief(assignment)
+                if commit:
+                    assignment.save()
+                if first is None:
+                    first = assignment
+            return first
+
+        obj = super().save(commit=False)
+        obj.status = ShiftAssignment.Status.SCHEDULED
+        self._apply_times_and_relief(obj)
         if commit:
             obj.save()
             if self.cleaned_data.get("create_fixed_post"):
-                shift_type = (
-                    FixedPost.ShiftType.DAY
-                    if obj.start_time == time(6, 0)
-                    else FixedPost.ShiftType.NIGHT
-                )
-                existing = (
-                    FixedPost.objects.filter(site=obj.site, shift_type=shift_type, is_active=True)
-                    .exclude(titular_guard=obj.guard)
-                    .first()
-                )
-                if existing:
-                    existing.is_active = False
-                    existing.save(update_fields=["is_active"])
-                FixedPost.objects.update_or_create(
-                    site=obj.site,
-                    shift_type=shift_type,
-                    is_active=True,
-                    defaults={
-                        "titular_guard": obj.guard,
-                    },
-                )
+                self._ensure_fixed_post(obj)
         return obj
 
 

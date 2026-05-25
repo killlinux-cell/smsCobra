@@ -195,6 +195,7 @@ def _vigile_month_bilan(guard_id: int, year: int, month: int) -> dict | None:
     n_assign = assign_qs.count()
     n_missed = assign_qs.filter(status=ShiftAssignment.Status.MISSED).count()
     n_completed = assign_qs.filter(status=ShiftAssignment.Status.COMPLETED).count()
+    n_extra = assign_qs.filter(status=ShiftAssignment.Status.EXTRA).count()
     n_scheduled = assign_qs.filter(status=ShiftAssignment.Status.SCHEDULED).count()
     n_replaced = assign_qs.filter(status=ShiftAssignment.Status.REPLACED).count()
 
@@ -446,6 +447,7 @@ def dashboard_view(request):
         "map_tile_url": map_tile_url,
         "kpi": {
             "total": assignments.count(),
+            "extra": assignments.filter(status=ShiftAssignment.Status.EXTRA).count(),
             "scheduled": assignments.filter(status=ShiftAssignment.Status.SCHEDULED).count(),
             "replaced": assignments.filter(status=ShiftAssignment.Status.REPLACED).count(),
             "completed": assignments.filter(status=ShiftAssignment.Status.COMPLETED).count(),
@@ -544,7 +546,7 @@ def site_detail_view(request, pk):
                 note_role(fp.replacement_guard, f"Remplaçant désigné — {lab}")
 
     status_counters: dict[int, dict[str, int]] = defaultdict(
-        lambda: {"planifie": 0, "termine": 0, "manque": 0, "remplace_statut": 0}
+        lambda: {"planifie": 0, "extra": 0, "termine": 0, "manque": 0, "remplace_statut": 0}
     )
     guard_ids_seen: set[int] = set(guards_map.keys())
 
@@ -553,6 +555,8 @@ def site_detail_view(request, pk):
         bucket = status_counters[a.guard_id]
         if a.status == ShiftAssignment.Status.SCHEDULED:
             bucket["planifie"] += 1
+        elif a.status == ShiftAssignment.Status.EXTRA:
+            bucket["extra"] += 1
         elif a.status == ShiftAssignment.Status.COMPLETED:
             bucket["termine"] += 1
         elif a.status == ShiftAssignment.Status.MISSED:
@@ -966,14 +970,14 @@ def affectations_list_view(request):
     if filter_site_pk:
         qs = qs.filter(site_id=filter_site_pk)
         filter_site = Site.objects.filter(pk=filter_site_pk).first()
-    form = ShiftAssignmentForm()
+    form = ShiftAssignmentForm(for_create=True)
     dispatch_form = DispatchForm(
         assignments_qs=ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(shift_date=today)
         .order_by("site__name", "start_time"),
     )
     if request.method == "POST":
-        form = ShiftAssignmentForm(request.POST)
+        form = ShiftAssignmentForm(request.POST, for_create=True)
         if form.is_valid():
             try:
                 form.save()
@@ -988,13 +992,21 @@ def affectations_list_view(request):
                 else:
                     form.add_error(None, exc.messages)
             else:
-                messages.success(
-                    request,
-                    (
-                        "Affectation créée comme poste titulaire quotidien "
-                        "(reconduction automatique active)."
-                    ),
-                )
+                mode = form.cleaned_data.get("planning_mode", ShiftAssignmentForm.MODE_PLANIFIER)
+                if mode == ShiftAssignmentForm.MODE_EXTRA:
+                    days = form.cleaned_data.get("extra_days", 1)
+                    messages.success(
+                        request,
+                        f"Renfort Extra planifié sur {days} jour(s) consécutif(s).",
+                    )
+                else:
+                    messages.success(
+                        request,
+                        (
+                            "Affectation planifiée comme poste titulaire "
+                            "(reconduction automatique active)."
+                        ),
+                    )
                 return redirect("webadmin-affectations")
     return render(
         request,
@@ -1071,13 +1083,13 @@ def affectations_titulaires_view(request):
 def affectation_edit_view(request, pk):
     obj = get_object_or_404(ShiftAssignment, pk=pk)
     if request.method == "POST":
-        form = ShiftAssignmentForm(request.POST, instance=obj)
+        form = ShiftAssignmentForm(request.POST, instance=obj, for_create=False)
         if form.is_valid():
             form.save()
             messages.success(request, "Affectation mise à jour.")
             return redirect("webadmin-affectations")
     else:
-        form = ShiftAssignmentForm(instance=obj)
+        form = ShiftAssignmentForm(instance=obj, for_create=False)
     return render(
         request,
         "webadmin/affectation_form.html",
@@ -1132,7 +1144,7 @@ def alertes_view(request):
         ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(
             shift_date=filter_day,
-            status__in=[ShiftAssignment.Status.SCHEDULED, ShiftAssignment.Status.REPLACED],
+            status__in=ShiftAssignment.active_on_duty_statuses(),
         )
         .order_by("site__name", "start_time")
     )

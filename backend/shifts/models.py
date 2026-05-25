@@ -9,10 +9,11 @@ from sites.models import Site
 
 class ShiftAssignment(models.Model):
     class Status(models.TextChoices):
-        SCHEDULED = "scheduled", "Scheduled"
-        REPLACED = "replaced", "Replaced"
-        COMPLETED = "completed", "Completed"
-        MISSED = "missed", "Missed"
+        SCHEDULED = "scheduled", "Planifié"
+        EXTRA = "extra", "Extra"
+        REPLACED = "replaced", "Remplacé"
+        COMPLETED = "completed", "Terminé"
+        MISSED = "missed", "Manqué"
 
     guard = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assignments")
     original_guard = models.ForeignKey(
@@ -107,6 +108,11 @@ class ShiftAssignment(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+    @classmethod
+    def active_on_duty_statuses(cls) -> list[str]:
+        """Statuts pour lesquels le vigile doit pouvoir pointer (alertes, check-in)."""
+        return [cls.Status.SCHEDULED, cls.Status.REPLACED, cls.Status.EXTRA]
 
 
 class FixedPost(models.Model):

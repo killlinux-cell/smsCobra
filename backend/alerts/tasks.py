@@ -27,7 +27,7 @@ def detect_missed_shift_task():
 
     assignments = ShiftAssignment.objects.select_related("site", "guard").filter(
         shift_date=today,
-        status__in=[ShiftAssignment.Status.SCHEDULED, ShiftAssignment.Status.REPLACED],
+        status__in=ShiftAssignment.active_on_duty_statuses(),
     )
     for assignment in assignments:
         deadline = _aware_at(
@@ -97,7 +97,7 @@ def detect_missed_shift_task():
     for assignment in (
         ShiftAssignment.objects.filter(
             shift_date=today,
-            status__in=[ShiftAssignment.Status.SCHEDULED, ShiftAssignment.Status.REPLACED],
+            status__in=ShiftAssignment.active_on_duty_statuses(),
         )
         .select_related("site", "guard")
         .iterator()
@@ -137,7 +137,7 @@ def detect_missed_shift_task():
     for assignment in (
         ShiftAssignment.objects.filter(
             shift_date=today,
-            status__in=[ShiftAssignment.Status.SCHEDULED, ShiftAssignment.Status.REPLACED],
+            status__in=ShiftAssignment.active_on_duty_statuses(),
         )
         .select_related("site", "guard")
         .iterator()

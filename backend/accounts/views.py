@@ -137,7 +137,7 @@ class VigileFaceIdentifyView(APIView):
         ensure_assignments_for_dates([yesterday, today])
         planned_qs = ShiftAssignment.objects.filter(
             shift_date__in=[yesterday, today],
-            status__in=[ShiftAssignment.Status.SCHEDULED, ShiftAssignment.Status.REPLACED],
+            status__in=ShiftAssignment.active_on_duty_statuses(),
         )
         if site_id is not None:
             planned_qs = planned_qs.filter(site_id=site_id)

@@ -228,10 +228,7 @@ class EndCheckinView(CheckinBaseView):
 
         notify_pointage_end(assignment)
         resolve_fin_sans_pointage_alerts(assignment)
-        if assignment.status in (
-            ShiftAssignment.Status.SCHEDULED,
-            ShiftAssignment.Status.REPLACED,
-        ):
+        if assignment.status in ShiftAssignment.active_on_duty_statuses():
             ShiftAssignment.objects.filter(pk=assignment.pk).update(
                 status=ShiftAssignment.Status.COMPLETED
             )

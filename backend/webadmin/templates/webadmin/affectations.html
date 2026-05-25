@@ -8,12 +8,11 @@
 </div>
 {% endif %}
 <div class="alert alert-light border mb-4 small">
-  <strong>Règle SMS:</strong> 2 vigiles minimum par site avec 2 postes fixes:
-  <strong>Jour 06:00-18:00</strong> et <strong>Nuit 18:00-06:00 (lendemain)</strong>.
-  La passation se fait aux plages <strong>06h-07h</strong> et <strong>18h-19h</strong>.
-  Le système lie automatiquement le relève entre les postes.
-  Toute nouvelle affectation est enregistrée comme <strong>poste fixe titulaire</strong>
-  (reconduction quotidienne automatique).
+  <strong>Règle SMS :</strong> 2 postes par site — <strong>Jour 06:00–18:00</strong> et <strong>Nuit 18:00–06:00</strong>.
+  À la création, choisissez <strong>Planifier</strong> (titulaire reconduit chaque jour) ou <strong>Extra</strong>
+  (renfort temporaire alors qu’un titulaire est déjà en place).
+  Les statuts <strong>Terminé</strong> et <strong>Manqué</strong> sont appliqués automatiquement par le système
+  (fin de pointage ou absence).
 </div>
 
 <div class="card cobra-panel mb-4">
@@ -21,8 +20,7 @@
   <div class="card-body">
     <p class="small text-muted mb-3">
       Sélectionnez l’affectation du <strong>jour en cours</strong> et le vigile qui prend le poste.
-      Le <strong>titulaire</strong> d’origine est conservé sur la fiche ; le vigile affiché en poste devient le <strong>remplaçant</strong>.
-      Les alertes du tableau de bord restent consultables sous <a href="{% url 'webadmin-alertes' %}">Alertes</a>.
+      Le <strong>titulaire</strong> d’origine est conservé ; le vigile affiché devient <strong>Remplacé</strong>.
     </p>
     <form method="post" action="{% url 'webadmin-dispatch' %}">
       {% csrf_token %}
@@ -54,11 +52,40 @@
     </a>
   </div>
   <div class="card-body">
-    <form method="post" novalidate>
+    <form method="post" novalidate id="cobra-affectation-create-form">
       {% csrf_token %}
       <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.planning_mode.id_for_label }}">{{ form.planning_mode.label }}</label>
+          {{ form.planning_mode }}
+          {% if form.planning_mode.help_text %}<div class="form-text">{{ form.planning_mode.help_text }}</div>{% endif %}
+          {% if form.planning_mode.errors %}<div class="text-danger small">{{ form.planning_mode.errors }}</div>{% endif %}
+        </div>
+
+        <div class="col-12 d-none" id="cobra-extra-panel">
+          <div class="p-3 rounded border border-warning bg-warning-subtle">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <span class="fw-semibold"><i class="bi bi-person-plus me-1"></i>Renfort Extra</span>
+              <span class="badge text-bg-warning" id="cobra-extra-count-badge">5 jours</span>
+            </div>
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.extra_days.id_for_label }}">{{ form.extra_days.label }}</label>
+                {{ form.extra_days }}
+                {% if form.extra_days.help_text %}<div class="form-text">{{ form.extra_days.help_text }}</div>{% endif %}
+                {% if form.extra_days.errors %}<div class="text-danger small">{{ form.extra_days.errors }}</div>{% endif %}
+              </div>
+              <div class="col-md-8">
+                <p class="small text-muted mb-0" id="cobra-extra-preview">
+                  <span id="cobra-extra-preview-days">5</span> affectation(s) Extra seront créées à partir de la date de début.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {% for field in form %}
-          {% if field.name != "create_fixed_post" %}
+          {% if field.name != "create_fixed_post" and field.name != "planning_mode" and field.name != "extra_days" %}
           <div class="col-md-6">
             <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
@@ -68,12 +95,15 @@
           {% endif %}
         {% endfor %}
       </div>
-      <input type="hidden" name="create_fixed_post" value="on">
-      <div class="small text-muted mt-2">
-        Le vigile saisi devient titulaire du poste (jour/nuit) et sera reconduit automatiquement les jours suivants.
+      <input type="hidden" name="create_fixed_post" value="on" id="cobra-create-fixed-post">
+      <div class="small text-muted mt-2" id="cobra-planifier-hint">
+        Le vigile saisi devient <strong>titulaire</strong> du poste (jour/nuit) et sera reconduit automatiquement les jours suivants.
+      </div>
+      <div class="small text-muted mt-2 d-none" id="cobra-extra-hint">
+        Vigile <strong>supplémentaire</strong> sur le même créneau qu’un titulaire déjà en place.
       </div>
       <div class="mt-3 d-flex gap-2 flex-wrap">
-        <button type="submit" class="btn cobra-btn-accent">Planifier l'affectation</button>
+        <button type="submit" class="btn cobra-btn-accent" id="cobra-affectation-submit">Planifier l'affectation</button>
         <a class="btn btn-outline-secondary" href="{% url 'webadmin-affectations-titulaires' %}">
           Ouvrir la vue site ↔ vigile
         </a>
@@ -82,4 +112,52 @@
   </div>
 </div>
 
+<script>
+(function () {
+  var modeEl = document.getElementById("id_planning_mode");
+  var extraPanel = document.getElementById("cobra-extra-panel");
+  var extraDaysEl = document.getElementById("id_extra_days");
+  var badgeEl = document.getElementById("cobra-extra-count-badge");
+  var previewDaysEl = document.getElementById("cobra-extra-preview-days");
+  var planHint = document.getElementById("cobra-planifier-hint");
+  var extraHint = document.getElementById("cobra-extra-hint");
+  var fixedPost = document.getElementById("cobra-create-fixed-post");
+  var submitBtn = document.getElementById("cobra-affectation-submit");
+  if (!modeEl) return;
+
+  function dayCount() {
+    var n = parseInt(extraDaysEl && extraDaysEl.value, 10);
+    return Number.isFinite(n) && n >= 1 ? n : 5;
+  }
+
+  function updateExtraCounter() {
+    var n = dayCount();
+    var label = n === 1 ? "1 jour" : n + " jours";
+    if (badgeEl) badgeEl.textContent = label;
+    if (previewDaysEl) previewDaysEl.textContent = String(n);
+  }
+
+  function syncMode() {
+    var isExtra = modeEl.value === "extra";
+    if (extraPanel) extraPanel.classList.toggle("d-none", !isExtra);
+    if (extraDaysEl) {
+      extraDaysEl.required = isExtra;
+      if (isExtra) updateExtraCounter();
+    }
+    if (planHint) planHint.classList.toggle("d-none", isExtra);
+    if (extraHint) extraHint.classList.toggle("d-none", !isExtra);
+    if (fixedPost) fixedPost.disabled = isExtra;
+    if (submitBtn) {
+      submitBtn.textContent = isExtra ? "Créer le renfort Extra" : "Planifier l'affectation";
+    }
+  }
+
+  modeEl.addEventListener("change", syncMode);
+  if (extraDaysEl) {
+    extraDaysEl.addEventListener("input", updateExtraCounter);
+    extraDaysEl.addEventListener("change", updateExtraCounter);
+  }
+  syncMode();
+})();
+</script>
 {% endblock %}
