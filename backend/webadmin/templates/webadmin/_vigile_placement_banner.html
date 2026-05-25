@@ -1,0 +1,73 @@
+{% if placement.is_posted %}
+<section class="cobra-vigile-placement cobra-vigile-placement--posted mb-4" aria-label="Sites de poste du vigile">
+  <div class="cobra-vigile-placement__glow"></div>
+  <div class="cobra-vigile-placement__inner">
+    <div class="cobra-vigile-placement__head">
+      <div class="cobra-vigile-placement__icon cobra-vigile-placement__icon--posted">
+        <i class="bi bi-geo-alt-fill"></i>
+      </div>
+      <div class="cobra-vigile-placement__titles">
+        <p class="cobra-vigile-placement__eyebrow mb-1">Poste actuel</p>
+        <h2 class="cobra-vigile-placement__title mb-0">
+          {{ vigile.display_name|default:vigile.username }}
+          {% if placement.placements|length == 1 %}
+          est posté sur <span class="cobra-vigile-placement__site-highlight">{{ placement.placements.0.site_name }}</span>
+          {% else %}
+          est posté sur <span class="cobra-vigile-placement__count">{{ placement.placements|length }} sites</span>
+          {% endif %}
+        </h2>
+      </div>
+    </div>
+    <div class="cobra-vigile-placement__cards">
+      {% for p in placement.placements %}
+      <a href="{% url 'webadmin-site-detail' p.site_id %}" class="cobra-vigile-placement-card cobra-vigile-placement-card--{{ p.variant }} text-decoration-none">
+        <div class="cobra-vigile-placement-card__pin">
+          <i class="bi bi-building"></i>
+        </div>
+        <div class="cobra-vigile-placement-card__body">
+          <div class="cobra-vigile-placement-card__site">{{ p.site_name }}</div>
+          <p class="cobra-vigile-placement-card__meta mb-0">
+            <span class="badge cobra-vigile-placement-card__badge">{{ p.role }}</span>
+            <span class="cobra-vigile-placement-card__shift">{{ p.shift_label }}</span>
+          </p>
+          {% if p.detail %}
+          <p class="cobra-vigile-placement-card__detail mb-0">{{ p.detail }}</p>
+          {% endif %}
+        </div>
+        <i class="bi bi-chevron-right cobra-vigile-placement-card__arrow"></i>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="cobra-vigile-placement cobra-vigile-placement--empty mb-4" aria-label="Aucun poste actuel">
+  <div class="cobra-vigile-placement__inner cobra-vigile-placement__inner--empty">
+    <div class="cobra-vigile-placement__icon cobra-vigile-placement__icon--empty">
+      <i class="bi bi-slash-circle"></i>
+    </div>
+    <div>
+      <h2 class="cobra-vigile-placement__title cobra-vigile-placement__title--empty mb-2">Non posté actuellement</h2>
+      <p class="cobra-vigile-placement__subtitle mb-0">
+        Ce vigile n'est ni <strong>titulaire</strong> d'un poste fixe, ni <strong>en service aujourd'hui</strong>
+        ({{ placement.today|date:"d/m/Y" }}).
+      </p>
+      {% if placement.upcoming %}
+      <div class="cobra-vigile-placement__upcoming mt-3">
+        <p class="small fw-semibold text-muted mb-2"><i class="bi bi-calendar-event me-1"></i>Prochaines affectations</p>
+        <ul class="list-unstyled mb-0 small">
+          {% for u in placement.upcoming %}
+          <li class="mb-1">
+            <a href="{% url 'webadmin-site-detail' u.site_id %}" class="text-decoration-none fw-semibold">{{ u.site_name }}</a>
+            — {{ u.shift_date|date:"d/m/Y" }} · {{ u.shift_label }}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <p class="small text-muted mt-2 mb-0">Aucune affectation planifiée sur les 30 prochains jours.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}

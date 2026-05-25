@@ -6,6 +6,8 @@
   </a>
 </div>
 
+{% include "webadmin/_vigile_placement_banner.html" %}
+
 <form method="post" enctype="multipart/form-data" action="{% url 'webadmin-vigile-detail' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" novalidate>
   {% csrf_token %}
 

@@ -14,6 +14,7 @@ from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from accounts.permissions import IsAdminRole
 from alerts.models import LateAlert
 from reports.alert_ack import alert_kind_label
+from reports.models import TitularChangeLog
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
 
@@ -353,6 +354,52 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "alert_id": alert.id,
                     "admin_id": admin.id,
                     "admin_name": admin_name,
+                },
+            )
+        )
+
+    for log in (
+        TitularChangeLog.objects.select_related(
+            "site", "from_guard", "to_guard", "actor", "fixed_post"
+        )
+        .order_by("-occurred_at")[:per_bucket]
+    ):
+        site_name = log.site.name if log.site_id else "Site"
+        shift_label = ""
+        if log.fixed_post_id:
+            shift_label = log.fixed_post.get_shift_type_display()
+        elif log.shift_type:
+            shift_label = dict(FixedPost.ShiftType.choices).get(log.shift_type, log.shift_type)
+        from_l = log.from_guard.display_name if log.from_guard_id else ""
+        to_l = log.to_guard.display_name if log.to_guard_id else ""
+        actor_l = log.actor.display_name if log.actor_id else ""
+
+        if log.kind == TitularChangeLog.Kind.PROMOTED:
+            title = "Titulaire promu (dépêche)"
+            body = (
+                f"« {site_name} » — {shift_label} : {from_l} suspendu, "
+                f"{to_l} devient titulaire (absence / dépêche)."
+            )
+        else:
+            title = "Titulaire réintégré"
+            body = (
+                f"« {site_name} » — {shift_label} : {to_l} repositionné titulaire"
+                f"{f' par {actor_l}' if actor_l else ''}."
+            )
+            if log.reason:
+                body += f" Motif : {log.reason}"
+
+        events.append(
+            (
+                log.occurred_at,
+                {
+                    "kind": log.kind,
+                    "occurred_at": log.occurred_at,
+                    "title": title,
+                    "body": body,
+                    "site_id": log.site_id,
+                    "site_name": site_name,
+                    "fixed_post_id": log.fixed_post_id,
                 },
             )
         )

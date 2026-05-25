@@ -1,0 +1,35 @@
+{% if fixed %}
+  <div><span class="text-muted">Titulaire actuel</span> <strong>{{ fixed.titular_guard.display_name }}</strong></div>
+  {% if fixed.has_suspended_titular %}
+  <div class="mt-1 p-2 rounded bg-warning-subtle border border-warning">
+    <div class="small">
+      <i class="bi bi-person-dash me-1"></i>
+      <strong>Suspendu :</strong> {{ fixed.suspended_titular_guard.display_name }}
+      {% if fixed.suspended_at %}
+      <span class="text-muted">(depuis {{ fixed.suspended_at|date:"d/m/Y H:i" }})</span>
+      {% endif %}
+    </div>
+    <form method="post" action="{% url 'webadmin-reinstate-titular' fixed.pk %}" class="mt-2">
+      {% csrf_token %}
+      <label class="form-label small mb-1">Motif de réintégration (justification absence)</label>
+      <textarea name="reason" class="form-control form-control-sm" rows="2" required minlength="10" placeholder="Ex. certificat médical, convocation, etc."></textarea>
+      <button type="submit" class="btn btn-sm btn-success mt-2">
+        <i class="bi bi-person-check me-1"></i>Repositionner le titulaire
+      </button>
+    </form>
+  </div>
+  {% elif fixed.replacement_active and fixed.replacement_guard %}
+  <div class="mt-1 text-muted small">Remplaçant temporaire actif : {{ fixed.replacement_guard.display_name }}</div>
+  {% endif %}
+  {% if today_assignment %}
+  <div class="mt-1"><span class="text-muted">En poste aujourd'hui</span> {{ today_assignment.guard.display_name }}
+    {% if today_assignment.original_guard_id %}
+    <span class="text-muted">(dépêche)</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="mt-1 text-danger">Aucune affectation aujourd'hui</div>
+  {% endif %}
+{% else %}
+  <span class="text-danger">Titulaire non défini</span>
+{% endif %}

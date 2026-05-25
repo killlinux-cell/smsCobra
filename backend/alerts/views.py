@@ -64,6 +64,7 @@ class DispatchReplacementView(APIView):
         previous_name = assignment.guard.display_name
         if int(replacement_guard_id) == assignment.guard_id:
             return Response({"detail": "Le remplaçant est deja en poste sur cette affectation."}, status=status.HTTP_400_BAD_REQUEST)
+        absent_guard_id = assignment.guard_id
         update_fields = ["guard_id", "status"]
         if assignment.original_guard_id is None:
             assignment.original_guard_id = assignment.guard_id
@@ -73,8 +74,29 @@ class DispatchReplacementView(APIView):
         assignment.updated_at = timezone.now()
         update_fields.append("updated_at")
         assignment.save(update_fields=update_fields)
+
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from shifts.dispatch import process_dispatch_replacement
+
+        promoted_post = None
+        try:
+            promoted_post = process_dispatch_replacement(
+                assignment,
+                absent_guard_id=absent_guard_id,
+                replacement_guard_id=int(replacement_guard_id),
+                actor=request.user,
+            )
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+
         notify_dispatch_replacement(assignment, previous_name)
-        return Response({"detail": "Remplacement enregistre."})
+        detail = "Remplacement enregistre."
+        if promoted_post:
+            detail = (
+                f"Remplacement enregistre. {assignment.guard.display_name} est desormais titulaire "
+                f"sur {promoted_post.site.name} ({promoted_post.get_shift_type_display()})."
+            )
+        return Response({"detail": detail})
 
 
 class LiveStatusView(APIView):

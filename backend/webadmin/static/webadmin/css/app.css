@@ -612,3 +612,203 @@ body.cobra-app {
 .cobra-panel .card-footer {
   background: #f8fafc;
 }
+
+/* Fiche vigile — bandeau site de poste */
+.cobra-vigile-placement {
+  position: relative;
+  border-radius: var(--cobra-radius);
+  overflow: hidden;
+}
+
+.cobra-vigile-placement--posted {
+  border: 2px solid rgba(232, 93, 4, 0.45);
+  box-shadow: 0 12px 40px rgba(232, 93, 4, 0.18);
+}
+
+.cobra-vigile-placement--empty {
+  border: 2px dashed #cbd5e1;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.cobra-vigile-placement__glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(232, 93, 4, 0.12) 0%, rgba(15, 23, 42, 0.04) 55%, transparent 100%);
+  pointer-events: none;
+}
+
+.cobra-vigile-placement__inner {
+  position: relative;
+  padding: 1.35rem 1.5rem;
+}
+
+.cobra-vigile-placement__inner--empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.25rem;
+  padding: 1.5rem 1.75rem;
+}
+
+.cobra-vigile-placement__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+}
+
+.cobra-vigile-placement__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.65rem;
+  flex-shrink: 0;
+}
+
+.cobra-vigile-placement__icon--posted {
+  background: var(--cobra-accent);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(232, 93, 4, 0.35);
+}
+
+.cobra-vigile-placement__icon--empty {
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 2rem;
+}
+
+.cobra-vigile-placement__eyebrow {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cobra-accent);
+}
+
+.cobra-vigile-placement__title {
+  font-size: clamp(1.25rem, 2.5vw, 1.65rem);
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.cobra-vigile-placement__title--empty {
+  font-size: 1.35rem;
+  color: #475569;
+}
+
+.cobra-vigile-placement__site-highlight,
+.cobra-vigile-placement__count {
+  color: var(--cobra-accent);
+}
+
+.cobra-vigile-placement__subtitle {
+  color: #64748b;
+  max-width: 42rem;
+}
+
+.cobra-vigile-placement__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+
+.cobra-vigile-placement-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.cobra-vigile-placement-card:hover,
+.cobra-vigile-placement-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  border-color: rgba(232, 93, 4, 0.4);
+}
+
+.cobra-vigile-placement-card--primary {
+  border-left: 4px solid var(--cobra-accent);
+}
+
+.cobra-vigile-placement-card--warning {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(90deg, #fffbeb 0%, #fff 40%);
+}
+
+.cobra-vigile-placement-card--info {
+  border-left: 4px solid #3b82f6;
+}
+
+.cobra-vigile-placement-card--success {
+  border-left: 4px solid #10b981;
+}
+
+.cobra-vigile-placement-card__pin {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  background: var(--cobra-accent-soft);
+  color: var(--cobra-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.cobra-vigile-placement-card__site {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.cobra-vigile-placement-card__meta {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.cobra-vigile-placement-card__badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #0f172a !important;
+  color: #fff !important;
+}
+
+.cobra-vigile-placement-card__shift {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cobra-vigile-placement-card__detail {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.cobra-vigile-placement-card__arrow {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 1.1rem;
+}
+
+.cobra-vigile-placement__upcoming {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #e2e8f0;
+}

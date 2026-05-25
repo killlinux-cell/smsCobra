@@ -507,7 +507,7 @@ def site_detail_view(request, pk):
 
     fixed_posts = (
         FixedPost.objects.filter(site=site, is_active=True)
-        .select_related("titular_guard", "replacement_guard")
+        .select_related("titular_guard", "replacement_guard", "suspended_titular_guard")
         .order_by("shift_type")
     )
 
@@ -535,6 +535,8 @@ def site_detail_view(request, pk):
     for fp in fixed_posts:
         lab = _shift_label(fp)
         note_role(fp.titular_guard, f"Titulaire — {lab}")
+        if fp.suspended_titular_guard_id:
+            note_role(fp.suspended_titular_guard, f"Titulaire suspendu — {lab}")
         if fp.replacement_guard_id:
             if fp.replacement_active:
                 note_role(fp.replacement_guard, f"Remplaçant en poste — {lab}")
@@ -887,6 +889,9 @@ def vigile_detail_view(request, pk):
             return redirect(redir)
     else:
         form = VigileUpdateForm(instance=vigile)
+    from webadmin.vigile_placement import build_vigile_placement
+
+    placement = build_vigile_placement(vigile)
     return render(
         request,
         "webadmin/vigile_detail.html",
@@ -897,6 +902,7 @@ def vigile_detail_view(request, pk):
             "form": form,
             "id_document_kind": _id_document_kind(vigile),
             "vigiles_list_querystring": list_qs,
+            "placement": placement,
         },
     )
 
@@ -970,7 +976,12 @@ def affectations_titulaires_view(request):
     ensure_assignments_for_dates(horizon_days)
     sites = list(Site.objects.filter(is_active=True).order_by("name"))
     fixed_posts = (
-        FixedPost.objects.select_related("site", "titular_guard", "replacement_guard")
+        FixedPost.objects.select_related(
+            "site",
+            "titular_guard",
+            "replacement_guard",
+            "suspended_titular_guard",
+        )
         .filter(is_active=True, site__in=sites)
         .order_by("site__name", "shift_type")
     )
@@ -1435,6 +1446,37 @@ def ack_alert_view(request, alert_id: int):
 
 
 @admin_web_required
+def reinstate_titular_view(request, fixed_post_id: int):
+    """Réintègre le titulaire suspendu (superviseur / admin)."""
+    post = get_object_or_404(
+        FixedPost.objects.select_related(
+            "site", "titular_guard", "suspended_titular_guard"
+        ),
+        pk=fixed_post_id,
+        is_active=True,
+    )
+    if request.method != "POST":
+        return redirect("webadmin-affectations-titulaires")
+    reason = (request.POST.get("reason") or "").strip()
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    from shifts.titular_replacement import reinstate_suspended_titular
+
+    try:
+        reinstate_suspended_titular(post, reason=reason, actor=request.user)
+    except DjangoValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect("webadmin-affectations-titulaires")
+
+    name = post.titular_guard.display_name
+    site = post.site.name
+    messages.success(
+        request,
+        f"{name} a été repositionné comme titulaire sur « {site} » ({post.get_shift_type_display()}).",
+    )
+    return redirect("webadmin-affectations-titulaires")
+
+
+@admin_web_required
 def dispatch_view(request):
     if request.method != "POST":
         return redirect("webadmin-affectations")
@@ -1461,8 +1503,11 @@ def dispatch_view(request):
         return redirect(request.POST.get("next") or "webadmin-affectations")
 
     from alerts.services import notify_dispatch_replacement
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    from shifts.dispatch import dispatch_replacement_message, process_dispatch_replacement
 
     previous_name = assignment.guard.display_name
+    absent_guard_id = assignment.guard_id
     update_fields = ["guard", "status"]
     if assignment.original_guard_id is None:
         assignment.original_guard_id = assignment.guard_id
@@ -1472,9 +1517,25 @@ def dispatch_view(request):
     assignment.updated_at = timezone.now()
     update_fields.append("updated_at")
     assignment.save(update_fields=update_fields)
+
+    promoted_post = None
+    try:
+        promoted_post = process_dispatch_replacement(
+            assignment,
+            absent_guard_id=absent_guard_id,
+            replacement_guard_id=replacement.pk,
+            actor=request.user,
+        )
+    except DjangoValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect(request.POST.get("next") or "webadmin-affectations")
+
     notify_dispatch_replacement(assignment, previous_name)
-    messages.success(
-        request,
-        f"Dépêche enregistrée : {replacement.get_username()} est en poste (titulaire d'origine : {previous_name}).",
+    msg = dispatch_replacement_message(
+        assignment,
+        previous_name=previous_name,
+        replacement_name=replacement.display_name,
+        promoted_post=promoted_post,
     )
+    messages.success(request, msg.replace("**", ""))
     return redirect(request.POST.get("next") or "webadmin-affectations")

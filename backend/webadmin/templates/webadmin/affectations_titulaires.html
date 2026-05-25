@@ -1,8 +1,10 @@
 {% extends "webadmin/base.html" %}
 {% block content %}
 <div class="alert alert-light border mb-4 small">
-  Cette vue montre la relation <strong>site ↔ vigile titulaire</strong> pour les deux postes fixes
-  (Jour/Nuit). Le remplacement du jour peut différer du titulaire.
+  Relation <strong>site ↔ titulaire</strong> (postes jour 06h–18h / nuit 18h–06h).
+  Lors d'une <strong>dépêche</strong> sur un titulaire absent, le remplaçant devient automatiquement
+  <strong>titulaire</strong> sur ce site jusqu'à ce que le superviseur <strong>repositionne</strong>
+  l'absent (motif d'absence justifié requis).
 </div>
 
 <div class="d-flex justify-content-end mb-3">
@@ -29,28 +31,10 @@
         <tr>
           <td class="fw-semibold">{{ row.site.name }}</td>
           <td class="small">
-            {% if row.day_fixed %}
-              <div><span class="text-muted">Titulaire</span> <strong>{{ row.day_fixed.current_guard.display_name }}</strong></div>
-              {% if row.day_today %}
-                <div class="mt-1"><span class="text-muted">En poste aujourd'hui</span> {{ row.day_today.guard.display_name }}</div>
-              {% else %}
-                <div class="mt-1 text-danger">Aucune affectation aujourd'hui</div>
-              {% endif %}
-            {% else %}
-              <span class="text-danger">Titulaire non défini</span>
-            {% endif %}
+            {% include "webadmin/_titular_post_cell.html" with fixed=row.day_fixed today_assignment=row.day_today %}
           </td>
           <td class="small">
-            {% if row.night_fixed %}
-              <div><span class="text-muted">Titulaire</span> <strong>{{ row.night_fixed.current_guard.display_name }}</strong></div>
-              {% if row.night_today %}
-                <div class="mt-1"><span class="text-muted">En poste aujourd'hui</span> {{ row.night_today.guard.display_name }}</div>
-              {% else %}
-                <div class="mt-1 text-danger">Aucune affectation aujourd'hui</div>
-              {% endif %}
-            {% else %}
-              <span class="text-danger">Titulaire non défini</span>
-            {% endif %}
+            {% include "webadmin/_titular_post_cell.html" with fixed=row.night_fixed today_assignment=row.night_today %}
           </td>
         </tr>
         {% empty %}

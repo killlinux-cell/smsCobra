@@ -1,6 +1,7 @@
-from django.db import models
-from sites.models import Site
 from django.conf import settings
+from django.db import models
+
+from sites.models import Site
 
 
 class AttendanceReport(models.Model):
@@ -24,3 +25,61 @@ class AttendanceReport(models.Model):
 
     def __str__(self) -> str:
         return f"{self.site} - {self.guard} - {self.report_date}"
+
+
+class TitularChangeLog(models.Model):
+    """Historique promotion / réintégration titulaire (rapports et journal d'activité)."""
+
+    class Kind(models.TextChoices):
+        PROMOTED = "titular_promoted", "Promotion titulaire"
+        REINSTATED = "titular_reinstated", "Réintégration titulaire"
+
+    kind = models.CharField(max_length=32, choices=Kind.choices)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="titular_change_logs")
+    fixed_post = models.ForeignKey(
+        "shifts.FixedPost",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="titular_change_logs",
+    )
+    shift_type = models.CharField(max_length=8, blank=True)
+    from_guard = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="titular_changes_from",
+    )
+    to_guard = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="titular_changes_to",
+    )
+    reason = models.TextField(blank=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="titular_changes_as_actor",
+    )
+    assignment = models.ForeignKey(
+        "shifts.ShiftAssignment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="titular_change_logs",
+    )
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]
+        indexes = [
+            models.Index(fields=["site", "occurred_at"], name="titular_chg_site_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} — {self.site_id} @ {self.occurred_at}"

@@ -124,9 +124,9 @@
       <thead class="table-light">
         <tr>
           <th>Créneau</th>
-          <th>Titulaire</th>
-          <th>Remplaçant</th>
-          <th>Statut remplaçant</th>
+          <th>Titulaire actuel</th>
+          <th>Titulaire suspendu</th>
+          <th>Remplaçant temp.</th>
         </tr>
       </thead>
       <tbody>
@@ -135,11 +135,16 @@
           <td>{{ fp.get_shift_type_display }}</td>
           <td><a href="{% url 'webadmin-vigile-detail' fp.titular_guard.pk %}">{{ fp.titular_guard.display_name }}</a></td>
           <td>
-            {% if fp.replacement_guard %}
+            {% if fp.suspended_titular_guard %}
+            <a href="{% url 'webadmin-vigile-detail' fp.suspended_titular_guard.pk %}">{{ fp.suspended_titular_guard.display_name }}</a>
+            <div class="small text-muted">Réintégration : <a href="{% url 'webadmin-affectations-titulaires' %}">Titulaires par site</a></div>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if fp.replacement_active and fp.replacement_guard %}
             <a href="{% url 'webadmin-vigile-detail' fp.replacement_guard.pk %}">{{ fp.replacement_guard.display_name }}</a>
             {% else %}—{% endif %}
           </td>
-          <td>{% if fp.replacement_active %}<span class="badge bg-warning text-dark">Actif</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

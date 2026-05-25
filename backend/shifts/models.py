@@ -130,8 +130,21 @@ class FixedPost(models.Model):
     )
     replacement_active = models.BooleanField(
         default=False,
-        help_text="Si activé, le remplaçant tient le poste de façon continue.",
+        help_text="Si activé, le remplaçant tient le poste sans changer le titulaire (mode temporaire).",
     )
+    suspended_titular_guard = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="suspended_from_fixed_posts",
+        help_text="Titulaire d'origine suspendu : le remplaçant de dépêche devient titulaire jusqu'à réintégration.",
+    )
+    suspension_reason = models.TextField(
+        blank=True,
+        help_text="Justification / motif enregistré lors de la réintégration par le superviseur.",
+    )
+    suspended_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -158,3 +171,7 @@ class FixedPost(models.Model):
         if self.replacement_active and self.replacement_guard_id:
             return self.replacement_guard
         return self.titular_guard
+
+    @property
+    def has_suspended_titular(self) -> bool:
+        return bool(self.suspended_titular_guard_id)

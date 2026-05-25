@@ -395,7 +395,7 @@ Traiter l’alerte dans **Alertes** (web ou app) pour suivre ce qui a été pris
 
 ### 10.1 Journal d’activité
 
-Filtre par **site** et par **date** ou **mois**. Idéal pour audit : qui a été créé, qui a pointé, quels remplacements, **quelles alertes ont été acquittées et par qui**.
+Filtre par **site** et par **date** ou **mois**. Idéal pour audit : qui a été créé, qui a pointé, quels remplacements, **changements de titulaire** (promotion / réintégration), **quelles alertes ont été acquittées et par qui**.
 
 ### 10.2 Synthèse pointages
 
@@ -416,13 +416,21 @@ Les bilans sont **indicatifs**. Toute sanction ou retenue doit respecter le droi
 ### 11.1 Dépêche ponctuelle
 
 - Depuis **Dépêche** (web ou app) : choisir l’affectation concernée et le **remplaçant**.
-- L’affectation passe en statut **remplacé** ; le titulaire d’origine est conservé en historique.
+- L’affectation passe en statut **remplacé** ; le titulaire d’origine est conservé en historique sur l’affectation.
+- **Si le vigile absent est titulaire du poste fixe** (jour ou nuit) sur ce site : le remplaçant devient automatiquement **titulaire** ; l’absent est **suspendu** jusqu’à réintégration.
+- Les affectations planifiées **à partir du jour de la dépêche** suivent le nouveau titulaire.
+- **Rapports** : journal « Titulaire promu (dépêche) » + ligne dans les **notes** de pointage des vigiles concernés.
 - Entrée dans le **journal d’activité** : « Dépêche / remplacement vigile ».
 
-### 11.2 Remplaçant sur poste fixe
+### 11.2 Réintégration du titulaire (superviseur)
 
-- Dans **Titulaires** : activer le remplaçant sur le poste jour ou nuit.
-- Les affectations générées utilisent le remplaçant tant que l’option est active.
+- **Affectations → Titulaires par site** : si un titulaire est **suspendu**, saisir un **motif valable** (min. 10 caractères) puis **Repositionner le titulaire**.
+- Le titulaire d’origine reprend le poste ; les affectations planifiées futures sont alignées.
+- **Rapports** : journal « Titulaire réintégré » + notes de pointage (motif enregistré).
+
+### 11.3 Remplaçant temporaire (mode classique)
+
+- Sur poste fixe, option **remplaçant actif** sans changer le titulaire (distinct de la promotion par dépêche).
 - Le journal peut afficher « Remplaçant activé (poste fixe) ».
 
 ---
