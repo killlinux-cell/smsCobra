@@ -119,6 +119,41 @@
   </div>
 </div>
 
+{% if extras_summary %}
+<div class="card cobra-panel mb-4 border-warning">
+  <div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-person-plus me-2"></i>Renforts Extra en cours / à venir</span>
+    <span class="badge text-bg-warning">{{ extras_summary|length }} renfort{{ extras_summary|length|pluralize:"s" }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover cobra-table mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Site</th>
+            <th>Vigile Extra</th>
+            <th>Créneau</th>
+            <th>Période</th>
+            <th>Jours restants</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in extras_summary %}
+          <tr>
+            <td>{{ row.site.name }}</td>
+            <td><a href="{% url 'webadmin-vigile-detail' row.guard.pk %}">{{ row.guard.display_name }}</a></td>
+            <td class="text-nowrap">{{ row.start_time|time:"H:i" }} – {{ row.end_time|time:"H:i" }}</td>
+            <td class="text-nowrap">{{ row.first_date|date:"d/m" }} → {{ row.last_date|date:"d/m/Y" }}</td>
+            <td><span class="badge text-bg-warning">{{ row.count }} jour{{ row.count|pluralize:"s" }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 (function () {
   var modeEl = document.getElementById("id_planning_mode");

@@ -183,6 +183,7 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
             "shift_date",
             "start_time",
             "end_time",
+            "status",
             "site__name",
             "guard__username",
             "guard__first_name",
@@ -202,13 +203,16 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
         sd = row["shift_date"]
         st = row["start_time"]
         et = row["end_time"]
+        is_extra = row.get("status") == ShiftAssignment.Status.EXTRA
+        kind = "extra_assignment_created" if is_extra else "assignment_planned"
+        title = "Renfort Extra créé" if is_extra else "Affectation planifiée"
         events.append(
             (
                 created_at,
                 {
-                    "kind": "assignment_planned",
+                    "kind": kind,
                     "occurred_at": created_at,
-                    "title": "Affectation planifiée",
+                    "title": title,
                     "body": (
                         f"{guard_label} sur « {site_name} », le {_fmt_date(sd)} "
                         f"({_fmt_time(st)} – {_fmt_time(et)})."

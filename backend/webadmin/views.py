@@ -617,6 +617,32 @@ def site_detail_view(request, pk):
         .order_by("-visited_at")[:80]
     )
 
+    extras_on_site = (
+        ShiftAssignment.objects.filter(
+            site=site,
+            status=ShiftAssignment.Status.EXTRA,
+            shift_date__gte=today,
+        )
+        .select_related("guard")
+        .order_by("shift_date", "start_time")
+    )
+    extras_grouped: dict = {}
+    for ex in extras_on_site:
+        key = (ex.guard_id, ex.start_time)
+        if key not in extras_grouped:
+            extras_grouped[key] = {
+                "guard": ex.guard,
+                "start_time": ex.start_time,
+                "end_time": ex.end_time,
+                "first_date": ex.shift_date,
+                "last_date": ex.shift_date,
+                "count": 1,
+            }
+        else:
+            extras_grouped[key]["last_date"] = ex.shift_date
+            extras_grouped[key]["count"] += 1
+    site_extras = sorted(extras_grouped.values(), key=lambda r: r["first_date"])
+
     return render(
         request,
         "webadmin/site_detail.html",
@@ -631,6 +657,7 @@ def site_detail_view(request, pk):
             "assignments_date_from": date_from,
             "assignments_date_to": date_to,
             "site_controller_visits": site_controller_visits,
+            "site_extras": site_extras,
         },
     )
 
@@ -1008,6 +1035,35 @@ def affectations_list_view(request):
                         ),
                     )
                 return redirect("webadmin-affectations")
+    extras_qs = (
+        ShiftAssignment.objects.filter(
+            status=ShiftAssignment.Status.EXTRA,
+            shift_date__gte=today,
+        )
+        .select_related("site", "guard")
+        .order_by("site__name", "shift_date", "start_time")
+    )
+    if filter_site_pk:
+        extras_qs = extras_qs.filter(site_id=filter_site_pk)
+
+    extras_by_site: dict = {}
+    for ex in extras_qs:
+        key = (ex.site_id, ex.guard_id, ex.start_time)
+        if key not in extras_by_site:
+            extras_by_site[key] = {
+                "site": ex.site,
+                "guard": ex.guard,
+                "start_time": ex.start_time,
+                "end_time": ex.end_time,
+                "first_date": ex.shift_date,
+                "last_date": ex.shift_date,
+                "count": 1,
+            }
+        else:
+            extras_by_site[key]["last_date"] = ex.shift_date
+            extras_by_site[key]["count"] += 1
+    extras_summary = sorted(extras_by_site.values(), key=lambda r: (r["site"].name, r["first_date"]))
+
     return render(
         request,
         "webadmin/affectations.html",
@@ -1020,6 +1076,7 @@ def affectations_list_view(request):
             "today": today,
             "filter_site": filter_site,
             "filter_site_pk": filter_site_pk,
+            "extras_summary": extras_summary,
         },
     )
 
