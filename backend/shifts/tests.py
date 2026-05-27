@@ -233,3 +233,81 @@ class ExtraAssignmentFormTests(TestCase):
             for_create=True,
         )
         self.assertFalse(form.is_valid())
+
+
+class GuardCrossSiteConflictTests(TestCase):
+    def setUp(self):
+        self.guard = User.objects.create_user(username="g1", password="x", role="vigile")
+        self.site_a = Site.objects.create(
+            name="Site Alpha",
+            address="A",
+            expected_start_time=time(6, 0),
+            expected_end_time=time(18, 0),
+            latitude=1,
+            longitude=1,
+        )
+        self.site_b = Site.objects.create(
+            name="Site Beta",
+            address="B",
+            expected_start_time=time(6, 0),
+            expected_end_time=time(18, 0),
+            latitude=2,
+            longitude=2,
+        )
+        self.day = date.today()
+
+    def test_cannot_planify_same_guard_on_two_sites_same_slot(self):
+        from webadmin.forms import ShiftAssignmentForm
+
+        ShiftAssignment.objects.create(
+            guard=self.guard,
+            site=self.site_a,
+            shift_date=self.day,
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        form = ShiftAssignmentForm(
+            {
+                "planning_mode": ShiftAssignmentForm.MODE_PLANIFIER,
+                "guard": str(self.guard.pk),
+                "site": str(self.site_b.pk),
+                "shift_date": self.day.isoformat(),
+                "shift_type": ShiftAssignmentForm.SHIFT_TYPE_DAY,
+                "create_fixed_post": "on",
+            },
+            for_create=True,
+        )
+        self.assertFalse(form.is_valid())
+        err = str(form.non_field_errors())
+        self.assertIn("Site Alpha", err)
+        self.assertIn("déjà affecté", err)
+
+    def test_dispatch_replacement_blocked_if_guard_busy_elsewhere(self):
+        from webadmin.forms import DispatchForm
+
+        assignment_b = ShiftAssignment.objects.create(
+            guard=User.objects.create_user(username="g2", password="x", role="vigile"),
+            site=self.site_b,
+            shift_date=self.day,
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        ShiftAssignment.objects.create(
+            guard=self.guard,
+            site=self.site_a,
+            shift_date=self.day,
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        form = DispatchForm(
+            {
+                "assignment": str(assignment_b.pk),
+                "replacement_guard": str(self.guard.pk),
+            },
+            assignments_qs=ShiftAssignment.objects.filter(pk=assignment_b.pk),
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("Site Alpha", str(form.errors))

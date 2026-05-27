@@ -4,6 +4,12 @@ from datetime import datetime, timedelta, time
 from django import forms
 
 from accounts.models import ControllerSiteAssignment, User
+from shifts.guard_conflicts import (
+    conflict_error_message,
+    find_assignment_conflict_on_other_site,
+    find_titular_fixed_post_on_other_site,
+    titular_conflict_error_message,
+)
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
 
@@ -632,6 +638,40 @@ class ShiftAssignmentForm(forms.ModelForm):
                 "Ce vigile est déjà affecté au poste opposé autour de cette passation. Choisissez un autre vigile."
             )
 
+        exclude_pk = self.instance.pk if self.instance.pk else None
+        if self.for_create and mode == self.MODE_EXTRA:
+            for offset in range(extra_days):
+                day = shift_date + timedelta(days=offset)
+                conflict = find_assignment_conflict_on_other_site(
+                    guard_id=guard.pk,
+                    site_id=site.pk,
+                    shift_date=day,
+                    start_time=start_time,
+                    exclude_assignment_id=exclude_pk,
+                )
+                if conflict:
+                    raise forms.ValidationError(conflict_error_message(conflict))
+        else:
+            conflict = find_assignment_conflict_on_other_site(
+                guard_id=guard.pk,
+                site_id=site.pk,
+                shift_date=shift_date,
+                start_time=start_time,
+                exclude_assignment_id=exclude_pk,
+            )
+            if conflict:
+                raise forms.ValidationError(conflict_error_message(conflict))
+
+        if self.for_create and mode != self.MODE_EXTRA and self.cleaned_data.get("create_fixed_post"):
+            fp_shift = self._fixed_post_shift_type(shift_type)
+            titular_elsewhere = find_titular_fixed_post_on_other_site(
+                guard_id=guard.pk,
+                site_id=site.pk,
+                shift_type=fp_shift,
+            )
+            if titular_elsewhere:
+                raise forms.ValidationError(titular_conflict_error_message(titular_elsewhere))
+
         cleaned["extra_days"] = extra_days
         return cleaned
 
@@ -747,6 +787,25 @@ class DispatchForm(forms.Form):
         label="Vigile remplaçant",
         empty_label="Choisir un vigile…",
     )
+
+    def clean(self):
+        cleaned = super().clean()
+        assignment = cleaned.get("assignment")
+        replacement = cleaned.get("replacement_guard")
+        if not (assignment and replacement):
+            return cleaned
+        conflict = find_assignment_conflict_on_other_site(
+            guard_id=replacement.pk,
+            site_id=assignment.site_id,
+            shift_date=assignment.shift_date,
+            start_time=assignment.start_time,
+            exclude_assignment_id=assignment.pk,
+        )
+        if conflict:
+            raise forms.ValidationError(
+                {"replacement_guard": conflict_error_message(conflict)}
+            )
+        return cleaned
 
     def __init__(self, *args, **kwargs):
         assignments_qs = kwargs.pop("assignments_qs", None)
