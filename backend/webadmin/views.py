@@ -15,7 +15,7 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max, Q, Sum
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -440,6 +440,18 @@ def dashboard_view(request):
     tile_path = reverse("webadmin-map-tiles", kwargs={"z": 0, "x": 0, "y": 0})
     map_tile_url = tile_path.replace("/0/0/0.png", "/{z}/{x}/{y}.png")
 
+    active_sites = Site.objects.filter(is_active=True)
+    staff_targets = active_sites.aggregate(
+        day=Sum("day_staff_required"),
+        night=Sum("night_staff_required"),
+    )
+    titulaires_jour = FixedPost.objects.filter(
+        is_active=True, shift_type=FixedPost.ShiftType.DAY
+    ).count()
+    titulaires_nuit = FixedPost.objects.filter(
+        is_active=True, shift_type=FixedPost.ShiftType.NIGHT
+    ).count()
+
     context = {
         "page_title": "Tableau de bord",
         "nav_active": "dashboard",
@@ -453,10 +465,14 @@ def dashboard_view(request):
             "completed": assignments.filter(status=ShiftAssignment.Status.COMPLETED).count(),
             "missed": assignments.filter(status=ShiftAssignment.Status.MISSED).count(),
             "open_alerts": open_alerts.count(),
-            "sites": Site.objects.filter(is_active=True).count(),
+            "sites": active_sites.count(),
             "vigiles": User.objects.filter(role=User.Role.VIGILE).count(),
             "controleurs": User.objects.filter(role=User.Role.CONTROLEUR, is_active=True).count(),
             "controller_visits_today": controller_visits_today.count(),
+            "day_staff": int(staff_targets["day"] or 0),
+            "night_staff": int(staff_targets["night"] or 0),
+            "titulaires_jour": titulaires_jour,
+            "titulaires_nuit": titulaires_nuit,
         },
         "alerts": open_alerts[:8],
         "reports": reports,
