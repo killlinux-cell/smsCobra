@@ -15,6 +15,8 @@ from typing import Tuple
 
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
+import numpy as np
+from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,34 @@ def _encoding_for_largest_face(image, model: str, num_jitters: int):
     return encs[0] if encs else None
 
 
+def _load_rgb_image_with_exif(path: str):
+    """
+    Charge une image en RGB en appliquant l'orientation EXIF.
+
+    Certains appareils (ex. certains Pixel) stockent l'orientation dans EXIF ;
+    sans normalisation, le détecteur facial peut échouer alors que le visage est présent.
+    """
+    with Image.open(path) as img:
+        fixed = ImageOps.exif_transpose(img).convert("RGB")
+        return np.array(fixed)
+
+
+def _selfie_encoding_with_rotation_fallback(image, model: str, num_jitters: int):
+    """
+    Tente l'encodage du selfie avec rotations successives.
+    """
+    enc = _encoding_for_largest_face(image, model=model, num_jitters=num_jitters)
+    if enc is not None:
+        return enc
+    # Fallback robuste pour orientation capricieuse selon marque/modèle.
+    for k in (1, 2, 3):  # 90, 180, 270
+        rotated = np.rot90(image, k)
+        enc = _encoding_for_largest_face(rotated, model=model, num_jitters=num_jitters)
+        if enc is not None:
+            return enc
+    return None
+
+
 def verify_selfie_against_profile(
     selfie: UploadedFile,
     profile_image_field,
@@ -102,14 +132,16 @@ def verify_selfie_against_profile(
 
         import face_recognition
 
-        selfie_img = face_recognition.load_image_file(selfie_path)
-        ref_img = face_recognition.load_image_file(ref_path)
+        selfie_img = _load_rgb_image_with_exif(selfie_path)
+        ref_img = _load_rgb_image_with_exif(ref_path)
 
         ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
         if ref_enc is None:
             return False, None, "no_face_in_reference"
 
-        selfie_enc = _encoding_for_largest_face(selfie_img, model=model, num_jitters=num_jitters)
+        selfie_enc = _selfie_encoding_with_rotation_fallback(
+            selfie_img, model=model, num_jitters=num_jitters
+        )
         if selfie_enc is None:
             return False, None, "no_face_in_selfie"
 
