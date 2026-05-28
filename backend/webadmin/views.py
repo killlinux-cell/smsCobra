@@ -716,20 +716,33 @@ def site_delete_view(request, pk):
     )
 
 
+def _vigile_search_filter(term: str) -> Q:
+    """Recherche texte sur la fiche vigile, y compris niveau d'études et taille."""
+    q = (
+        Q(username__icontains=term)
+        | Q(first_name__icontains=term)
+        | Q(last_name__icontains=term)
+        | Q(email__icontains=term)
+        | Q(phone_number__icontains=term)
+        | Q(domicile__icontains=term)
+        | Q(aval__icontains=term)
+        | Q(education_level__icontains=term)
+    )
+    term_l = term.lower()
+    for value, label in User.EducationLevel.choices:
+        if term_l in label.lower():
+            q |= Q(education_level=value)
+    if term.isdigit():
+        q |= Q(height_cm=int(term))
+    return q
+
+
 @admin_web_required
 def vigiles_list_view(request):
     vigiles = User.objects.filter(role=User.Role.VIGILE).order_by("username")
     search_q = (request.GET.get("q") or "").strip()
     if search_q:
-        vigiles = vigiles.filter(
-            Q(username__icontains=search_q)
-            | Q(first_name__icontains=search_q)
-            | Q(last_name__icontains=search_q)
-            | Q(email__icontains=search_q)
-            | Q(phone_number__icontains=search_q)
-            | Q(domicile__icontains=search_q)
-            | Q(aval__icontains=search_q)
-        )
+        vigiles = vigiles.filter(_vigile_search_filter(search_q))
     form = VigileCreationForm()
     if request.method == "POST":
         form = VigileCreationForm(request.POST, request.FILES)

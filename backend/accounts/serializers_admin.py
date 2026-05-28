@@ -36,6 +36,8 @@ class VigileAdminSerializer(serializers.ModelSerializer):
             "is_active",
             "aval",
             "date_integration",
+            "height_cm",
+            "education_level",
             "display_name",
             "profile_photo",
             "id_document",
@@ -74,6 +76,12 @@ class VigileCreateSerializer(serializers.Serializer):
     domicile = serializers.CharField(required=False, allow_blank=True)
     aval = serializers.CharField(required=False, allow_blank=True)
     date_integration = serializers.DateField(required=False, allow_null=True)
+    height_cm = serializers.IntegerField(required=False, allow_null=True, min_value=100, max_value=250)
+    education_level = serializers.ChoiceField(
+        choices=User.EducationLevel.choices,
+        required=False,
+        allow_blank=True,
+    )
     id_document = serializers.FileField(required=False, allow_null=True)
     profile_photo = serializers.ImageField()
 
@@ -108,6 +116,8 @@ class VigileCreateSerializer(serializers.Serializer):
         date_int = vd.pop("date_integration", None)
         aval = (vd.pop("aval", None) or "").strip()
         domicile = (vd.pop("domicile", None) or "").strip()
+        height_cm = vd.pop("height_cm", None)
+        education_level = (vd.pop("education_level", None) or "").strip()
         username = (vd.get("username") or "").strip() or generate_vigile_username()
         while User.objects.filter(username=username).exists():
             username = generate_vigile_username()
@@ -122,6 +132,8 @@ class VigileCreateSerializer(serializers.Serializer):
             profile_photo=photo,
             aval=aval,
             date_integration=date_int,
+            height_cm=height_cm,
+            education_level=education_level,
         )
         if id_doc:
             user.id_document = id_doc

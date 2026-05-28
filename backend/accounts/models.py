@@ -43,6 +43,30 @@ class User(AbstractUser):
         null=True,
         help_text="Scan de la pièce d'identité (image ou PDF), via scanner ou fichier.",
     )
+    height_cm = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Taille du vigile en centimètres.",
+    )
+
+    class EducationLevel(models.TextChoices):
+        NON_SCOLARISE = "non_scolarise", "Non scolarisé"
+        PRIMAIRE = "primaire", "Primaire"
+        SECONDAIRE = "secondaire", "Secondaire / collège"
+        BEPC = "bepc", "BEPC"
+        BAC = "bac", "Baccalauréat"
+        BAC_2 = "bac_2", "BAC+2 (BTS, DUT…)"
+        LICENCE = "licence", "Licence (BAC+3)"
+        MASTER = "master", "Master (BAC+5)"
+        DOCTORAT = "doctorat", "Doctorat"
+        AUTRE = "autre", "Autre"
+
+    education_level = models.CharField(
+        max_length=32,
+        choices=EducationLevel.choices,
+        blank=True,
+        help_text="Niveau d'études ou diplôme le plus élevé.",
+    )
 
     def __str__(self) -> str:
         return f"{self.username} ({self.role})"

@@ -16,6 +16,8 @@ from sites.models import Site
 _CTRL = "form-control"
 _SEL = "form-select"
 
+_EDUCATION_LEVEL_CHOICES = [("", "— Non renseigné —")] + list(User.EducationLevel.choices)
+
 class SiteCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     """Liste de sites en cases à cocher (template dédié, lisible sur la fiche contrôleur)."""
 
@@ -178,6 +180,20 @@ class VigileCreationForm(forms.ModelForm):
         required=False,
         widget=forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
     )
+    height_cm = forms.IntegerField(
+        label="Taille (cm)",
+        required=False,
+        min_value=100,
+        max_value=250,
+        widget=forms.NumberInput(attrs={"class": _CTRL, "min": "100", "max": "250", "placeholder": "ex. 175"}),
+        help_text="Taille en centimètres (facultatif).",
+    )
+    education_level = forms.ChoiceField(
+        label="Niveau d'études",
+        required=False,
+        choices=_EDUCATION_LEVEL_CHOICES,
+        widget=forms.Select(attrs={"class": _SEL}),
+    )
     id_document = forms.FileField(
         label="Pièce d'identité (scan)",
         required=False,
@@ -206,6 +222,7 @@ class VigileCreationForm(forms.ModelForm):
             "phone_number",
             "domicile",
             "aval",
+            "height_cm",
         ):
             if name in self.fields:
                 self.fields[name].widget.attrs.setdefault("class", _CTRL)
@@ -240,6 +257,8 @@ class VigileCreationForm(forms.ModelForm):
         user.domicile = (self.cleaned_data.get("domicile") or "").strip()
         user.aval = (self.cleaned_data.get("aval") or "").strip()
         user.date_integration = self.cleaned_data.get("date_integration")
+        user.height_cm = self.cleaned_data.get("height_cm")
+        user.education_level = self.cleaned_data.get("education_level") or ""
         user.profile_photo = self.cleaned_data["profile_photo"]
         doc = self.cleaned_data.get("id_document")
         if doc:
@@ -415,6 +434,8 @@ class VigileUpdateForm(forms.ModelForm):
             "domicile",
             "aval",
             "date_integration",
+            "height_cm",
+            "education_level",
             "profile_photo",
             "id_document",
             "is_active",
@@ -429,6 +450,8 @@ class VigileUpdateForm(forms.ModelForm):
             "domicile": "Domicile",
             "aval": "Aval",
             "date_integration": "Date d'intégration",
+            "height_cm": "Taille (cm)",
+            "education_level": "Niveau d'études",
             "profile_photo": "Photo portrait",
             "id_document": "Pièce d'identité (scan)",
             "is_active": "Compte actif (connexion autorisée)",
@@ -443,6 +466,10 @@ class VigileUpdateForm(forms.ModelForm):
             "domicile": forms.Textarea(attrs={"class": _CTRL, "rows": 3}),
             "aval": forms.TextInput(attrs={"class": _CTRL}),
             "date_integration": forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
+            "height_cm": forms.NumberInput(
+                attrs={"class": _CTRL, "min": "100", "max": "250", "placeholder": "ex. 175"}
+            ),
+            "education_level": forms.Select(attrs={"class": _SEL}),
             "profile_photo": forms.ClearableFileInput(
                 attrs={"class": "form-control", "accept": "image/*"}
             ),
@@ -457,6 +484,7 @@ class VigileUpdateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["profile_photo"].required = False
         self.fields["id_document"].required = False
+        self.fields["education_level"].choices = _EDUCATION_LEVEL_CHOICES
 
     def clean_username(self):
         u = (self.cleaned_data.get("username") or "").strip()
@@ -467,7 +495,12 @@ class VigileUpdateForm(forms.ModelForm):
         return u
 
     def save(self, commit=True):
-        return super().save(commit=commit)
+        user = super().save(commit=False)
+        if not user.education_level:
+            user.education_level = ""
+        if commit:
+            user.save()
+        return user
 
 
 class ShiftAssignmentForm(forms.ModelForm):

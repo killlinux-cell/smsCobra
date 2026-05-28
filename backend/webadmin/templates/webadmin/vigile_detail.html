@@ -98,6 +98,16 @@
               {{ form.date_integration }}
               {% if form.date_integration.errors %}<div class="text-danger small">{{ form.date_integration.errors }}</div>{% endif %}
             </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.height_cm.id_for_label }}">{{ form.height_cm.label }}</label>
+              {{ form.height_cm }}
+              {% if form.height_cm.errors %}<div class="text-danger small">{{ form.height_cm.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.education_level.id_for_label }}">{{ form.education_level.label }}</label>
+              {{ form.education_level }}
+              {% if form.education_level.errors %}<div class="text-danger small">{{ form.education_level.errors }}</div>{% endif %}
+            </div>
           </div>
 
           <hr class="my-4">
@@ -127,6 +137,10 @@
           <hr class="my-4">
 
           <dl class="row mb-0 cobra-dl-detail small">
+            <dt class="col-sm-4">Taille</dt>
+            <dd class="col-sm-8">{% if vigile.height_cm %}{{ vigile.height_cm }} cm{% else %}—{% endif %}</dd>
+            <dt class="col-sm-4">Niveau d'études</dt>
+            <dd class="col-sm-8">{% if vigile.education_level %}{{ vigile.get_education_level_display }}{% else %}—{% endif %}</dd>
             <dt class="col-sm-4">Rôle</dt>
             <dd class="col-sm-8">{{ vigile.get_role_display }}</dd>
             <dt class="col-sm-4">Inscription</dt>
