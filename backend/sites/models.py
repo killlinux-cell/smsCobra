@@ -17,6 +17,14 @@ class Site(models.Model):
     timezone = models.CharField(max_length=64, default="Africa/Abidjan")
     expected_start_time = models.TimeField()
     expected_end_time = models.TimeField()
+    day_staff_required = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Effectif cible sur le poste jour (06:00-18:00).",
+    )
+    night_staff_required = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Effectif cible sur le poste nuit (18:00-06:00).",
+    )
     late_tolerance_minutes = models.PositiveSmallIntegerField(default=15)
     morning_passation_start = models.TimeField(
         default=time(6, 0),
@@ -58,6 +66,13 @@ class Site(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def staff_required_for_shift(self, shift_type: str) -> int:
+        if shift_type == "day":
+            return max(1, int(self.day_staff_required or 1))
+        if shift_type == "night":
+            return max(1, int(self.night_staff_required or 1))
+        return 1
 
     def relief_start_in_passation_windows(self, start_time) -> bool:
         """True si l'heure de prise de service du relève est dans la fenêtre matin ou soir du site."""

@@ -31,10 +31,24 @@
         <tr>
           <td class="fw-semibold">{{ row.site.name }}</td>
           <td class="small">
-            {% include "webadmin/_titular_post_cell.html" with fixed=row.day_fixed today_assignment=row.day_today %}
+            {% if row.day_fixed_list %}
+              {% for fp in row.day_fixed_list %}
+                {% include "webadmin/_titular_post_cell.html" with fixed=fp today_assignment=None %}
+                {% if not forloop.last %}<hr class="my-2">{% endif %}
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">Aucun titulaire jour</span>
+            {% endif %}
           </td>
           <td class="small">
-            {% include "webadmin/_titular_post_cell.html" with fixed=row.night_fixed today_assignment=row.night_today %}
+            {% if row.night_fixed_list %}
+              {% for fp in row.night_fixed_list %}
+                {% include "webadmin/_titular_post_cell.html" with fixed=fp today_assignment=None %}
+                {% if not forloop.last %}<hr class="my-2">{% endif %}
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">Aucun titulaire nuit</span>
+            {% endif %}
           </td>
         </tr>
         {% empty %}

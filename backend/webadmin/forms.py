@@ -60,6 +60,8 @@ class SiteForm(forms.ModelForm):
             "timezone",
             "expected_start_time",
             "expected_end_time",
+            "day_staff_required",
+            "night_staff_required",
             "late_tolerance_minutes",
             "relief_late_alert_minutes",
             "latitude",
@@ -75,6 +77,8 @@ class SiteForm(forms.ModelForm):
             "timezone": "Fuseau horaire",
             "expected_start_time": "Heure de prise de service attendue",
             "expected_end_time": "Heure de fin de service attendue",
+            "day_staff_required": "Effectif cible poste jour",
+            "night_staff_required": "Effectif cible poste nuit",
             "late_tolerance_minutes": "Tolérance de retard (prise de service, minutes)",
             "relief_late_alert_minutes": (
                 "Alerte releve non arrive (minutes apres heure prevue) — "
@@ -99,6 +103,8 @@ class SiteForm(forms.ModelForm):
             "timezone": forms.TextInput(attrs={"class": _CTRL}),
             "expected_start_time": forms.TimeInput(attrs={"class": _CTRL, "type": "time"}),
             "expected_end_time": forms.TimeInput(attrs={"class": _CTRL, "type": "time"}),
+            "day_staff_required": forms.NumberInput(attrs={"class": _CTRL, "min": "1"}),
+            "night_staff_required": forms.NumberInput(attrs={"class": _CTRL, "min": "1"}),
             "late_tolerance_minutes": forms.NumberInput(
                 attrs={"class": _CTRL, "id": "id_late_tolerance_minutes", "min": "0"}
             ),
@@ -614,7 +620,18 @@ class ShiftAssignmentForm(forms.ModelForm):
             )
             if self.instance.pk:
                 same_slot = same_slot.exclude(pk=self.instance.pk)
-            if same_slot.exists():
+            if self.for_create and mode == self.MODE_PLANIFIER:
+                non_extra_count = same_slot.exclude(status=ShiftAssignment.Status.EXTRA).count()
+                required = site.staff_required_for_shift(shift_type)
+                if non_extra_count >= required:
+                    raise forms.ValidationError(
+                        (
+                            f"Effectif cible atteint pour ce site ({required} poste(s) "
+                            f"{'jour' if shift_type == self.SHIFT_TYPE_DAY else 'nuit'}). "
+                            "Utilisez le mode Extra pour un renfort temporaire."
+                        )
+                    )
+            elif same_slot.exists():
                 raise forms.ValidationError(
                     "Ce poste (jour/nuit) est déjà attribué pour ce site et cette date."
                 )
@@ -699,19 +716,32 @@ class ShiftAssignmentForm(forms.ModelForm):
             if obj.start_time == time(6, 0)
             else FixedPost.ShiftType.NIGHT
         )
-        existing = (
-            FixedPost.objects.filter(site=obj.site, shift_type=shift_type, is_active=True)
-            .exclude(titular_guard=obj.guard)
-            .first()
-        )
-        if existing:
-            existing.is_active = False
-            existing.save(update_fields=["is_active"])
-        FixedPost.objects.update_or_create(
+        already_titular = FixedPost.objects.filter(
             site=obj.site,
             shift_type=shift_type,
             is_active=True,
-            defaults={"titular_guard": obj.guard},
+            titular_guard=obj.guard,
+        ).exists()
+        if already_titular:
+            return
+        required = obj.site.staff_required_for_shift(shift_type)
+        active_count = FixedPost.objects.filter(
+            site=obj.site,
+            shift_type=shift_type,
+            is_active=True,
+        ).count()
+        if active_count >= required:
+            raise forms.ValidationError(
+                (
+                    f"Effectif titulaire déjà complet ({required}) pour ce site en "
+                    f"{'jour' if shift_type == FixedPost.ShiftType.DAY else 'nuit'}."
+                )
+            )
+        FixedPost.objects.create(
+            site=obj.site,
+            shift_type=shift_type,
+            titular_guard=obj.guard,
+            is_active=True,
         )
 
     def save(self, commit=True):

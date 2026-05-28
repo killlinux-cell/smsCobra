@@ -55,6 +55,7 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
                 site=post.site,
                 shift_date=day,
                 start_time=start_time,
+                guard=guard,
             ).exclude(status=ShiftAssignment.Status.EXTRA).first()
             if not existing:
                 ShiftAssignment.objects.create(
@@ -64,37 +65,81 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
                     **defaults,
                 )
 
-    # (Re)lier la passation jour -> nuit du même site (exclure les extras).
-    _non_extra = ~models.Q(status=ShiftAssignment.Status.EXTRA)
+    # (Re)lier la passation jour -> nuit par répartition (effectifs potentiellement différents).
+    active_q = models.Q(status__in=ShiftAssignment.active_on_duty_statuses())
     for day in unique_days:
         next_day = day + timedelta(days=1)
-        day_rows = ShiftAssignment.objects.select_related("site").filter(
-            _non_extra,
-            shift_date=day,
-            start_time=time(6, 0),
+        day_rows = list(
+            ShiftAssignment.objects.select_related("site", "guard")
+            .filter(
+                active_q,
+                shift_date=day,
+                start_time=time(6, 0),
+            )
+            .order_by("site_id", "guard_id", "id")
         )
-        for row in day_rows:
-            incoming = ShiftAssignment.objects.filter(
-                _non_extra,
-                site=row.site,
+        night_rows_same_day = list(
+            ShiftAssignment.objects.select_related("site", "guard")
+            .filter(
+                active_q,
                 shift_date=day,
                 start_time=time(18, 0),
-            ).first()
-            _link_relieved_by(row, incoming)
-
-        night_rows = ShiftAssignment.objects.select_related("site").filter(
-            _non_extra,
-            shift_date=day,
-            start_time=time(18, 0),
+            )
+            .order_by("site_id", "guard_id", "id")
         )
-        for row in night_rows:
-            incoming = ShiftAssignment.objects.filter(
-                _non_extra,
-                site=row.site,
+        day_by_site: dict[int, list[ShiftAssignment]] = {}
+        night_by_site: dict[int, list[ShiftAssignment]] = {}
+        for row in day_rows:
+            day_by_site.setdefault(row.site_id, []).append(row)
+        for row in night_rows_same_day:
+            night_by_site.setdefault(row.site_id, []).append(row)
+        for site_id, outgoing_rows in day_by_site.items():
+            incoming_rows = night_by_site.get(site_id, [])
+            _link_relieved_by_distributed(outgoing_rows, incoming_rows)
+
+        night_rows = list(
+            ShiftAssignment.objects.select_related("site", "guard")
+            .filter(
+                active_q,
+                shift_date=day,
+                start_time=time(18, 0),
+            )
+            .order_by("site_id", "guard_id", "id")
+        )
+        day_rows_next = list(
+            ShiftAssignment.objects.select_related("site", "guard")
+            .filter(
+                active_q,
                 shift_date=next_day,
                 start_time=time(6, 0),
-            ).first()
-            _link_relieved_by(row, incoming)
+            )
+            .order_by("site_id", "guard_id", "id")
+        )
+        night_by_site = {}
+        day_next_by_site: dict[int, list[ShiftAssignment]] = {}
+        for row in night_rows:
+            night_by_site.setdefault(row.site_id, []).append(row)
+        for row in day_rows_next:
+            day_next_by_site.setdefault(row.site_id, []).append(row)
+        for site_id, outgoing_rows in night_by_site.items():
+            incoming_rows = day_next_by_site.get(site_id, [])
+            _link_relieved_by_distributed(outgoing_rows, incoming_rows)
+
+
+def _link_relieved_by_distributed(
+    outgoing_rows: list[ShiftAssignment],
+    incoming_rows: list[ShiftAssignment],
+) -> None:
+    if not outgoing_rows:
+        return
+    if not incoming_rows:
+        for row in outgoing_rows:
+            _link_relieved_by(row, None)
+        return
+    # Répartition circulaire : gère les cas 5->2, 2->5, etc.
+    for idx, row in enumerate(outgoing_rows):
+        incoming = incoming_rows[idx % len(incoming_rows)]
+        _link_relieved_by(row, incoming)
 
 
 def _link_relieved_by(row: ShiftAssignment, incoming: ShiftAssignment | None) -> None:

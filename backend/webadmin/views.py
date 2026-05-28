@@ -1097,30 +1097,32 @@ def affectations_titulaires_view(request):
         .filter(is_active=True, site__in=sites)
         .order_by("site__name", "shift_type")
     )
-    fixed_by_site_shift = {(fp.site_id, fp.shift_type): fp for fp in fixed_posts}
+    fixed_by_site_shift: dict[tuple[int, str], list[FixedPost]] = defaultdict(list)
+    for fp in fixed_posts:
+        fixed_by_site_shift[(fp.site_id, fp.shift_type)].append(fp)
     today_assignments = (
         ShiftAssignment.objects.select_related("guard")
         .filter(shift_date=today, site__in=sites)
         .order_by("site__name", "start_time")
     )
-    today_by_site_shift = {}
+    today_by_site_shift: dict[tuple[int, str], list[ShiftAssignment]] = defaultdict(list)
     for assignment in today_assignments:
         shift_type = "day" if assignment.start_time.strftime("%H:%M") == "06:00" else "night"
-        today_by_site_shift[(assignment.site_id, shift_type)] = assignment
+        today_by_site_shift[(assignment.site_id, shift_type)].append(assignment)
 
     rows = []
     for site in sites:
-        day_fixed = fixed_by_site_shift.get((site.id, FixedPost.ShiftType.DAY))
-        night_fixed = fixed_by_site_shift.get((site.id, FixedPost.ShiftType.NIGHT))
-        day_today = today_by_site_shift.get((site.id, "day"))
-        night_today = today_by_site_shift.get((site.id, "night"))
+        day_fixed = fixed_by_site_shift.get((site.id, FixedPost.ShiftType.DAY), [])
+        night_fixed = fixed_by_site_shift.get((site.id, FixedPost.ShiftType.NIGHT), [])
+        day_today = today_by_site_shift.get((site.id, "day"), [])
+        night_today = today_by_site_shift.get((site.id, "night"), [])
         rows.append(
             {
                 "site": site,
-                "day_fixed": day_fixed,
-                "night_fixed": night_fixed,
-                "day_today": day_today,
-                "night_today": night_today,
+                "day_fixed_list": day_fixed,
+                "night_fixed_list": night_fixed,
+                "day_today_list": day_today,
+                "night_today_list": night_today,
             }
         )
 

@@ -42,13 +42,7 @@ class ShiftAssignment(models.Model):
 
     class Meta:
         unique_together = ("guard", "site", "shift_date", "start_time")
-        constraints = [
-            models.UniqueConstraint(
-                fields=["relieved_by"],
-                condition=models.Q(relieved_by__isnull=False),
-                name="uniq_shiftassignment_one_outgoing_per_incoming",
-            ),
-        ]
+        constraints = []
         indexes = [
             models.Index(
                 fields=["site", "shift_date", "status"],
@@ -160,9 +154,9 @@ class FixedPost(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["site", "shift_type"],
+                fields=["site", "shift_type", "titular_guard"],
                 condition=models.Q(is_active=True),
-                name="uniq_active_fixedpost_per_site_shift",
+                name="uniq_active_fixedpost_per_site_shift_guard",
             ),
         ]
         indexes = [

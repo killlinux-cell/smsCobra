@@ -36,6 +36,10 @@
           <dd class="col-sm-9"><code>{{ site.timezone }}</code></dd>
           <dt class="col-sm-3">Horaires attendus</dt>
           <dd class="col-sm-9">{{ site.expected_start_time|time:"H:i" }} – {{ site.expected_end_time|time:"H:i" }}</dd>
+          <dt class="col-sm-3">Effectif cible</dt>
+          <dd class="col-sm-9">
+            Jour: <strong>{{ site.day_staff_required }}</strong> · Nuit: <strong>{{ site.night_staff_required }}</strong>
+          </dd>
           <dt class="col-sm-3">Délai retard / relève</dt>
           <dd class="col-sm-9">{{ site.late_tolerance_minutes }} min (prise de service et alerte relève)</dd>
           <dt class="col-sm-3">Géofence</dt>

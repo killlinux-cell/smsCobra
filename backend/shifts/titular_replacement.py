@@ -20,37 +20,46 @@ def shift_type_for_assignment(assignment: ShiftAssignment) -> str | None:
     return None
 
 
-def find_fixed_post_for_assignment(assignment: ShiftAssignment) -> FixedPost | None:
+def find_fixed_post_for_assignment(
+    assignment: ShiftAssignment,
+    *,
+    titular_guard_id: int | None = None,
+) -> FixedPost | None:
     shift_type = shift_type_for_assignment(assignment)
     if not shift_type:
         return None
-    return (
-        FixedPost.objects.select_for_update()
-        .filter(
-            site_id=assignment.site_id,
-            shift_type=shift_type,
-            is_active=True,
-        )
-        .first()
+    qs = FixedPost.objects.select_for_update().filter(
+        site_id=assignment.site_id,
+        shift_type=shift_type,
+        is_active=True,
     )
+    if titular_guard_id:
+        qs = qs.filter(titular_guard_id=titular_guard_id)
+    return qs.first()
 
 
-def sync_scheduled_assignments_for_titular(post: FixedPost, from_date: date) -> int:
+def sync_scheduled_assignments_for_titular(
+    post: FixedPost,
+    from_date: date,
+    *,
+    previous_guard_id: int | None = None,
+) -> int:
     """Aligne les affectations planifiées futures sur le titulaire actuel du poste fixe."""
     start_time, end_time = _slot_for(post.shift_type)
-    updated = (
-        ShiftAssignment.objects.filter(
-            site_id=post.site_id,
-            start_time=start_time,
-            shift_date__gte=from_date,
-            status=ShiftAssignment.Status.SCHEDULED,
-        )
-        .exclude(guard_id=post.titular_guard_id)
-        .update(
-            guard_id=post.titular_guard_id,
-            original_guard_id=None,
-            end_time=end_time,
-        )
+    qs = ShiftAssignment.objects.filter(
+        site_id=post.site_id,
+        start_time=start_time,
+        shift_date__gte=from_date,
+        status=ShiftAssignment.Status.SCHEDULED,
+    )
+    if previous_guard_id:
+        qs = qs.filter(guard_id=previous_guard_id)
+    else:
+        qs = qs.exclude(guard_id=post.titular_guard_id)
+    updated = qs.update(
+        guard_id=post.titular_guard_id,
+        original_guard_id=None,
+        end_time=end_time,
     )
     return updated
 
@@ -67,7 +76,7 @@ def promote_replacement_to_titular_on_dispatch(
     Si le vigile absent est titulaire du poste fixe (jour/nuit) du site,
     le remplaçant devient titulaire ; l'absent est suspendu jusqu'à réintégration.
     """
-    post = find_fixed_post_for_assignment(assignment)
+    post = find_fixed_post_for_assignment(assignment, titular_guard_id=absent_guard_id)
     if not post or post.titular_guard_id != absent_guard_id:
         return None
     if post.suspended_titular_guard_id:
@@ -92,7 +101,11 @@ def promote_replacement_to_titular_on_dispatch(
             "updated_at",
         ]
     )
-    sync_scheduled_assignments_for_titular(post, assignment.shift_date)
+    sync_scheduled_assignments_for_titular(
+        post,
+        assignment.shift_date,
+        previous_guard_id=absent_guard_id,
+    )
 
     from django.contrib.auth import get_user_model
     from reports.titular_changes import log_titular_promotion
@@ -147,7 +160,11 @@ def reinstate_suspended_titular(
             "updated_at",
         ]
     )
-    sync_scheduled_assignments_for_titular(fixed_post, timezone.localdate())
+    sync_scheduled_assignments_for_titular(
+        fixed_post,
+        timezone.localdate(),
+        previous_guard_id=former_interim.id if former_interim else None,
+    )
 
     if reinstated_guard:
         from reports.titular_changes import log_titular_reinstatement
