@@ -24,9 +24,24 @@
           <dd class="col-sm-9">{{ site.address }}</dd>
           <dt class="col-sm-3">Responsable du site</dt>
           <dd class="col-sm-9">
+            {% if site.site_manager_name %}
+            <span class="fw-semibold">{{ site.site_manager_name }}</span>
+            {% else %}
+            <span class="text-muted">Nom non renseigné</span>
+            {% endif %}
             {% if site.site_manager_phone %}
-            <a href="tel:{{ site.site_manager_phone }}" class="text-decoration-none">
+            <br><a href="tel:{{ site.site_manager_phone }}" class="text-decoration-none small">
               <i class="bi bi-telephone me-1"></i>{{ site.site_manager_phone }}
+            </a>
+            {% elif not site.site_manager_name %}
+            <span class="text-muted"> — téléphone non renseigné</span>
+            {% endif %}
+          </dd>
+          <dt class="col-sm-3">Numéro SMS du site</dt>
+          <dd class="col-sm-9">
+            {% if site.site_sms_phone %}
+            <a href="sms:{{ site.site_sms_phone }}" class="text-decoration-none">
+              <i class="bi bi-chat-dots me-1"></i>{{ site.site_sms_phone }}
             </a>
             {% else %}
             <span class="text-muted">Non renseigné</span>

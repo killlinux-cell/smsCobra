@@ -491,7 +491,9 @@ def sites_list_view(request):
         sites = sites.filter(
             Q(name__icontains=search_q)
             | Q(address__icontains=search_q)
+            | Q(site_manager_name__icontains=search_q)
             | Q(site_manager_phone__icontains=search_q)
+            | Q(site_sms_phone__icontains=search_q)
         )
     form = SiteForm()
     if request.method == "POST":
@@ -918,6 +920,36 @@ def controller_detail_view(request, pk):
             "presence_is_today": presence_date == timezone.localdate(),
             "visits_on_day": visits_on_day,
             "visit_history": visit_history,
+        },
+    )
+
+
+@admin_web_required
+def controller_delete_view(request, pk):
+    controller = get_object_or_404(User.objects.filter(role=User.Role.CONTROLEUR), pk=pk)
+    list_qs = request.GET.urlencode()
+    from webadmin.controller_delete import delete_controller, get_controller_delete_context
+
+    delete_ctx = get_controller_delete_context(controller)
+
+    if request.method == "POST":
+        label = controller.get_full_name().strip() or controller.username
+        delete_controller(controller)
+        messages.success(request, f"Le contrôleur {label} a été supprimé définitivement.")
+        redir = reverse("webadmin-controllers")
+        if list_qs:
+            redir = f"{redir}?{list_qs}"
+        return redirect(redir)
+
+    return render(
+        request,
+        "webadmin/controller_confirm_delete.html",
+        {
+            "page_title": "Supprimer un contrôleur",
+            "nav_active": "controllers",
+            "controller": controller,
+            "delete_ctx": delete_ctx,
+            "controllers_list_querystring": list_qs,
         },
     )
 

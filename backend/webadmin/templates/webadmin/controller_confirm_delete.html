@@ -1,0 +1,43 @@
+{% extends "webadmin/base.html" %}
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'webadmin-controller-detail' controller.pk %}{% if controllers_list_querystring %}?{{ controllers_list_querystring }}{% endif %}" class="text-decoration-none">
+    <i class="bi bi-arrow-left me-1"></i>Retour à la fiche
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card cobra-panel border-danger">
+      <div class="card-header bg-danger text-white d-flex align-items-center gap-2">
+        <i class="bi bi-person-x-fill"></i>
+        <span>Supprimer un contrôleur</span>
+      </div>
+      <div class="card-body">
+        <p class="mb-3">
+          Confirmez-vous la suppression définitive de
+          <strong>{{ controller.get_full_name|default:controller.username }}</strong> (@{{ controller.username }}) ?
+        </p>
+
+        <div class="alert alert-danger small mb-3">
+          <p class="fw-semibold mb-2">Cette action est irréversible.</p>
+          <p class="mb-1">Seront également supprimés :</p>
+          <ul class="mb-0">
+            {% if delete_ctx.counts.site_assignments %}<li>{{ delete_ctx.counts.site_assignments }} autorisation(s) de site</li>{% endif %}
+            {% if delete_ctx.counts.visits %}<li>{{ delete_ctx.counts.visits }} passage(s) enregistré(s)</li>{% endif %}
+            <li>Photo de profil et compte de connexion</li>
+          </ul>
+        </div>
+
+        <form method="post" class="d-flex flex-wrap gap-2 justify-content-end">
+          {% csrf_token %}
+          <a href="{% url 'webadmin-controller-detail' controller.pk %}{% if controllers_list_querystring %}?{{ controllers_list_querystring }}{% endif %}" class="btn btn-outline-secondary">Annuler</a>
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash3 me-1"></i>Supprimer définitivement
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

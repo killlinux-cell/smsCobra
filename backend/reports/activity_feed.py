@@ -83,8 +83,18 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "body": (
                         f"{site.name} — {site.address}"
                         + (
-                            f" — resp. {site.site_manager_phone}"
+                            f" — resp. {site.site_manager_name}"
+                            if getattr(site, "site_manager_name", "")
+                            else ""
+                        )
+                        + (
+                            f" ({site.site_manager_phone})"
                             if getattr(site, "site_manager_phone", "")
+                            else ""
+                        )
+                        + (
+                            f" — SMS {site.site_sms_phone}"
+                            if getattr(site, "site_sms_phone", "")
                             else ""
                         )
                     ),

@@ -31,11 +31,19 @@ class SiteSerializer(serializers.ModelSerializer):
         phone = (value or "").strip()
         if not phone:
             raise serializers.ValidationError(
-                "Le numéro du responsable du site est obligatoire."
+                "Le téléphone du responsable du site est obligatoire."
             )
         if len(phone) < 8:
             raise serializers.ValidationError(
                 "Saisissez un numéro valide (au moins 8 caractères)."
+            )
+        return phone
+
+    def validate_site_sms_phone(self, value):
+        phone = (value or "").strip()
+        if phone and len(phone) < 8:
+            raise serializers.ValidationError(
+                "Saisissez un numéro SMS valide (au moins 8 caractères)."
             )
         return phone
 

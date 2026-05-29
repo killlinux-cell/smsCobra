@@ -58,7 +58,9 @@ class SiteForm(forms.ModelForm):
         fields = [
             "name",
             "address",
+            "site_manager_name",
             "site_manager_phone",
+            "site_sms_phone",
             "timezone",
             "expected_start_time",
             "expected_end_time",
@@ -75,7 +77,9 @@ class SiteForm(forms.ModelForm):
         labels = {
             "name": "Nom du site",
             "address": "Adresse",
-            "site_manager_phone": "Numéro du responsable du site",
+            "site_manager_name": "Nom du responsable du site",
+            "site_manager_phone": "Téléphone du responsable du site",
+            "site_sms_phone": "Numéro SMS du site",
             "timezone": "Fuseau horaire",
             "expected_start_time": "Heure de prise de service attendue",
             "expected_end_time": "Heure de fin de service attendue",
@@ -94,11 +98,22 @@ class SiteForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": _CTRL}),
             "address": forms.TextInput(attrs={"class": _CTRL}),
+            "site_manager_name": forms.TextInput(
+                attrs={"class": _CTRL, "placeholder": "Ex. Kouassi Jean"}
+            ),
             "site_manager_phone": forms.TextInput(
                 attrs={
                     "class": _CTRL,
                     "type": "tel",
                     "placeholder": "Ex. +225 07 00 00 00 00",
+                    "autocomplete": "tel",
+                }
+            ),
+            "site_sms_phone": forms.TextInput(
+                attrs={
+                    "class": _CTRL,
+                    "type": "tel",
+                    "placeholder": "Ex. +225 05 00 00 00 00",
                     "autocomplete": "tel",
                 }
             ),
@@ -130,11 +145,19 @@ class SiteForm(forms.ModelForm):
         phone = (self.cleaned_data.get("site_manager_phone") or "").strip()
         if not phone:
             raise forms.ValidationError(
-                "Le numéro du responsable du site est obligatoire."
+                "Le téléphone du responsable du site est obligatoire."
             )
         if len(phone) < 8:
             raise forms.ValidationError(
                 "Saisissez un numéro valide (au moins 8 caractères)."
+            )
+        return phone
+
+    def clean_site_sms_phone(self):
+        phone = (self.cleaned_data.get("site_sms_phone") or "").strip()
+        if phone and len(phone) < 8:
+            raise forms.ValidationError(
+                "Saisissez un numéro SMS valide (au moins 8 caractères)."
             )
         return phone
 

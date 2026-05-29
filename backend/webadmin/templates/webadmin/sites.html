@@ -30,6 +30,7 @@
               <th>Nom</th>
               <th>Adresse</th>
               <th>Responsable</th>
+              <th>SMS site</th>
               <th>Horaires</th>
               <th>Statut</th>
               <th class="text-end">Actions</th>
@@ -43,8 +44,18 @@
               </td>
               <td class="small text-muted">{{ s.address }}</td>
               <td class="small">
+                {% if s.site_manager_name %}
+                <span class="d-block">{{ s.site_manager_name }}</span>
+                {% endif %}
                 {% if s.site_manager_phone %}
-                <a href="tel:{{ s.site_manager_phone }}" class="text-decoration-none">{{ s.site_manager_phone }}</a>
+                <a href="tel:{{ s.site_manager_phone }}" class="text-decoration-none text-muted">{{ s.site_manager_phone }}</a>
+                {% elif not s.site_manager_name %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {% if s.site_sms_phone %}
+                <a href="sms:{{ s.site_sms_phone }}" class="text-decoration-none">{{ s.site_sms_phone }}</a>
                 {% else %}
                 <span class="text-muted">—</span>
                 {% endif %}
@@ -58,7 +69,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
+            <tr><td colspan="7" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
             {% endfor %}
           </tbody>
         </table>

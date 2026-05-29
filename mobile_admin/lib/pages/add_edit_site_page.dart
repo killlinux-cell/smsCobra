@@ -26,7 +26,9 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _address;
+  late final TextEditingController _managerName;
   late final TextEditingController _managerPhone;
+  late final TextEditingController _siteSmsPhone;
   late final TextEditingController _lat;
   late final TextEditingController _lng;
   late final TextEditingController _radius;
@@ -43,8 +45,14 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     final m = widget.existing;
     _name = TextEditingController(text: m?['name']?.toString() ?? '');
     _address = TextEditingController(text: m?['address']?.toString() ?? '');
+    _managerName = TextEditingController(
+      text: m?['site_manager_name']?.toString() ?? '',
+    );
     _managerPhone = TextEditingController(
       text: m?['site_manager_phone']?.toString() ?? '',
+    );
+    _siteSmsPhone = TextEditingController(
+      text: m?['site_sms_phone']?.toString() ?? '',
     );
     _lat = TextEditingController(text: m?['latitude']?.toString() ?? '');
     _lng = TextEditingController(text: m?['longitude']?.toString() ?? '');
@@ -72,7 +80,9 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
   void dispose() {
     _name.dispose();
     _address.dispose();
+    _managerName.dispose();
     _managerPhone.dispose();
+    _siteSmsPhone.dispose();
     _lat.dispose();
     _lng.dispose();
     _radius.dispose();
@@ -128,7 +138,9 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
         final body = <String, dynamic>{
           'name': _name.text.trim(),
           'address': _address.text.trim(),
+          'site_manager_name': _managerName.text.trim(),
           'site_manager_phone': _managerPhone.text.trim(),
+          'site_sms_phone': _siteSmsPhone.text.trim(),
           'geofence_radius_meters': _parseInt(_radius.text, 250),
           'geofence_gps_margin_meters': _parseInt(_gpsMargin.text, 75),
           'late_tolerance_minutes': _toleranceMinutes(),
@@ -150,7 +162,9 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
         final body = <String, dynamic>{
           'name': _name.text.trim(),
           'address': _address.text.trim(),
+          'site_manager_name': _managerName.text.trim(),
           'site_manager_phone': _managerPhone.text.trim(),
+          'site_sms_phone': _siteSmsPhone.text.trim(),
           'timezone': _timezone.text.trim().isEmpty
               ? 'Africa/Abidjan'
               : _timezone.text.trim(),
@@ -217,13 +231,31 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
             ),
             const SizedBox(height: 12),
             TextFormField(
+              controller: _managerName,
+              decoration: _dec('Nom du responsable du site'),
+              style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
               controller: _managerPhone,
-              decoration: _dec('Numéro du responsable du site *'),
+              decoration: _dec('Téléphone du responsable du site *'),
               keyboardType: TextInputType.phone,
               validator: (v) {
                 final t = v?.trim() ?? '';
                 if (t.isEmpty) return 'Obligatoire';
                 if (t.length < 8) return 'Numéro trop court';
+                return null;
+              },
+              style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _siteSmsPhone,
+              decoration: _dec('Numéro SMS du site (optionnel)'),
+              keyboardType: TextInputType.phone,
+              validator: (v) {
+                final t = v?.trim() ?? '';
+                if (t.isNotEmpty && t.length < 8) return 'Numéro trop court';
                 return null;
               },
               style: GoogleFonts.outfit(),

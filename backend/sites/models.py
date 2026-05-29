@@ -7,12 +7,26 @@ from django.utils.dateparse import parse_time
 class Site(models.Model):
     name = models.CharField(max_length=200)
     address = models.CharField(max_length=300)
+    site_manager_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        verbose_name="Nom du responsable du site",
+        help_text="Nom du responsable sur place (contact opérationnel).",
+    )
     site_manager_phone = models.CharField(
         max_length=20,
         blank=True,
         default="",
-        verbose_name="Numéro du responsable du site",
+        verbose_name="Téléphone du responsable du site",
         help_text="Téléphone du responsable sur place (contact opérationnel).",
+    )
+    site_sms_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="Numéro SMS du site",
+        help_text="Numéro SMS du site (alertes ou contact opérationnel).",
     )
     timezone = models.CharField(max_length=64, default="Africa/Abidjan")
     expected_start_time = models.TimeField()
