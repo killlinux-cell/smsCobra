@@ -23,6 +23,25 @@ def _in_fixed_post_range(post: FixedPost, day: date) -> bool:
     return True
 
 
+def _purge_assignments_before_start(post: FixedPost) -> int:
+    """Supprime les affectations planifiées avant la date de début du poste fixe."""
+    if not post.start_date:
+        return 0
+    start_time, _ = _slot_for(post.shift_type)
+    guard_id = post.current_guard.id
+    return (
+        ShiftAssignment.objects.filter(
+            site_id=post.site_id,
+            start_time=start_time,
+            guard_id=guard_id,
+            shift_date__lt=post.start_date,
+            status__in=ShiftAssignment.active_on_duty_statuses(),
+        )
+        .exclude(status=ShiftAssignment.Status.EXTRA)
+        .delete()[0]
+    )
+
+
 @transaction.atomic
 def ensure_assignments_for_dates(days: list[date]) -> None:
     if not days:
@@ -33,6 +52,9 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
         .filter(is_active=True)
         .order_by("site_id", "shift_type")
     )
+    for post in posts:
+        _purge_assignments_before_start(post)
+
     for day in unique_days:
         for post in posts:
             if not _in_fixed_post_range(post, day):

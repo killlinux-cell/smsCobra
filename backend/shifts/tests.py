@@ -139,6 +139,61 @@ class FixedPostMaterializationTests(TestCase):
         self.assertEqual(day_row.relieved_by_id, night_row.id)
         self.assertEqual(night_row.relieved_by_id, day_next.id)
 
+    def test_fixed_post_respects_start_date(self):
+        start = date.today() + timedelta(days=10)
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.guard_a,
+            is_active=True,
+            start_date=start,
+        )
+        today = date.today()
+        ensure_assignments_for_dates(
+            [today + timedelta(days=i) for i in range(16)]
+        )
+        before = ShiftAssignment.objects.filter(
+            site=self.site,
+            start_time=time(6, 0),
+            guard=self.guard_a,
+            shift_date__lt=start,
+        )
+        self.assertEqual(before.count(), 0)
+        on_start = ShiftAssignment.objects.filter(
+            site=self.site,
+            shift_date=start,
+            start_time=time(6, 0),
+            guard=self.guard_a,
+        ).first()
+        self.assertIsNotNone(on_start)
+
+    def test_fixed_post_purges_assignments_before_start_date(self):
+        start = date.today() + timedelta(days=5)
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.guard_a,
+            is_active=True,
+            start_date=start,
+        )
+        today = date.today()
+        ShiftAssignment.objects.create(
+            guard=self.guard_a,
+            site=self.site,
+            shift_date=today,
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        ensure_assignments_for_dates([today, start])
+        self.assertFalse(
+            ShiftAssignment.objects.filter(
+                site=self.site,
+                guard=self.guard_a,
+                shift_date__lt=start,
+            ).exists()
+        )
+
     def test_fixed_post_uses_active_replacement(self):
         FixedPost.objects.create(
             site=self.site,

@@ -568,8 +568,8 @@ class ShiftAssignmentForm(forms.ModelForm):
         initial=True,
         label="Enregistrer comme poste fixe quotidien",
         help_text=(
-            "Le titulaire est reconduit automatiquement chaque jour "
-            "(jour/nuit) jusqu'à désactivation."
+            "Le titulaire est reconduit automatiquement à partir de la date de début "
+            "(jour/nuit) jusqu'à désactivation. Aucun pointage ni alerte avant cette date."
         ),
     )
 
@@ -579,7 +579,7 @@ class ShiftAssignmentForm(forms.ModelForm):
         labels = {
             "guard": "Vigile",
             "site": "Site",
-            "shift_date": "Date de début",
+            "shift_date": "Date de début (premier jour de service)",
         }
         widgets = {
             "guard": forms.Select(attrs={"class": _SEL}),
@@ -772,13 +772,16 @@ class ShiftAssignmentForm(forms.ModelForm):
             if obj.start_time == time(6, 0)
             else FixedPost.ShiftType.NIGHT
         )
-        already_titular = FixedPost.objects.filter(
+        existing = FixedPost.objects.filter(
             site=obj.site,
             shift_type=shift_type,
             is_active=True,
             titular_guard=obj.guard,
-        ).exists()
-        if already_titular:
+        ).first()
+        if existing:
+            if not existing.start_date and obj.shift_date:
+                existing.start_date = obj.shift_date
+                existing.save(update_fields=["start_date", "updated_at"])
             return
         required = obj.site.staff_required_for_shift(shift_type)
         active_count = FixedPost.objects.filter(
@@ -798,6 +801,7 @@ class ShiftAssignmentForm(forms.ModelForm):
             shift_type=shift_type,
             titular_guard=obj.guard,
             is_active=True,
+            start_date=obj.shift_date,
         )
 
     def save(self, commit=True):
