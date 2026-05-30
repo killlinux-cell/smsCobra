@@ -81,7 +81,8 @@
   <div class="card-body">
     <div class="d-flex flex-wrap gap-2 mb-3 small">
       <span class="badge bg-success-subtle text-success-emphasis">Présent</span>
-      <span class="badge bg-danger-subtle text-danger-emphasis">Absent (planifié)</span>
+      <span class="badge bg-danger-subtle text-danger-emphasis">Absent (service passé, non pointé)</span>
+      <span class="badge bg-primary-subtle text-primary-emphasis">Planifié (à venir)</span>
       <span class="badge bg-warning-subtle text-warning-emphasis">En cours</span>
       <span class="badge bg-secondary-subtle text-secondary-emphasis">Non planifié</span>
     </div>
@@ -91,6 +92,7 @@
         <div class="border rounded p-2 text-center
           {% if d.status == 'present' %}bg-success-subtle border-success-subtle
           {% elif d.status == 'absent' %}bg-danger-subtle border-danger-subtle
+          {% elif d.status == 'planned' %}bg-primary-subtle border-primary-subtle
           {% elif d.status == 'in_progress' %}bg-warning-subtle border-warning-subtle
           {% else %}bg-secondary-subtle border-secondary-subtle{% endif %}">
           <div class="fw-semibold">{{ d.date|date:"d" }}</div>

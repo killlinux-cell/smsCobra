@@ -1491,7 +1491,8 @@ def pointages_view(request):
     for guard in page_obj.object_list:
         scheduled_days = scheduled_days_by_guard.get(guard.id, set())
         present_days = present_days_by_guard.get(guard.id, set())
-        absent_days = scheduled_days - present_days
+        scheduled_past_or_today = {d for d in scheduled_days if d <= today}
+        absent_days = scheduled_past_or_today - present_days
         site_counts = site_counts_by_guard.get(guard.id, {})
         titular_site = max(site_counts, key=site_counts.get) if site_counts else "—"
         summary_rows.append(
@@ -1499,6 +1500,7 @@ def pointages_view(request):
                 "guard": guard,
                 "titular_site": titular_site,
                 "scheduled_count": len(scheduled_days),
+                "scheduled_future_count": len(scheduled_days) - len(scheduled_past_or_today),
                 "present_count": len(present_days),
                 "absent_count": len(absent_days),
             }
@@ -1526,6 +1528,8 @@ def pointages_view(request):
                 and not report.ended_at
             ):
                 status = "in_progress"
+            elif d > today and d in scheduled_days:
+                status = "planned"
             elif d in scheduled_days:
                 status = "absent"
             else:
