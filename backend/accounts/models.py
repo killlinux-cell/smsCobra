@@ -41,7 +41,15 @@ class User(AbstractUser):
         upload_to="id_documents/",
         blank=True,
         null=True,
-        help_text="Scan de la pièce d'identité (image ou PDF), via scanner ou fichier.",
+        verbose_name="Pièce d'identité — recto",
+        help_text="Scan ou photo du recto (face avant) de la pièce d'identité.",
+    )
+    id_document_verso = models.FileField(
+        upload_to="id_documents/",
+        blank=True,
+        null=True,
+        verbose_name="Pièce d'identité — verso",
+        help_text="Scan ou photo du verso de la pièce d'identité.",
     )
     height_cm = models.PositiveSmallIntegerField(
         null=True,

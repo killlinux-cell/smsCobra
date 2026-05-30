@@ -74,22 +74,7 @@
         <form id="vigile-create-form" method="post" action="{% url 'webadmin-vigiles' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}" enctype="multipart/form-data" novalidate>
           {% csrf_token %}
 
-          <div class="mb-4 p-3 rounded border border-secondary border-opacity-25 bg-body-secondary bg-opacity-10">
-            <label class="form-label fw-semibold mb-2"><i class="bi bi-camera-video me-1"></i>Photo portrait — caméra</label>
-            <p class="small text-muted mb-2">Sur téléphone, la <strong>caméra arrière</strong> est utilisée pour photographier le vigile. Sur ordinateur, la webcam s’ouvre si aucune caméra arrière n’est disponible.</p>
-            <video id="cobra-webcam-video" class="rounded border w-100 bg-dark" style="max-height:240px;object-fit:cover;display:none;" playsinline muted autoplay></video>
-            <canvas id="cobra-webcam-canvas" class="d-none"></canvas>
-            <div id="cobra-webcam-preview-wrap" class="mt-2 d-none">
-              <span class="small text-muted">Aperçu enregistré :</span>
-              <img id="cobra-webcam-preview" class="rounded border mt-1 d-block" alt="" style="max-width:100%;max-height:160px;object-fit:contain;">
-            </div>
-            <div class="d-flex flex-wrap gap-2 mt-2">
-              <button type="button" class="btn btn-outline-primary btn-sm" id="cobra-btn-webcam-start"><i class="bi bi-camera-video me-1"></i>Ouvrir la caméra</button>
-              <button type="button" class="btn btn-primary btn-sm" id="cobra-btn-webcam-snap" disabled><i class="bi bi-camera-fill me-1"></i>Prendre la photo</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="cobra-btn-webcam-stop" disabled>Arrêter</button>
-            </div>
-            <p id="cobra-webcam-status" class="small text-muted mt-2 mb-0"></p>
-          </div>
+          {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.profile_photo.id_for_label title="Photo portrait — caméra" hint="Sur téléphone, la caméra arrière photographie le vigile. Sur ordinateur, la webcam s’ouvre si besoin." capture_filename="portrait.jpg" %}
 
           <div class="mb-3">
             <label class="form-label" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>
@@ -158,10 +143,21 @@
           </div>
 
           <div class="mb-3 p-3 rounded border border-secondary border-opacity-25">
-            <label class="form-label fw-semibold" for="{{ form.id_document.id_for_label }}"><i class="bi bi-upc-scan me-1"></i>{{ form.id_document.label }}</label>
-            {{ form.id_document }}
-            {% if form.id_document.help_text %}<div class="form-text">{{ form.id_document.help_text }}</div>{% endif %}
-            {% if form.id_document.errors %}<div class="text-danger small">{{ form.id_document.errors }}</div>{% endif %}
+            <h6 class="fw-semibold mb-3"><i class="bi bi-person-vcard me-1"></i>Carte d'identité</h6>
+            {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.id_document.id_for_label title="Recto (face avant)" hint="Photographiez la face avant de la carte avec la caméra arrière." capture_filename="id-recto.jpg" %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ form.id_document.id_for_label }}">{{ form.id_document.label }} — fichier</label>
+              {{ form.id_document }}
+              {% if form.id_document.help_text %}<div class="form-text">{{ form.id_document.help_text }}</div>{% endif %}
+              {% if form.id_document.errors %}<div class="text-danger small">{{ form.id_document.errors }}</div>{% endif %}
+            </div>
+            {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.id_document_verso.id_for_label title="Verso (face arrière)" hint="Photographiez la face arrière de la carte." capture_filename="id-verso.jpg" %}
+            <div class="mb-0">
+              <label class="form-label" for="{{ form.id_document_verso.id_for_label }}">{{ form.id_document_verso.label }} — fichier</label>
+              {{ form.id_document_verso }}
+              {% if form.id_document_verso.help_text %}<div class="form-text">{{ form.id_document_verso.help_text }}</div>{% endif %}
+              {% if form.id_document_verso.errors %}<div class="text-danger small">{{ form.id_document_verso.errors }}</div>{% endif %}
+            </div>
           </div>
 
           {% if form.non_field_errors %}
@@ -178,135 +174,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-  const video = document.getElementById("cobra-webcam-video");
-  const canvas = document.getElementById("cobra-webcam-canvas");
-  const statusEl = document.getElementById("cobra-webcam-status");
-  const btnStart = document.getElementById("cobra-btn-webcam-start");
-  const btnSnap = document.getElementById("cobra-btn-webcam-snap");
-  const btnStop = document.getElementById("cobra-btn-webcam-stop");
-  const previewWrap = document.getElementById("cobra-webcam-preview-wrap");
-  const previewImg = document.getElementById("cobra-webcam-preview");
-  const photoInput = document.getElementById("{{ form.profile_photo.id_for_label }}");
-
-  if (!video || !canvas || !photoInput) return;
-
-  let stream = null;
-
-  function setStatus(msg, isError) {
-    if (!statusEl) return;
-    statusEl.textContent = msg || "";
-    statusEl.classList.toggle("text-danger", !!isError);
-    statusEl.classList.toggle("text-muted", !isError);
-  }
-
-  function stopStream() {
-    if (stream) {
-      stream.getTracks().forEach(function (t) { t.stop(); });
-      stream = null;
-    }
-    video.srcObject = null;
-    video.style.display = "none";
-    btnSnap.disabled = true;
-    btnStop.disabled = true;
-  }
-
-  function openStream(constraints) {
-    return navigator.mediaDevices.getUserMedia(constraints);
-  }
-
-  function attachStream(s, rearPreferred) {
-    stream = s;
-    video.srcObject = stream;
-    video.style.display = "block";
-    btnSnap.disabled = false;
-    btnStop.disabled = false;
-    if (rearPreferred) {
-      setStatus("Caméra arrière active. Cadrez le vigile face à l’appareil, puis « Prendre la photo ».");
-    } else {
-      setStatus("Caméra active. Cadrez le visage puis « Prendre la photo ».");
-    }
-  }
-
-  btnStart.addEventListener("click", function () {
-    setStatus("");
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus("La caméra n’est pas disponible dans ce navigateur ou sans HTTPS (sauf localhost).", true);
-      return;
-    }
-    stopStream();
-    var attempts = [
-      { video: { facingMode: { exact: "environment" } }, audio: false },
-      { video: { facingMode: { ideal: "environment" } }, audio: false },
-      { video: { facingMode: "environment" }, audio: false },
-      { video: { facingMode: { ideal: "user" } }, audio: false },
-      { video: true, audio: false },
-    ];
-    var chain = Promise.reject();
-    var usedRear = false;
-    attempts.forEach(function (constraints, idx) {
-      chain = chain.catch(function () {
-        return openStream(constraints).then(function (s) {
-          usedRear = idx < 3;
-          return s;
-        });
-      });
-    });
-    chain
-      .then(function (s) {
-        attachStream(s, usedRear);
-      })
-      .catch(function (err) {
-        setStatus(
-          "Impossible d’accéder à la caméra : "
-            + (err && err.message ? err.message : "permission refusée ou appareil indisponible."),
-          true
-        );
-      });
-  });
-
-  btnStop.addEventListener("click", function () {
-    stopStream();
-    setStatus("Caméra arrêtée.");
-  });
-
-  btnSnap.addEventListener("click", function () {
-    if (!stream || !video.videoWidth) {
-      setStatus("Ouvrez d’abord la caméra.", true);
-      return;
-    }
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, w, h);
-    canvas.toBlob(function (blob) {
-      if (!blob) {
-        setStatus("Échec de la capture.", true);
-        return;
-      }
-      const file = new File([blob], "portrait-webcam.jpg", { type: "image/jpeg" });
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      photoInput.files = dt.files;
-      photoInput.dispatchEvent(new Event("change", { bubbles: true }));
-      const url = URL.createObjectURL(blob);
-      previewImg.src = url;
-      previewWrap.classList.remove("d-none");
-      setStatus("Portrait enregistré dans le champ « Photo portrait ». Vous pouvez arrêter la caméra ou reprendre une photo.");
-    }, "image/jpeg", 0.92);
-  });
-
-  photoInput.addEventListener("change", function () {
-    if (photoInput.files && photoInput.files.length) {
-      previewWrap.classList.remove("d-none");
-      previewImg.src = URL.createObjectURL(photoInput.files[0]);
-    }
-  });
-
-  window.addEventListener("beforeunload", stopStream);
-})();
-</script>
+{% include "webadmin/_cobra_rear_camera_script.html" %}
 {% endblock %}

@@ -1,0 +1,23 @@
+{# Bloc caméra arrière : data-cobra-input = id du champ fichier cible #}
+<div class="cobra-rear-cam mb-3 p-3 rounded border border-secondary border-opacity-25 bg-body-secondary bg-opacity-10"
+     data-cobra-input="{{ input_id }}"
+     data-cobra-filename="{{ capture_filename|default:'capture.jpg' }}">
+  {% if title %}
+  <div class="form-label fw-semibold mb-2"><i class="bi bi-camera me-1"></i>{{ title }}</div>
+  {% endif %}
+  {% if hint %}
+  <p class="small text-muted mb-2">{{ hint }}</p>
+  {% endif %}
+  <video class="cobra-rc-video rounded border w-100 bg-dark" style="max-height:200px;object-fit:cover;display:none;" playsinline muted autoplay></video>
+  <canvas class="cobra-rc-canvas d-none"></canvas>
+  <div class="cobra-rc-preview mt-2 d-none">
+    <span class="small text-muted">Aperçu :</span>
+    <img class="cobra-rc-preview-img rounded border mt-1 d-block" alt="" style="max-width:100%;max-height:140px;object-fit:contain;">
+  </div>
+  <div class="d-flex flex-wrap gap-2 mt-2">
+    <button type="button" class="btn btn-outline-primary btn-sm cobra-rc-start"><i class="bi bi-camera-video me-1"></i>Ouvrir la caméra</button>
+    <button type="button" class="btn btn-primary btn-sm cobra-rc-snap" disabled><i class="bi bi-camera-fill me-1"></i>Prendre la photo</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm cobra-rc-stop" disabled>Arrêter</button>
+  </div>
+  <p class="cobra-rc-status small text-muted mt-2 mb-0"></p>
+</div>

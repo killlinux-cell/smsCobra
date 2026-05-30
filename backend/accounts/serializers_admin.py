@@ -22,6 +22,7 @@ class VigileAdminSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()
     id_document = serializers.SerializerMethodField()
+    id_document_verso = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -41,6 +42,7 @@ class VigileAdminSerializer(serializers.ModelSerializer):
             "display_name",
             "profile_photo",
             "id_document",
+            "id_document_verso",
         ]
 
     def get_display_name(self, obj: User) -> str:
@@ -56,10 +58,16 @@ class VigileAdminSerializer(serializers.ModelSerializer):
         return url
 
     def get_id_document(self, obj: User):
-        if not obj.id_document:
+        return self._file_url(obj.id_document)
+
+    def get_id_document_verso(self, obj: User):
+        return self._file_url(obj.id_document_verso)
+
+    def _file_url(self, file_field):
+        if not file_field:
             return None
         request = self.context.get("request")
-        url = obj.id_document.url
+        url = file_field.url
         if request:
             return request.build_absolute_uri(url)
         return url
@@ -83,6 +91,7 @@ class VigileCreateSerializer(serializers.Serializer):
         allow_blank=True,
     )
     id_document = serializers.FileField(required=False, allow_null=True)
+    id_document_verso = serializers.FileField(required=False, allow_null=True)
     profile_photo = serializers.ImageField()
 
     def validate(self, attrs):
@@ -113,6 +122,7 @@ class VigileCreateSerializer(serializers.Serializer):
         pwd = (vd.pop("password", "") or "").strip()
         photo = vd.pop("profile_photo")
         id_doc = vd.pop("id_document", None)
+        id_doc_verso = vd.pop("id_document_verso", None)
         date_int = vd.pop("date_integration", None)
         aval = (vd.pop("aval", None) or "").strip()
         domicile = (vd.pop("domicile", None) or "").strip()
@@ -137,6 +147,8 @@ class VigileCreateSerializer(serializers.Serializer):
         )
         if id_doc:
             user.id_document = id_doc
+        if id_doc_verso:
+            user.id_document_verso = id_doc_verso
         # Connexion vigile principalement faciale : mot de passe optionnel.
         # Si absent, on en crée un aléatoire robuste pour garder le compte sécurisé.
         user.set_password(pwd or secrets.token_urlsafe(24))

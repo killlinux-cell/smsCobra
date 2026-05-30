@@ -112,27 +112,43 @@
 
           <hr class="my-4">
 
-          <h6 class="text-muted mb-3">Pièce d'identité</h6>
-          <div class="mb-3">
-            <label class="form-label" for="{{ form.id_document.id_for_label }}">{{ form.id_document.label }}</label>
-            {{ form.id_document }}
-            {% if form.id_document.errors %}<div class="text-danger small">{{ form.id_document.errors }}</div>{% endif %}
-          </div>
-          {% if vigile.id_document %}
-          <div class="border rounded p-3 bg-light bg-opacity-50 mb-3">
-            <p class="small fw-semibold mb-2">Fichier actuel</p>
-            <a href="{{ vigile.id_document.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary mb-2">
-              <i class="bi bi-box-arrow-up-right me-1"></i>Ouvrir
-            </a>
-            {% if id_document_kind == "image" %}
-            <div>
-              <img src="{{ vigile.id_document.url }}" alt="Pièce d'identité" class="img-fluid rounded border mt-1" style="max-height:220px;">
+          <h6 class="text-muted mb-3">Carte d'identité</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.id_document.id_for_label title="Recto — nouvelle photo" hint="Caméra arrière sur mobile." capture_filename="id-recto.jpg" %}
+              <label class="form-label" for="{{ form.id_document.id_for_label }}">{{ form.id_document.label }}</label>
+              {{ form.id_document }}
+              {% if form.id_document.errors %}<div class="text-danger small">{{ form.id_document.errors }}</div>{% endif %}
+              {% if vigile.id_document %}
+              <div class="border rounded p-2 bg-light bg-opacity-50 mt-2">
+                <p class="small fw-semibold mb-1">Recto enregistré</p>
+                <a href="{{ vigile.id_document.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary mb-2">Ouvrir</a>
+                {% if id_document_kind == "image" %}
+                <img src="{{ vigile.id_document.url }}" alt="Recto" class="img-fluid rounded border" style="max-height:180px;">
+                {% elif id_document_kind == "pdf" %}
+                <p class="small text-muted mb-0">PDF — utilisez « Ouvrir ».</p>
+                {% endif %}
+              </div>
+              {% endif %}
             </div>
-            {% elif id_document_kind == "pdf" %}
-            <p class="small text-muted mb-0">Aperçu PDF : utilisez « Ouvrir ».</p>
-            {% endif %}
+            <div class="col-md-6">
+              {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.id_document_verso.id_for_label title="Verso — nouvelle photo" hint="Photographiez la face arrière." capture_filename="id-verso.jpg" %}
+              <label class="form-label" for="{{ form.id_document_verso.id_for_label }}">{{ form.id_document_verso.label }}</label>
+              {{ form.id_document_verso }}
+              {% if form.id_document_verso.errors %}<div class="text-danger small">{{ form.id_document_verso.errors }}</div>{% endif %}
+              {% if vigile.id_document_verso %}
+              <div class="border rounded p-2 bg-light bg-opacity-50 mt-2">
+                <p class="small fw-semibold mb-1">Verso enregistré</p>
+                <a href="{{ vigile.id_document_verso.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary mb-2">Ouvrir</a>
+                {% if id_document_verso_kind == "image" %}
+                <img src="{{ vigile.id_document_verso.url }}" alt="Verso" class="img-fluid rounded border" style="max-height:180px;">
+                {% elif id_document_verso_kind == "pdf" %}
+                <p class="small text-muted mb-0">PDF — utilisez « Ouvrir ».</p>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
           </div>
-          {% endif %}
 
           <hr class="my-4">
 
@@ -166,4 +182,7 @@
     </div>
   </div>
 </form>
+{% endblock %}
+{% block extra_scripts %}
+{% include "webadmin/_cobra_rear_camera_script.html" %}
 {% endblock %}

@@ -218,9 +218,14 @@ class VigileCreationForm(forms.ModelForm):
         widget=forms.Select(attrs={"class": _SEL}),
     )
     id_document = forms.FileField(
-        label="Pièce d'identité (scan)",
+        label="Carte d'identité — recto (face avant)",
         required=False,
-        help_text="Numérisez avec le scanner connecté, puis choisissez le fichier (image ou PDF).",
+        help_text="Photo ou scan du recto. Caméra arrière ci-dessus ou fichier (image / PDF).",
+    )
+    id_document_verso = forms.FileField(
+        label="Carte d'identité — verso (face arrière)",
+        required=False,
+        help_text="Photo du verso. Caméra arrière ci-dessus ou fichier image.",
     )
     profile_photo = forms.ImageField(
         label="Photo portrait (obligatoire)",
@@ -256,6 +261,10 @@ class VigileCreationForm(forms.ModelForm):
         self.fields["id_document"].widget.attrs.setdefault(
             "accept", "image/*,.pdf,application/pdf"
         )
+        self.fields["id_document"].widget.attrs.setdefault("capture", "environment")
+        self.fields["id_document_verso"].widget.attrs.setdefault("class", "form-control")
+        self.fields["id_document_verso"].widget.attrs.setdefault("accept", "image/*")
+        self.fields["id_document_verso"].widget.attrs.setdefault("capture", "environment")
 
     @staticmethod
     def _generate_username() -> str:
@@ -287,6 +296,9 @@ class VigileCreationForm(forms.ModelForm):
         doc = self.cleaned_data.get("id_document")
         if doc:
             user.id_document = doc
+        doc_verso = self.cleaned_data.get("id_document_verso")
+        if doc_verso:
+            user.id_document_verso = doc_verso
         # Connexion vigile orientée biométrie : mot de passe non saisi dans ce formulaire.
         user.set_password(secrets.token_urlsafe(24))
         if commit:
@@ -462,6 +474,7 @@ class VigileUpdateForm(forms.ModelForm):
             "education_level",
             "profile_photo",
             "id_document",
+            "id_document_verso",
             "is_active",
             "is_active_on_duty",
         ]
@@ -477,7 +490,8 @@ class VigileUpdateForm(forms.ModelForm):
             "height_cm": "Taille (cm)",
             "education_level": "Niveau d'études",
             "profile_photo": "Photo portrait",
-            "id_document": "Pièce d'identité (scan)",
+            "id_document": "Carte d'identité — recto",
+            "id_document_verso": "Carte d'identité — verso",
             "is_active": "Compte actif (connexion autorisée)",
             "is_active_on_duty": "Marqué en service",
         }
@@ -498,7 +512,10 @@ class VigileUpdateForm(forms.ModelForm):
                 attrs={"class": "form-control", "accept": "image/*"}
             ),
             "id_document": forms.ClearableFileInput(
-                attrs={"class": "form-control", "accept": "image/*,.pdf,application/pdf"}
+                attrs={"class": "form-control", "accept": "image/*,.pdf,application/pdf", "capture": "environment"}
+            ),
+            "id_document_verso": forms.ClearableFileInput(
+                attrs={"class": "form-control", "accept": "image/*", "capture": "environment"}
             ),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "is_active_on_duty": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -508,6 +525,7 @@ class VigileUpdateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["profile_photo"].required = False
         self.fields["id_document"].required = False
+        self.fields["id_document_verso"].required = False
         self.fields["education_level"].choices = _EDUCATION_LEVEL_CHOICES
 
     def clean_username(self):

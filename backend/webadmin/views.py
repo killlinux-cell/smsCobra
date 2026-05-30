@@ -954,11 +954,11 @@ def controller_delete_view(request, pk):
     )
 
 
-def _id_document_kind(user: User) -> str | None:
+def _uploaded_file_kind(file_field) -> str | None:
     """Pour l'affichage : aperçu image vs lien PDF."""
-    if not user.id_document:
+    if not file_field:
         return None
-    name = user.id_document.name.lower()
+    name = file_field.name.lower()
     if name.endswith(".pdf"):
         return "pdf"
     if name.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff")):
@@ -992,7 +992,8 @@ def vigile_detail_view(request, pk):
             "nav_active": "vigiles",
             "vigile": vigile,
             "form": form,
-            "id_document_kind": _id_document_kind(vigile),
+            "id_document_kind": _uploaded_file_kind(vigile.id_document),
+            "id_document_verso_kind": _uploaded_file_kind(vigile.id_document_verso),
             "vigiles_list_querystring": list_qs,
             "placement": placement,
         },

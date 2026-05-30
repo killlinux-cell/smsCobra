@@ -1,0 +1,128 @@
+<script>
+(function () {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+  function openStream(constraints) {
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+
+  function tryRearCamera() {
+    var attempts = [
+      { video: { facingMode: { exact: "environment" } }, audio: false },
+      { video: { facingMode: { ideal: "environment" } }, audio: false },
+      { video: { facingMode: "environment" }, audio: false },
+      { video: { facingMode: { ideal: "user" } }, audio: false },
+      { video: true, audio: false },
+    ];
+    var chain = Promise.reject();
+    var usedRear = false;
+    attempts.forEach(function (constraints, idx) {
+      chain = chain.catch(function () {
+        return openStream(constraints).then(function (s) {
+          usedRear = idx < 3;
+          return { stream: s, rear: usedRear };
+        });
+      });
+    });
+    return chain;
+  }
+
+  document.querySelectorAll(".cobra-rear-cam").forEach(function (block) {
+    var inputId = block.getAttribute("data-cobra-input");
+    var fileName = block.getAttribute("data-cobra-filename") || "capture.jpg";
+    var photoInput = inputId ? document.getElementById(inputId) : null;
+    var video = block.querySelector(".cobra-rc-video");
+    var canvas = block.querySelector(".cobra-rc-canvas");
+    var statusEl = block.querySelector(".cobra-rc-status");
+    var btnStart = block.querySelector(".cobra-rc-start");
+    var btnSnap = block.querySelector(".cobra-rc-snap");
+    var btnStop = block.querySelector(".cobra-rc-stop");
+    var previewWrap = block.querySelector(".cobra-rc-preview");
+    var previewImg = block.querySelector(".cobra-rc-preview-img");
+    if (!photoInput || !video || !canvas || !btnStart) return;
+
+    var stream = null;
+
+    function setStatus(msg, isError) {
+      if (!statusEl) return;
+      statusEl.textContent = msg || "";
+      statusEl.classList.toggle("text-danger", !!isError);
+      statusEl.classList.toggle("text-muted", !isError);
+    }
+
+    function stopStream() {
+      if (stream) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        stream = null;
+      }
+      video.srcObject = null;
+      video.style.display = "none";
+      btnSnap.disabled = true;
+      btnStop.disabled = true;
+    }
+
+    btnStart.addEventListener("click", function () {
+      setStatus("");
+      stopStream();
+      tryRearCamera()
+        .then(function (result) {
+          stream = result.stream;
+          video.srcObject = stream;
+          video.style.display = "block";
+          btnSnap.disabled = false;
+          btnStop.disabled = false;
+          setStatus(
+            result.rear
+              ? "Caméra arrière active. Cadrez le document puis « Prendre la photo »."
+              : "Caméra active. Cadrez le document puis « Prendre la photo »."
+          );
+        })
+        .catch(function (err) {
+          setStatus(
+            "Impossible d’accéder à la caméra : "
+              + (err && err.message ? err.message : "permission refusée."),
+            true
+          );
+        });
+    });
+
+    btnStop.addEventListener("click", function () {
+      stopStream();
+      setStatus("Caméra arrêtée.");
+    });
+
+    btnSnap.addEventListener("click", function () {
+      if (!stream || !video.videoWidth) {
+        setStatus("Ouvrez d’abord la caméra.", true);
+        return;
+      }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(function (blob) {
+        if (!blob) {
+          setStatus("Échec de la capture.", true);
+          return;
+        }
+        var file = new File([blob], fileName, { type: "image/jpeg" });
+        var dt = new DataTransfer();
+        dt.items.add(file);
+        photoInput.files = dt.files;
+        photoInput.dispatchEvent(new Event("change", { bubbles: true }));
+        previewImg.src = URL.createObjectURL(blob);
+        previewWrap.classList.remove("d-none");
+        setStatus("Photo enregistrée. Vous pouvez reprendre ou arrêter la caméra.");
+      }, "image/jpeg", 0.92);
+    });
+
+    photoInput.addEventListener("change", function () {
+      if (photoInput.files && photoInput.files.length) {
+        previewWrap.classList.remove("d-none");
+        previewImg.src = URL.createObjectURL(photoInput.files[0]);
+      }
+    });
+
+    window.addEventListener("beforeunload", stopStream);
+  });
+})();
+</script>
