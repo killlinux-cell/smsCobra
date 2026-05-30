@@ -225,7 +225,7 @@ class VigileCreationForm(forms.ModelForm):
     profile_photo = forms.ImageField(
         label="Photo portrait (obligatoire)",
         required=True,
-        help_text="Utilisez la webcam ci-dessus ou choisissez un fichier image.",
+        help_text="Utilisez la caméra ci-dessus (arrière sur mobile) ou choisissez un fichier image.",
     )
 
     class Meta:
@@ -251,6 +251,7 @@ class VigileCreationForm(forms.ModelForm):
                 self.fields[name].widget.attrs.setdefault("class", _CTRL)
         self.fields["profile_photo"].widget.attrs.setdefault("class", "form-control")
         self.fields["profile_photo"].widget.attrs.setdefault("accept", "image/*")
+        self.fields["profile_photo"].widget.attrs.setdefault("capture", "environment")
         self.fields["id_document"].widget.attrs.setdefault("class", "form-control")
         self.fields["id_document"].widget.attrs.setdefault(
             "accept", "image/*,.pdf,application/pdf"

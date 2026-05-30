@@ -75,8 +75,8 @@
           {% csrf_token %}
 
           <div class="mb-4 p-3 rounded border border-secondary border-opacity-25 bg-body-secondary bg-opacity-10">
-            <label class="form-label fw-semibold mb-2"><i class="bi bi-camera-video me-1"></i>Photo portrait — webcam</label>
-            <p class="small text-muted mb-2">Ouvrez la caméra de l’ordinateur, puis capturez le portrait. Vous pouvez aussi importer une image plus bas.</p>
+            <label class="form-label fw-semibold mb-2"><i class="bi bi-camera-video me-1"></i>Photo portrait — caméra</label>
+            <p class="small text-muted mb-2">Sur téléphone, la <strong>caméra arrière</strong> est utilisée pour photographier le vigile. Sur ordinateur, la webcam s’ouvre si aucune caméra arrière n’est disponible.</p>
             <video id="cobra-webcam-video" class="rounded border w-100 bg-dark" style="max-height:240px;object-fit:cover;display:none;" playsinline muted autoplay></video>
             <canvas id="cobra-webcam-canvas" class="d-none"></canvas>
             <div id="cobra-webcam-preview-wrap" class="mt-2 d-none">
@@ -212,23 +212,57 @@
     btnStop.disabled = true;
   }
 
+  function openStream(constraints) {
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+
+  function attachStream(s, rearPreferred) {
+    stream = s;
+    video.srcObject = stream;
+    video.style.display = "block";
+    btnSnap.disabled = false;
+    btnStop.disabled = false;
+    if (rearPreferred) {
+      setStatus("Caméra arrière active. Cadrez le vigile face à l’appareil, puis « Prendre la photo ».");
+    } else {
+      setStatus("Caméra active. Cadrez le visage puis « Prendre la photo ».");
+    }
+  }
+
   btnStart.addEventListener("click", function () {
     setStatus("");
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setStatus("La caméra n’est pas disponible dans ce navigateur ou sans HTTPS (sauf localhost).", true);
       return;
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+    stopStream();
+    var attempts = [
+      { video: { facingMode: { exact: "environment" } }, audio: false },
+      { video: { facingMode: { ideal: "environment" } }, audio: false },
+      { video: { facingMode: "environment" }, audio: false },
+      { video: { facingMode: { ideal: "user" } }, audio: false },
+      { video: true, audio: false },
+    ];
+    var chain = Promise.reject();
+    var usedRear = false;
+    attempts.forEach(function (constraints, idx) {
+      chain = chain.catch(function () {
+        return openStream(constraints).then(function (s) {
+          usedRear = idx < 3;
+          return s;
+        });
+      });
+    });
+    chain
       .then(function (s) {
-        stream = s;
-        video.srcObject = stream;
-        video.style.display = "block";
-        btnSnap.disabled = false;
-        btnStop.disabled = false;
-        setStatus("Caméra active. Cadrez le visage puis cliquez « Prendre la photo ».");
+        attachStream(s, usedRear);
       })
       .catch(function (err) {
-        setStatus("Impossible d’accéder à la caméra : " + (err && err.message ? err.message : "permission refusée ou appareil indisponible."), true);
+        setStatus(
+          "Impossible d’accéder à la caméra : "
+            + (err && err.message ? err.message : "permission refusée ou appareil indisponible."),
+          true
+        );
       });
   });
 
