@@ -28,6 +28,7 @@
           <thead class="table-light">
             <tr>
               <th>Nom</th>
+              <th>Créé le</th>
               <th>Adresse</th>
               <th>Responsable</th>
               <th>SMS site</th>
@@ -41,6 +42,9 @@
             <tr>
               <td class="fw-semibold">
                 <a href="{% url 'webadmin-site-detail' s.pk %}" class="text-decoration-none">{{ s.name }}</a>
+              </td>
+              <td class="small text-nowrap">
+                {% if s.created_at %}{{ s.created_at|date:"d/m/Y" }}{% else %}—{% endif %}
               </td>
               <td class="small text-muted">{{ s.address }}</td>
               <td class="small">
@@ -69,7 +73,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="7" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
+            <tr><td colspan="8" class="text-center py-5 text-muted">{% if search_q %}Aucun site ne correspond à votre recherche.{% else %}Aucun site. Ajoutez le premier à droite.{% endif %}</td></tr>
             {% endfor %}
           </tbody>
         </table>

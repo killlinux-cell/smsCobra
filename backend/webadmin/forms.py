@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime, timedelta, time
 
 from django import forms
+from django.utils import timezone
 
 from accounts.models import ControllerSiteAssignment, User
 from shifts.guard_conflicts import (
@@ -53,6 +54,13 @@ class GuardChoiceField(forms.ModelChoiceField):
 
 
 class SiteForm(forms.ModelForm):
+    creation_date = forms.DateField(
+        label="Date de création du site",
+        required=True,
+        widget=forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
+        help_text="Date d’ouverture ou d’enregistrement du site dans le système.",
+    )
+
     class Meta:
         model = Site
         fields = [
@@ -140,6 +148,49 @@ class SiteForm(forms.ModelForm):
             "geofence_gps_margin_meters": forms.NumberInput(attrs={"class": _CTRL}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk and self.instance.created_at:
+            self.fields["creation_date"].initial = timezone.localtime(
+                self.instance.created_at
+            ).date()
+        else:
+            self.fields["creation_date"].initial = timezone.localdate()
+        self.order_fields(
+            [
+                "creation_date",
+                "name",
+                "address",
+                "site_manager_name",
+                "site_manager_phone",
+                "site_sms_phone",
+                "timezone",
+                "expected_start_time",
+                "expected_end_time",
+                "day_staff_required",
+                "night_staff_required",
+                "late_tolerance_minutes",
+                "relief_late_alert_minutes",
+                "latitude",
+                "longitude",
+                "geofence_radius_meters",
+                "geofence_gps_margin_meters",
+                "is_active",
+            ]
+        )
+
+    def save(self, commit=True):
+        site = super().save(commit=False)
+        creation = self.cleaned_data.get("creation_date")
+        if creation:
+            site.created_at = timezone.make_aware(
+                datetime.combine(creation, time(0, 0)),
+                timezone.get_current_timezone(),
+            )
+        if commit:
+            site.save()
+        return site
 
     def clean_site_manager_phone(self):
         phone = (self.cleaned_data.get("site_manager_phone") or "").strip()

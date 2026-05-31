@@ -20,6 +20,10 @@
       </div>
       <div class="card-body">
         <dl class="row cobra-dl-detail mb-0">
+          <dt class="col-sm-3">Date de création</dt>
+          <dd class="col-sm-9">
+            {% if site.created_at %}{{ site.created_at|date:"d/m/Y" }}{% else %}—{% endif %}
+          </dd>
           <dt class="col-sm-3">Adresse</dt>
           <dd class="col-sm-9">{{ site.address }}</dd>
           <dt class="col-sm-3">Responsable du site</dt>
