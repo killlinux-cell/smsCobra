@@ -4,7 +4,8 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#141010">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>{{ page_title }} — SMS</title>
   <link rel="icon" href="{% static 'webadmin/img/favicon.ico' %}" sizes="any">
@@ -66,24 +67,7 @@
     </div>
   </aside>
 
-  <div class="d-lg-none bg-dark text-white p-3">
-    <div class="fw-bold mb-2 d-flex align-items-center gap-2">
-      <img src="{% static 'webadmin/img/sms-logo.png' %}" alt="" class="cobra-brand-logo-img cobra-brand-logo-img--compact" width="140" height="42" decoding="async">
-    </div>
-    <div class="d-flex flex-wrap gap-1">
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-dashboard' %}">Accueil</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-sites' %}">Sites</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-vigiles' %}">Vigiles</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-controllers' %}">Contrôleurs</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-affectations' %}">Affectations</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-affectations-titulaires' %}">Titulaires</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-alertes' %}">Alertes</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-notifications-push' %}">Push</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-rapports' %}">Rapports</a>
-      <a class="btn btn-sm btn-outline-light" href="{% url 'webadmin-pointages' %}">Pointages</a>
-      <a class="btn btn-sm btn-danger" href="{% url 'webadmin-logout' %}">Déco</a>
-    </div>
-  </div>
+  {% include "webadmin/_mobile_nav.html" %}
 
   <main class="cobra-main">
     {% if messages %}
@@ -96,10 +80,12 @@
     {% endif %}
 
     <div class="cobra-topbar">
-      <h2>{{ page_title }}</h2>
-      <div class="d-flex gap-2 align-items-center">
+      <h2 class="cobra-topbar__title">{{ page_title }}</h2>
+      <div class="cobra-topbar__actions d-flex gap-2 align-items-center">
         <span class="text-muted small d-none d-md-inline">{{ request.user.username }} · {{ request.user.role|role_fr }}</span>
-        <a class="btn btn-sm btn-outline-secondary" href="{{ request.path }}"><i class="bi bi-arrow-clockwise"></i> Actualiser</a>
+        <a class="btn btn-sm btn-outline-secondary cobra-btn-refresh" href="{{ request.path }}" title="Actualiser" aria-label="Actualiser la page">
+          <i class="bi bi-arrow-clockwise"></i><span class="d-none d-sm-inline ms-1">Actualiser</span>
+        </a>
       </div>
     </div>
 
@@ -108,6 +94,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{% static 'webadmin/js/pwa.js' %}" defer></script>
+  <script src="{% static 'webadmin/js/mobile-nav.js' %}" defer></script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

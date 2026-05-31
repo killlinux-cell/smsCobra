@@ -1,0 +1,88 @@
+{% load static %}
+{# En-tête mobile fixe #}
+<header class="cobra-mobile-header d-lg-none" role="banner">
+  <button type="button" class="cobra-mobile-menu-btn" data-bs-toggle="offcanvas" data-bs-target="#cobraMobileNav" aria-controls="cobraMobileNav" aria-label="Ouvrir le menu">
+    <i class="bi bi-list"></i>
+  </button>
+  <a href="{% url 'webadmin-dashboard' %}" class="cobra-mobile-brand">
+    <img src="{% static 'webadmin/img/sms-logo.png' %}" alt="SMS" width="120" height="36" decoding="async">
+  </a>
+  <a href="{% url 'webadmin-alertes' %}" class="cobra-mobile-alerts-btn {% if nav_active == 'alertes' %}active{% endif %}" aria-label="Alertes" title="Alertes">
+    <i class="bi bi-bell-fill"></i>
+  </a>
+</header>
+
+{# Menu latéral (toutes les sections) #}
+<div class="offcanvas offcanvas-start cobra-mobile-offcanvas" tabindex="-1" id="cobraMobileNav" aria-labelledby="cobraMobileNavLabel">
+  <div class="offcanvas-header border-bottom border-secondary border-opacity-25">
+    <div>
+      <h5 class="offcanvas-title text-white mb-0" id="cobraMobileNavLabel">Menu</h5>
+      <p class="small text-secondary mb-0 mt-1">{{ request.user.get_full_name|default:request.user.username }}</p>
+    </div>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Fermer"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column p-0">
+    <nav class="nav flex-column cobra-nav cobra-nav--mobile flex-grow-1 py-2">
+      <a class="nav-link {% if nav_active == 'dashboard' %}active{% endif %}" href="{% url 'webadmin-dashboard' %}">
+        <i class="bi bi-grid-1x2-fill"></i> Tableau de bord
+      </a>
+      <a class="nav-link {% if nav_active == 'sites' %}active{% endif %}" href="{% url 'webadmin-sites' %}">
+        <i class="bi bi-geo-alt-fill"></i> Sites
+      </a>
+      <a class="nav-link {% if nav_active == 'vigiles' %}active{% endif %}" href="{% url 'webadmin-vigiles' %}">
+        <i class="bi bi-people-fill"></i> Vigiles
+      </a>
+      <a class="nav-link {% if nav_active == 'controllers' %}active{% endif %}" href="{% url 'webadmin-controllers' %}">
+        <i class="bi bi-person-video3"></i> Contrôleurs
+      </a>
+      <a class="nav-link {% if nav_active == 'affectations' %}active{% endif %}" href="{% url 'webadmin-affectations' %}">
+        <i class="bi bi-calendar-week-fill"></i> Affectations
+      </a>
+      <a class="nav-link {% if nav_active == 'affectations' %}active{% endif %}" href="{% url 'webadmin-affectations-titulaires' %}">
+        <i class="bi bi-diagram-3-fill"></i> Titulaires par site
+      </a>
+      <a class="nav-link {% if nav_active == 'alertes' %}active{% endif %}" href="{% url 'webadmin-alertes' %}">
+        <i class="bi bi-bell-fill"></i> Alertes
+      </a>
+      <a class="nav-link {% if nav_active == 'notifications' %}active{% endif %}" href="{% url 'webadmin-notifications-push' %}">
+        <i class="bi bi-phone-vibrate"></i> Push mobile
+      </a>
+      <a class="nav-link {% if nav_active == 'rapports' %}active{% endif %}" href="{% url 'webadmin-rapports' %}">
+        <i class="bi bi-file-earmark-bar-graph-fill"></i> Rapports
+      </a>
+      <a class="nav-link {% if nav_active == 'pointages' %}active{% endif %}" href="{% url 'webadmin-pointages' %}">
+        <i class="bi bi-pin-map-fill"></i> Pointages
+      </a>
+    </nav>
+    <div class="p-3 border-top border-secondary border-opacity-25 mt-auto">
+      {% include "webadmin/_pwa_install_banner.html" %}
+      <a class="btn btn-outline-light btn-sm w-100 mt-3" href="{% url 'webadmin-logout' %}">
+        <i class="bi bi-box-arrow-right me-1"></i> Déconnexion
+      </a>
+    </div>
+  </div>
+</div>
+
+{# Barre de navigation inférieure (accès rapide) #}
+<nav class="cobra-bottom-nav d-lg-none" aria-label="Navigation principale">
+  <a href="{% url 'webadmin-dashboard' %}" class="cobra-bottom-nav__item {% if nav_active == 'dashboard' %}active{% endif %}">
+    <i class="bi bi-grid-1x2-fill"></i>
+    <span>Accueil</span>
+  </a>
+  <a href="{% url 'webadmin-sites' %}" class="cobra-bottom-nav__item {% if nav_active == 'sites' %}active{% endif %}">
+    <i class="bi bi-geo-alt-fill"></i>
+    <span>Sites</span>
+  </a>
+  <a href="{% url 'webadmin-vigiles' %}" class="cobra-bottom-nav__item {% if nav_active == 'vigiles' %}active{% endif %}">
+    <i class="bi bi-people-fill"></i>
+    <span>Vigiles</span>
+  </a>
+  <a href="{% url 'webadmin-affectations' %}" class="cobra-bottom-nav__item {% if nav_active == 'affectations' %}active{% endif %}">
+    <i class="bi bi-calendar-week-fill"></i>
+    <span>Planning</span>
+  </a>
+  <button type="button" class="cobra-bottom-nav__item" data-bs-toggle="offcanvas" data-bs-target="#cobraMobileNav" aria-label="Plus de menus">
+    <i class="bi bi-three-dots"></i>
+    <span>Plus</span>
+  </button>
+</nav>
