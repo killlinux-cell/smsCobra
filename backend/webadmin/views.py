@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from datetime import date, datetime, timedelta
 from functools import wraps
 from io import StringIO
+from io import BytesIO
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -20,6 +21,7 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from alerts.models import LateAlert
@@ -998,6 +1000,81 @@ def vigile_detail_view(request, pk):
             "placement": placement,
         },
     )
+
+
+@admin_web_required
+def vigile_cv_pdf_view(request, pk):
+    vigile = get_object_or_404(User.objects.filter(role=User.Role.VIGILE), pk=pk)
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+    except Exception:
+        messages.error(
+            request,
+            "La génération PDF n'est pas disponible (dépendance manquante : reportlab).",
+        )
+        redir = reverse("webadmin-vigile-detail", args=[pk])
+        return redirect(redir)
+
+    filename_slug = slugify(vigile.get_full_name() or vigile.username) or vigile.username
+    filename = f"cv-vigile-{filename_slug}.pdf"
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    w, h = A4
+    y = h - 50
+
+    def _line(label: str, value: str):
+        nonlocal y
+        if y < 70:
+            pdf.showPage()
+            y = h - 50
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(40, y, f"{label} :")
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(190, y, value or "—")
+        y -= 18
+
+    pdf.setTitle(f"CV Vigile - {vigile.display_name}")
+    pdf.setFont("Helvetica-Bold", 18)
+    pdf.drawString(40, y, "CV Vigile")
+    y -= 24
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(40, y, vigile.get_full_name().strip() or vigile.username)
+    y -= 26
+
+    _line("Identifiant", vigile.username)
+    _line("Rôle", vigile.get_role_display())
+    _line("Prénom", vigile.first_name or "—")
+    _line("Nom", vigile.last_name or "—")
+    _line("Téléphone", vigile.phone_number or "—")
+    _line("Email", vigile.email or "—")
+    _line("Domicile", vigile.domicile or "—")
+    _line("Aval", vigile.aval or "—")
+    _line("Date d'intégration", vigile.date_integration.strftime("%d/%m/%Y") if vigile.date_integration else "—")
+    _line("Taille", f"{vigile.height_cm} cm" if vigile.height_cm else "—")
+    _line("Niveau d'études", vigile.get_education_level_display() if vigile.education_level else "—")
+    _line("Compte actif", "Oui" if vigile.is_active else "Non")
+    _line("En service", "Oui" if vigile.is_active_on_duty else "Non")
+    _line("Date création compte", timezone.localtime(vigile.date_joined).strftime("%d/%m/%Y %H:%M") if vigile.date_joined else "—")
+    _line("Dernière connexion", timezone.localtime(vigile.last_login).strftime("%d/%m/%Y %H:%M") if vigile.last_login else "Jamais")
+
+    y -= 10
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(40, y, "Pièces jointes")
+    y -= 18
+    _line("Photo portrait", "Oui" if vigile.profile_photo else "Non")
+    _line("Carte identité recto", "Oui" if vigile.id_document else "Non")
+    _line("Carte identité verso", "Oui" if getattr(vigile, "id_document_verso", None) else "Non")
+
+    pdf.setFont("Helvetica-Oblique", 8)
+    pdf.drawString(40, 30, f"Généré le {timezone.localtime().strftime('%d/%m/%Y à %H:%M')} · SMS/Cobra")
+    pdf.save()
+    buffer.seek(0)
+
+    response = HttpResponse(buffer.read(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @admin_web_required

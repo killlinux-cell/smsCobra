@@ -1,9 +1,14 @@
 {% extends "webadmin/base.html" %}
 {% block content %}
 <div class="mb-3">
-  <a href="{% url 'webadmin-vigiles' %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" class="text-decoration-none">
-    <i class="bi bi-arrow-left me-1"></i>Retour à la liste des vigiles
-  </a>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <a href="{% url 'webadmin-vigiles' %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}" class="text-decoration-none">
+      <i class="bi bi-arrow-left me-1"></i>Retour à la liste des vigiles
+    </a>
+    <a href="{% url 'webadmin-vigile-cv-pdf' vigile.pk %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-file-earmark-pdf me-1"></i>Télécharger le CV PDF
+    </a>
+  </div>
 </div>
 
 {% include "webadmin/_vigile_placement_banner.html" %}

@@ -26,6 +26,7 @@ urlpatterns = [
         name="webadmin-controller-delete",
     ),
     path("vigiles/<int:pk>/", views.vigile_detail_view, name="webadmin-vigile-detail"),
+    path("vigiles/<int:pk>/cv.pdf", views.vigile_cv_pdf_view, name="webadmin-vigile-cv-pdf"),
     path("vigiles/<int:pk>/supprimer/", views.vigile_delete_view, name="webadmin-vigile-delete"),
     path("affectations/", views.affectations_list_view, name="webadmin-affectations"),
     path(
