@@ -183,71 +183,8 @@
 
 {% block extra_scripts %}
 {% if replacement_needed or alerts_open_count %}
-<script>
-(() => {
-  const key = "cobra_alert_sound_enabled";
-  const toggleBtn = document.getElementById("alert-sound-toggle");
-  const criticalCount = {{ replacement_needed|length }} + {{ alerts_open_count }};
-  if (!toggleBtn || criticalCount <= 0) return;
-
-  function updateButton(enabled) {
-    toggleBtn.dataset.alertSoundEnabled = enabled ? "1" : "0";
-    toggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
-    toggleBtn.innerHTML = enabled
-      ? '<i class="bi bi-volume-up-fill me-1"></i>Son activé'
-      : '<i class="bi bi-volume-mute-fill me-1"></i>Son coupé';
-  }
-
-  function beep() {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      const now = ctx.currentTime;
-      const o1 = ctx.createOscillator();
-      const g = ctx.createGain();
-      o1.type = "sine";
-      o1.frequency.setValueAtTime(840, now);
-      o1.connect(g);
-      g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.0001, now);
-      g.gain.exponentialRampToValueAtTime(0.12, now + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-      o1.start(now);
-      o1.stop(now + 0.25);
-
-      const o2 = ctx.createOscillator();
-      o2.type = "triangle";
-      o2.frequency.setValueAtTime(630, now + 0.28);
-      o2.connect(g);
-      o2.start(now + 0.28);
-      o2.stop(now + 0.5);
-      g.gain.exponentialRampToValueAtTime(0.1, now + 0.31);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
-      setTimeout(() => ctx.close(), 800);
-    } catch (_) {}
-  }
-
-  const stored = localStorage.getItem(key);
-  let enabled = stored !== "0";
-  updateButton(enabled);
-
-  toggleBtn.addEventListener("click", () => {
-    enabled = !enabled;
-    localStorage.setItem(key, enabled ? "1" : "0");
-    updateButton(enabled);
-    if (enabled) beep();
-  });
-
-  if (enabled) {
-    setTimeout(() => {
-      if (!document.hidden) beep();
-    }, 250);
-    setInterval(() => {
-      if (!document.hidden && localStorage.getItem(key) !== "0") beep();
-    }, 45000);
-  }
-})();
-</script>
+{% with critical_count=replacement_needed|length|add:alerts_open_count %}
+{% include "webadmin/_alert_sound_script.html" %}
+{% endwith %}
 {% endif %}
 {% endblock %}
