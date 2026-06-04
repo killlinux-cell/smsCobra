@@ -195,6 +195,8 @@ BIOMETRIC_ENFORCEMENT_MODE = os.getenv("BIOMETRIC_ENFORCEMENT_MODE", "enforce").
 
 # Reconnaissance faciale (face_recognition / dlib) : distance <= tolérance => accepté.
 FACE_VERIFICATION_TOLERANCE = float(os.getenv("FACE_VERIFICATION_TOLERANCE", "0.55"))
+# Côté le plus long des images avant détection (photos 5–8 Mo → timeout si trop grand).
+FACE_IMAGE_MAX_SIDE = int(os.getenv("FACE_IMAGE_MAX_SIDE", "960"))
 # hog = rapide ; cnn = plus précis mais plus lent (GPU recommandé).
 FACE_VERIFICATION_MODEL = os.getenv("FACE_VERIFICATION_MODEL", "hog")
 FACE_VERIFICATION_NUM_JITTERS = int(os.getenv("FACE_VERIFICATION_NUM_JITTERS", "1"))

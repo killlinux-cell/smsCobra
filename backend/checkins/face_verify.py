@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 # Plus la distance est faible, plus les visages sont similaires (typiquement < 0.6 = même personne).
 DEFAULT_TOLERANCE = 0.55
+# Redimensionne avant détection (photos téléphone souvent 5–8 Mo en prod).
+DEFAULT_MAX_IMAGE_SIDE = 960
 
 
 def _temp_path(prefix: str, suffix: str) -> str:
@@ -73,6 +75,23 @@ def _encoding_for_largest_face(image, model: str, num_jitters: int):
     return encs[0] if encs else None
 
 
+def _max_image_side() -> int:
+    return int(getattr(settings, "FACE_IMAGE_MAX_SIDE", DEFAULT_MAX_IMAGE_SIDE))
+
+
+def _resize_rgb_array(image: np.ndarray, max_side: int) -> np.ndarray:
+    h, w = image.shape[:2]
+    longest = max(h, w)
+    if longest <= max_side:
+        return image
+    scale = max_side / float(longest)
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    pil = Image.fromarray(image)
+    pil = pil.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    return np.array(pil)
+
+
 def _load_rgb_image_with_exif(path: str):
     """
     Charge une image en RGB en appliquant l'orientation EXIF.
@@ -82,7 +101,8 @@ def _load_rgb_image_with_exif(path: str):
     """
     with Image.open(path) as img:
         fixed = ImageOps.exif_transpose(img).convert("RGB")
-        return np.array(fixed)
+        arr = np.array(fixed)
+    return _resize_rgb_array(arr, _max_image_side())
 
 
 def _selfie_encoding_with_rotation_fallback(image, model: str, num_jitters: int):
@@ -101,9 +121,45 @@ def _selfie_encoding_with_rotation_fallback(image, model: str, num_jitters: int)
     return None
 
 
+def encode_selfie_upload(selfie) -> Tuple[np.ndarray | None, str]:
+    """
+    Encode le selfie une seule fois (à réutiliser pour plusieurs comparaisons).
+    Retourne (encodage_128d, code_raison_vide_si_ok).
+    """
+    try:
+        import face_recognition  # noqa: F401
+    except ImportError:
+        logger.error("face_recognition non installé : pip install face-recognition")
+        return None, "face_engine_unavailable"
+
+    model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
+    num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
+    selfie_path = _temp_path("cobra_selfie", ".jpg")
+    try:
+        _write_source_to_path(selfie, selfie_path)
+        selfie_img = _load_rgb_image_with_exif(selfie_path)
+        enc = _selfie_encoding_with_rotation_fallback(
+            selfie_img, model=model, num_jitters=num_jitters
+        )
+        if enc is None:
+            return None, "no_face_in_selfie"
+        return enc, ""
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Erreur encodage selfie: %s", exc)
+        return None, "face_verify_error"
+    finally:
+        try:
+            if os.path.isfile(selfie_path):
+                os.unlink(selfie_path)
+        except OSError:
+            pass
+
+
 def verify_selfie_against_profile(
     selfie: UploadedFile,
     profile_image_field,
+    *,
+    selfie_encoding: np.ndarray | None = None,
 ) -> Tuple[bool, float | None, str]:
     """
     Retourne (succès, score_qualité_0_1_ou_None, code_raison).
@@ -122,28 +178,25 @@ def verify_selfie_against_profile(
     model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
     num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
 
-    selfie_path = _temp_path("cobra_selfie", ".jpg")
     ref_path = _temp_path("cobra_ref", ".jpg")
     try:
-        _write_source_to_path(selfie, selfie_path)
+        if selfie_encoding is None:
+            selfie_enc, fail = encode_selfie_upload(selfie)
+            if fail:
+                return False, None, fail
+        else:
+            selfie_enc = selfie_encoding
 
         with profile_image_field.open("rb") as ref_stream:
             _write_source_to_path(ref_stream, ref_path)
 
         import face_recognition
 
-        selfie_img = _load_rgb_image_with_exif(selfie_path)
         ref_img = _load_rgb_image_with_exif(ref_path)
 
         ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
         if ref_enc is None:
             return False, None, "no_face_in_reference"
-
-        selfie_enc = _selfie_encoding_with_rotation_fallback(
-            selfie_img, model=model, num_jitters=num_jitters
-        )
-        if selfie_enc is None:
-            return False, None, "no_face_in_selfie"
 
         dist = float(face_recognition.face_distance([ref_enc], selfie_enc)[0])
         score = max(0.0, min(1.0, 1.0 - dist))
@@ -156,9 +209,8 @@ def verify_selfie_against_profile(
         logger.exception("Erreur lors de la vérification faciale: %s", exc)
         return False, None, "face_verify_error"
     finally:
-        for p in (selfie_path, ref_path):
-            try:
-                if os.path.isfile(p):
-                    os.unlink(p)
-            except OSError:
-                pass
+        try:
+            if os.path.isfile(ref_path):
+                os.unlink(ref_path)
+        except OSError:
+            pass

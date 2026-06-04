@@ -101,7 +101,7 @@ class CobraApi {
       ),
     );
     try {
-      final streamed = await req.send().timeout(const Duration(seconds: 45));
+      final streamed = await req.send().timeout(const Duration(seconds: 90));
       final resp = await http.Response.fromStream(streamed);
       if (resp.statusCode == 200) {
         await _storeJwtFromBody(resp.body);
@@ -142,7 +142,7 @@ class CobraApi {
       ),
     );
     try {
-      final streamed = await req.send().timeout(const Duration(seconds: 45));
+      final streamed = await req.send().timeout(const Duration(seconds: 90));
       final resp = await http.Response.fromStream(streamed);
       if (resp.statusCode == 200) {
         await _storeJwtFromBody(resp.body);
@@ -207,7 +207,7 @@ class CobraApi {
       ),
     );
     try {
-      final streamed = await req.send().timeout(const Duration(seconds: 45));
+      final streamed = await req.send().timeout(const Duration(seconds: 90));
       final resp = await http.Response.fromStream(streamed);
       String? detail;
       Map<String, dynamic>? decoded;

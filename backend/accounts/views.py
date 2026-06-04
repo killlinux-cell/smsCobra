@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from checkins.face_verify import verify_selfie_against_profile
+from checkins.face_verify import encode_selfie_upload, verify_selfie_against_profile
 from sites.models import Site
 from shifts.models import ShiftAssignment
 from shifts.services import ensure_assignments_for_dates
@@ -156,26 +156,43 @@ class VigileFaceIdentifyView(APIView):
             )
             return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
 
+        selfie_enc, selfie_fail = encode_selfie_upload(selfie)
+        if selfie_fail == "no_face_in_selfie":
+            return Response(
+                {
+                    "detail": "Aucun visage détecté sur le selfie. Reprenez la photo avec un meilleur cadrage."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if selfie_fail == "face_engine_unavailable":
+            return Response(
+                {
+                    "detail": (
+                        "Moteur de reconnaissance faciale indisponible sur le serveur. "
+                        "Contactez l'administrateur."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if selfie_fail or selfie_enc is None:
+            return Response(
+                {"detail": "Erreur technique lors de l'identification. Réessayez."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         best_user = None
         best_score = -1.0
         for candidate in candidates:
             if not candidate.profile_photo:
                 continue
-            ok, score, fail_reason = verify_selfie_against_profile(selfie, candidate.profile_photo)
-            if fail_reason == "no_face_in_selfie":
-                return Response(
-                    {
-                        "detail": "Aucun visage détecté sur le selfie. Reprenez la photo avec un meilleur cadrage."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            ok, score, fail_reason = verify_selfie_against_profile(
+                selfie,
+                candidate.profile_photo,
+                selfie_encoding=selfie_enc,
+            )
             if ok and score is not None and score > best_score:
                 best_user = candidate
                 best_score = score
-            try:
-                selfie.seek(0)
-            except Exception:
-                pass
 
         if best_user is None:
             return Response(
@@ -237,22 +254,39 @@ class ControllerFaceCheckinView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        selfie_enc, selfie_fail = encode_selfie_upload(selfie)
+        if selfie_fail == "no_face_in_selfie":
+            return Response(
+                {"detail": "Aucun visage détecté sur le selfie. Reprenez la photo."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if selfie_fail == "face_engine_unavailable":
+            return Response(
+                {
+                    "detail": (
+                        "Moteur de reconnaissance faciale indisponible sur le serveur. "
+                        "Contactez l'administrateur."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if selfie_fail or selfie_enc is None:
+            return Response(
+                {"detail": "Erreur technique lors de l'identification. Réessayez."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         best_user = None
         best_score = -1.0
         for candidate in candidates:
-            ok, score, fail_reason = verify_selfie_against_profile(selfie, candidate.profile_photo)
-            if fail_reason == "no_face_in_selfie":
-                return Response(
-                    {"detail": "Aucun visage détecté sur le selfie. Reprenez la photo."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            ok, score, fail_reason = verify_selfie_against_profile(
+                selfie,
+                candidate.profile_photo,
+                selfie_encoding=selfie_enc,
+            )
             if ok and score is not None and score > best_score:
                 best_user = candidate
                 best_score = score
-            try:
-                selfie.seek(0)
-            except Exception:
-                pass
 
         if best_user is None:
             return Response(

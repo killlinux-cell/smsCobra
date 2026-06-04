@@ -135,8 +135,9 @@ class VigileFaceIdentifyAPITests(TestCase):
             end_time=time(17, 0),
         )
 
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(True, 0.93, ""))
-    def test_face_identify_returns_tokens_for_planned_guard(self, _mock):
+    def test_face_identify_returns_tokens_for_planned_guard(self, _mock, _enc):
         selfie = SimpleUploadedFile("s.png", _PNG_1PX, content_type="image/png")
         resp = self.client.post(
             "/api/v1/auth/face-identify",
@@ -147,8 +148,9 @@ class VigileFaceIdentifyAPITests(TestCase):
         self.assertIn("access", resp.data)
         self.assertEqual(resp.data.get("guard_username"), "VIR-222")
 
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(True, 0.93, ""))
-    def test_face_identify_without_site_id_still_identifies_planned_guard(self, _mock):
+    def test_face_identify_without_site_id_still_identifies_planned_guard(self, _mock, _enc):
         selfie = SimpleUploadedFile("s.png", _PNG_1PX, content_type="image/png")
         resp = self.client.post(
             "/api/v1/auth/face-identify",
@@ -158,8 +160,9 @@ class VigileFaceIdentifyAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data.get("guard_username"), "VIR-222")
 
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(False, 0.1, "face_mismatch"))
-    def test_face_identify_refuses_unknown_face(self, _mock):
+    def test_face_identify_refuses_unknown_face(self, _mock, _enc):
         selfie = SimpleUploadedFile("s.png", _PNG_1PX, content_type="image/png")
         resp = self.client.post(
             "/api/v1/auth/face-identify",
