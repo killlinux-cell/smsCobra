@@ -247,6 +247,18 @@ class _AgentHomePageState extends State<AgentHomePage>
     if (s.contains("biometric_challenge_failed")) {
       return "Impossible de démarrer la vérification faciale. Vérifiez votre connexion puis réessayez.";
     }
+    if (s.contains("Fin de service trop tôt") || s.contains("trop tôt")) {
+      return "Fin de service indisponible pour l'instant : attendez l'heure de fin prévue du créneau (voir horaires du poste).";
+    }
+    if (s.contains("Fin de service hors créneau")) {
+      return "Fin de service hors créneau autorisé pour ce poste.";
+    }
+    if (s.contains("Fin bloquée") || s.contains("relevé") || s.contains("releve")) {
+      return "Fin bloquée : le vigile de relève doit d'abord pointer sa prise de service.";
+    }
+    if (s.contains("Affectation invalide")) {
+      return "Affectation introuvable. Reconnectez-vous ou resynchronisez l'app.";
+    }
     if (s.contains("biometric_verify_failed")) {
       return "Vérification faciale refusée. Reprenez un selfie bien cadré puis réessayez.";
     }

@@ -385,7 +385,17 @@ class CobraApi {
         "device_id": deviceId,
       }),
     );
-    if (resp.statusCode != 201) throw Exception("biometric_challenge_failed");
+    if (resp.statusCode != 201) {
+      String? detail;
+      try {
+        final decoded = jsonDecode(resp.body);
+        if (decoded is Map<String, dynamic>) {
+          final d = decoded["detail"];
+          if (d is String && d.isNotEmpty) detail = d;
+        }
+      } catch (_) {}
+      throw Exception(detail ?? "biometric_challenge_failed_${resp.statusCode}");
+    }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final challengeId = (data["challenge_id"] ?? "").toString();
     if (challengeId.isEmpty) throw Exception("biometric_challenge_invalid");
@@ -411,7 +421,15 @@ class CobraApi {
     final streamed = await req.send();
     final resp = await http.Response.fromStream(streamed);
     if (resp.statusCode != 200) {
-      throw Exception("biometric_verify_failed_${resp.statusCode}");
+      String? detail;
+      try {
+        final decoded = jsonDecode(resp.body);
+        if (decoded is Map<String, dynamic>) {
+          final d = decoded["detail"];
+          if (d is String && d.isNotEmpty) detail = d;
+        }
+      } catch (_) {}
+      throw Exception(detail ?? "biometric_verify_failed_${resp.statusCode}");
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final verificationToken = (data["verification_token"] ?? "").toString();
