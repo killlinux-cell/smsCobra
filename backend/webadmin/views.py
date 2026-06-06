@@ -1142,6 +1142,30 @@ def affectations_list_view(request):
         .filter(shift_date=today)
         .order_by("site__name", "start_time"),
     )
+    dispatch_prefill = None
+    dispatch_next = reverse("webadmin-affectations")
+    next_raw = (request.GET.get("next") or "").strip()
+    allowed_next = {reverse("webadmin-affectations"), reverse("webadmin-alertes")}
+    if next_raw in allowed_next:
+        dispatch_next = next_raw
+    dispatch_raw = (request.GET.get("dispatch_assignment") or "").strip()
+    if dispatch_raw.isdigit():
+        aid = int(dispatch_raw)
+        prefill = (
+            ShiftAssignment.objects.select_related("site", "guard", "original_guard")
+            .filter(pk=aid, shift_date=today)
+            .first()
+        )
+        if prefill is not None:
+            dispatch_prefill = prefill
+            dispatch_form = DispatchForm(
+                assignments_qs=ShiftAssignment.objects.select_related(
+                    "site", "guard", "original_guard"
+                )
+                .filter(shift_date=today)
+                .order_by("site__name", "start_time"),
+                initial={"assignment": prefill.pk},
+            )
     if request.method == "POST":
         form = ShiftAssignmentForm(request.POST, for_create=True)
         if form.is_valid():
@@ -1212,6 +1236,8 @@ def affectations_list_view(request):
             "assignments": qs[:200],
             "form": form,
             "dispatch_form": dispatch_form,
+            "dispatch_prefill": dispatch_prefill,
+            "dispatch_next": dispatch_next,
             "today": today,
             "filter_site": filter_site,
             "filter_site_pk": filter_site_pk,

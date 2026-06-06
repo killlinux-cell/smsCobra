@@ -113,7 +113,7 @@
                 <div class="text-muted">Limite {{ row.deadline|date:"H:i" }}</div>
               </td>
               <td class="text-nowrap">
-                <a href="{% url 'webadmin-affectations' %}" class="btn btn-sm btn-outline-warning">Dépêcher</a>
+                <a href="{% url 'webadmin-affectations' %}?dispatch_assignment={{ row.assignment.id }}&amp;next={% url 'webadmin-alertes' %}#depecher" class="btn btn-sm btn-outline-warning">Dépêcher</a>
               </td>
             </tr>
             {% empty %}

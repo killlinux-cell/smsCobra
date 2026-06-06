@@ -15,22 +15,42 @@
   (fin de pointage ou absence).
 </div>
 
-<div class="card cobra-panel mb-4">
+<div class="card cobra-panel mb-4" id="depecher">
   <div class="card-header"><i class="bi bi-person-lines-fill me-2"></i>Dépêcher un remplaçant (jour du {{ today|date:"d/m/Y" }})</div>
   <div class="card-body">
+    {% if dispatch_prefill %}
+    <div class="alert alert-warning border py-2 small mb-3">
+      <strong>Vigile à remplacer :</strong> {{ dispatch_prefill.guard.display_name }}
+      ({{ dispatch_prefill.guard.username }}) —
+      <strong>Site :</strong> {{ dispatch_prefill.site.name }} —
+      créneau {{ dispatch_prefill.start_time|time:"H:i" }}–{{ dispatch_prefill.end_time|time:"H:i" }}.
+      Choisissez uniquement le remplaçant ci-dessous.
+    </div>
+    {% endif %}
     <p class="small text-muted mb-3">
       Sélectionnez l’affectation du <strong>jour en cours</strong> et le vigile qui prend le poste.
       Le <strong>titulaire</strong> d’origine est conservé ; le vigile affiché devient <strong>Remplacé</strong>.
     </p>
     <form method="post" action="{% url 'webadmin-dispatch' %}">
       {% csrf_token %}
-      <input type="hidden" name="next" value="{% url 'webadmin-affectations' %}">
+      <input type="hidden" name="next" value="{{ dispatch_next }}">
       <div class="row g-3">
+        {% if dispatch_prefill %}
+        <input type="hidden" name="assignment" value="{{ dispatch_prefill.id }}">
+        <div class="col-md-6">
+          <label class="form-label text-muted">Affectation (pré-remplie)</label>
+          <div class="form-control bg-light">
+            #{{ dispatch_prefill.id }} — {{ dispatch_prefill.site.name }} —
+            {{ dispatch_prefill.start_time|time:"H:i" }}–{{ dispatch_prefill.end_time|time:"H:i" }}
+          </div>
+        </div>
+        {% else %}
         <div class="col-md-6">
           <label class="form-label">{{ dispatch_form.assignment.label }}</label>
           {{ dispatch_form.assignment }}
           {% if dispatch_form.assignment.errors %}<div class="text-danger small">{{ dispatch_form.assignment.errors }}</div>{% endif %}
         </div>
+        {% endif %}
         <div class="col-md-6">
           <label class="form-label">{{ dispatch_form.replacement_guard.label }}</label>
           {{ dispatch_form.replacement_guard }}
