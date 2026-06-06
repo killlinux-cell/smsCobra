@@ -17,6 +17,18 @@ from sites.models import Site
 _CTRL = "form-control"
 _SEL = "form-select"
 
+# Champs <input type="date"> : format ISO obligatoire (sinon valeur vide à l'édition).
+_DATE_HTML5_WIDGET = forms.DateInput(
+    format="%Y-%m-%d",
+    attrs={"class": _CTRL, "type": "date"},
+)
+_DATE_HTML5_FORMATS = ["%Y-%m-%d"]
+
+
+def _apply_html5_date_field(field: forms.DateField) -> None:
+    field.widget = _DATE_HTML5_WIDGET
+    field.input_formats = _DATE_HTML5_FORMATS
+
 _EDUCATION_LEVEL_CHOICES = [("", "— Non renseigné —")] + list(User.EducationLevel.choices)
 
 class SiteCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
@@ -57,7 +69,8 @@ class SiteForm(forms.ModelForm):
     creation_date = forms.DateField(
         label="Date de création du site",
         required=True,
-        widget=forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
+        widget=_DATE_HTML5_WIDGET,
+        input_formats=_DATE_HTML5_FORMATS,
         help_text="Date d’ouverture ou d’enregistrement du site dans le système.",
     )
 
@@ -179,6 +192,15 @@ class SiteForm(forms.ModelForm):
                 "is_active",
             ]
         )
+        _apply_html5_date_field(self.fields["creation_date"])
+
+    def clean_creation_date(self):
+        val = self.cleaned_data.get("creation_date")
+        if val:
+            return val
+        if self.instance.pk and self.instance.created_at:
+            return timezone.localtime(self.instance.created_at).date()
+        raise forms.ValidationError("Ce champ est obligatoire.")
 
     def save(self, commit=True):
         site = super().save(commit=False)
@@ -252,7 +274,8 @@ class VigileCreationForm(forms.ModelForm):
     date_integration = forms.DateField(
         label="Date d'intégration",
         required=False,
-        widget=forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
+        widget=_DATE_HTML5_WIDGET,
+        input_formats=_DATE_HTML5_FORMATS,
     )
     height_cm = forms.IntegerField(
         label="Taille (cm)",
@@ -316,6 +339,8 @@ class VigileCreationForm(forms.ModelForm):
         self.fields["id_document_verso"].widget.attrs.setdefault("class", "form-control")
         self.fields["id_document_verso"].widget.attrs.setdefault("accept", "image/*")
         self.fields["id_document_verso"].widget.attrs.setdefault("capture", "environment")
+        if "date_integration" in self.fields:
+            _apply_html5_date_field(self.fields["date_integration"])
 
     @staticmethod
     def _generate_username() -> str:
@@ -554,7 +579,7 @@ class VigileUpdateForm(forms.ModelForm):
             "phone_number": forms.TextInput(attrs={"class": _CTRL}),
             "domicile": forms.Textarea(attrs={"class": _CTRL, "rows": 3}),
             "aval": forms.TextInput(attrs={"class": _CTRL}),
-            "date_integration": forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
+            "date_integration": _DATE_HTML5_WIDGET,
             "height_cm": forms.NumberInput(
                 attrs={"class": _CTRL, "min": "100", "max": "250", "placeholder": "ex. 175"}
             ),
@@ -578,6 +603,16 @@ class VigileUpdateForm(forms.ModelForm):
         self.fields["id_document"].required = False
         self.fields["id_document_verso"].required = False
         self.fields["education_level"].choices = _EDUCATION_LEVEL_CHOICES
+        if "date_integration" in self.fields:
+            _apply_html5_date_field(self.fields["date_integration"])
+
+    def clean_date_integration(self):
+        val = self.cleaned_data.get("date_integration")
+        if val:
+            return val
+        if self.instance.pk and self.instance.date_integration:
+            return self.instance.date_integration
+        return None
 
     def clean_username(self):
         u = (self.cleaned_data.get("username") or "").strip()
@@ -654,12 +689,14 @@ class ShiftAssignmentForm(forms.ModelForm):
         widgets = {
             "guard": forms.Select(attrs={"class": _SEL}),
             "site": forms.Select(attrs={"class": _SEL}),
-            "shift_date": forms.DateInput(attrs={"class": _CTRL, "type": "date"}),
+            "shift_date": _DATE_HTML5_WIDGET,
         }
 
     def __init__(self, *args, for_create=True, **kwargs):
         self.for_create = for_create
         super().__init__(*args, **kwargs)
+        if "shift_date" in self.fields:
+            _apply_html5_date_field(self.fields["shift_date"])
         self.fields["guard"].queryset = User.objects.filter(role=User.Role.VIGILE).order_by("username")
         self.fields["guard"] = GuardChoiceField(
             queryset=self.fields["guard"].queryset,
