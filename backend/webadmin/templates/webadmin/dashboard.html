@@ -313,14 +313,18 @@
 
     <div class="card cobra-panel">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-file-earmark-text me-2"></i>Rapports récents</span>
-        <a href="{% url 'webadmin-rapports' %}" class="btn btn-sm btn-outline-primary">Tout voir</a>
+        <span><i class="bi bi-file-earmark-text me-2"></i>Rapports du jour ({{ reports|length }})</span>
+        <a href="{% url 'webadmin-rapports' %}?date={{ today|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary">Tout voir</a>
       </div>
       <ul class="list-group list-group-flush">
         {% for report in reports %}
         <li class="list-group-item small">
           <strong>{{ report.report_date|date:"d/m/Y" }}</strong> — {{ report.site.name }} — {{ report.guard.display_name }}
-          {% if report.was_absent %}<span class="badge bg-danger ms-1">Absent</span>{% elif report.was_late %}<span class="badge bg-warning text-dark ms-1">Retard</span>{% else %}<span class="badge bg-success ms-1">Présent</span>{% endif %}
+          {% rapport_presence_badge report as presence %}
+          <span class="badge {{ presence.css }} ms-1">{{ presence.label }}</span>
+          {% if not report.started_at and not report.was_absent %}
+          <span class="text-muted">(aucune prise de service)</span>
+          {% endif %}
         </li>
         {% empty %}
         <li class="list-group-item text-muted text-center py-4">Aucun rapport pour le moment.</li>

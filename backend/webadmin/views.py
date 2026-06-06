@@ -397,7 +397,11 @@ def dashboard_view(request):
         triggered_at__date=today,
     ).select_related("assignment", "assignment__site", "assignment__guard")
     open_alerts_all_count = LateAlert.objects.filter(status=LateAlert.Status.OPEN).count()
-    reports = AttendanceReport.objects.select_related("site", "guard").order_by("-report_date")[:15]
+    reports = (
+        AttendanceReport.objects.filter(report_date=today)
+        .select_related("site", "guard")
+        .order_by("site__name", "guard__username")[:20]
+    )
     controller_visits_today = (
         ControllerVisit.objects.select_related("controller", "site")
         .filter(visited_at__date=today)
@@ -440,6 +444,7 @@ def dashboard_view(request):
     context = {
         "page_title": "Tableau de bord",
         "nav_active": "dashboard",
+        "today": today,
         "dashboard_map_data": dashboard_map_data,
         "map_tile_url": map_tile_url,
         "kpi": {

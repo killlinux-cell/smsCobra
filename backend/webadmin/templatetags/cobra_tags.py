@@ -66,3 +66,20 @@ def type_pointage_fr(value):
 @register.filter
 def role_fr(value):
     return ROLE_FR.get(str(value), value)
+
+
+@register.simple_tag
+def rapport_presence_badge(report):
+    """
+    Statut affiché sur le tableau de bord : exige un pointage de début pour « Présent ».
+    Évite d'afficher « Présent » quand was_absent=False par défaut sans started_at.
+    """
+    if report.was_absent:
+        return {"label": "Absent", "css": "bg-danger"}
+    if report.started_at:
+        if report.was_late:
+            return {"label": "Retard", "css": "bg-warning text-dark"}
+        if report.ended_at:
+            return {"label": "Présent", "css": "bg-success"}
+        return {"label": "En service", "css": "bg-info text-dark"}
+    return {"label": "Non pointé", "css": "bg-secondary"}
