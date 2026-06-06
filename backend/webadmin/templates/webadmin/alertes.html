@@ -6,17 +6,35 @@
     <form method="get" class="row g-3 align-items-end flex-wrap" role="search">
       <div class="col-auto flex-grow-1" style="min-width:220px;">
         <label class="form-label fw-semibold mb-1" for="alertes-day">Journée à consulter</label>
-        <input type="date" id="alertes-day" name="date" class="form-control" value="{{ filter_day|date:'Y-m-d' }}">
+        <input type="date" id="alertes-day" name="date" class="form-control" value="{{ filter_day|date:'Y-m-d' }}" {% if status_filter == 'open' %}disabled{% endif %}>
+      </div>
+      <div class="col-auto">
+        <label class="form-label fw-semibold mb-1" for="alertes-status">Afficher</label>
+        <select id="alertes-status" name="status" class="form-select">
+          <option value="day" {% if status_filter == 'day' %}selected{% endif %}>Toutes (jour choisi)</option>
+          <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Ouvertes seulement (toutes dates)</option>
+          <option value="acknowledged" {% if status_filter == 'acknowledged' %}selected{% endif %}>Acquittées (jour choisi)</option>
+        </select>
       </div>
       <div class="col-auto d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-primary"><i class="bi bi-calendar3 me-1"></i>Afficher</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filtrer</button>
         <a href="{% url 'webadmin-alertes' %}" class="btn btn-outline-secondary">Aujourd'hui</a>
       </div>
     </form>
     <p class="small text-muted mb-0 mt-3">
+      {% if status_filter == 'open' %}
+      <strong>Toutes les alertes encore ouvertes</strong> (non acquittées) — {{ alerts|length }} affichée{% if alerts|length != 1 %}s{% endif %} (max. 500).
+      {% if alerts_open_all_count != alerts_open_count %}
+      Dont {{ alerts_open_count }} déclenchée{% if alerts_open_count != 1 %}s{% endif %} aujourd'hui.
+      {% endif %}
+      {% else %}
       <strong>{{ filter_day|date:"l d F Y" }}</strong>
       — {{ alerts|length }} alerte{% if alerts|length != 1 %}s{% endif %} affichée{% if alerts|length != 1 %}s{% endif %}
-      (max. 500) · <span class="text-dark">{{ alerts_open_count }} ouverte{% if alerts_open_count != 1 %}s{% endif %}</span>
+      (max. 500) · <span class="text-dark">{{ alerts_open_count }} ouverte{% if alerts_open_count != 1 %}s{% endif %} aujourd'hui</span>
+      {% if alerts_open_all_count > alerts_open_count %}
+      · <a href="{% url 'webadmin-alertes' %}?status=open">{{ alerts_open_all_count }} ouvertes toutes dates</a>
+      {% endif %}
+      {% endif %}
     </p>
     <p class="small text-muted mb-0 mt-2">
       Pour <strong>dépêcher un remplaçant</strong>, utilisez la section dédiée sous <a href="{% url 'webadmin-affectations' %}">Affectations</a>

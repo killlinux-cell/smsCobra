@@ -392,9 +392,11 @@ def dashboard_view(request):
     # Date « métier » = fuseau Django (Africa/Abidjan), pas la date OS du serveur.
     today = timezone.localdate()
     assignments = ShiftAssignment.objects.filter(shift_date=today)
-    open_alerts = LateAlert.objects.filter(status=LateAlert.Status.OPEN).select_related(
-        "assignment", "assignment__site", "assignment__guard"
-    )
+    open_alerts_today = LateAlert.objects.filter(
+        status=LateAlert.Status.OPEN,
+        triggered_at__date=today,
+    ).select_related("assignment", "assignment__site", "assignment__guard")
+    open_alerts_all_count = LateAlert.objects.filter(status=LateAlert.Status.OPEN).count()
     reports = AttendanceReport.objects.select_related("site", "guard").order_by("-report_date")[:15]
     controller_visits_today = (
         ControllerVisit.objects.select_related("controller", "site")
@@ -447,7 +449,8 @@ def dashboard_view(request):
             "replaced": assignments.filter(status=ShiftAssignment.Status.REPLACED).count(),
             "completed": assignments.filter(status=ShiftAssignment.Status.COMPLETED).count(),
             "missed": assignments.filter(status=ShiftAssignment.Status.MISSED).count(),
-            "open_alerts": open_alerts.count(),
+            "open_alerts": open_alerts_today.count(),
+            "open_alerts_all": open_alerts_all_count,
             "sites": active_sites.count(),
             "vigiles": User.objects.filter(role=User.Role.VIGILE).count(),
             "controleurs": User.objects.filter(role=User.Role.CONTROLEUR, is_active=True).count(),
@@ -457,7 +460,7 @@ def dashboard_view(request):
             "titulaires_jour": titulaires_jour,
             "titulaires_nuit": titulaires_nuit,
         },
-        "alerts": open_alerts[:8],
+        "alerts": open_alerts_today.order_by("-triggered_at")[:8],
         "reports": reports,
         "today_assignments": assignments.select_related("site", "guard").order_by("start_time")[:12],
         "recent_checkins": recent_checkins,
@@ -1341,6 +1344,7 @@ def critical_alerts_status_view(request):
 @admin_web_required
 def alertes_view(request):
     day_raw = (request.GET.get("date") or "").strip()
+    status_filter = (request.GET.get("status") or "day").strip().lower()
     if day_raw:
         try:
             filter_day = datetime.strptime(day_raw, "%Y-%m-%d").date()
@@ -1348,8 +1352,22 @@ def alertes_view(request):
             filter_day = timezone.localdate()
     else:
         filter_day = timezone.localdate()
-    summary = get_live_critical_alert_summary(filter_day)
-    day_alerts_qs = LateAlert.objects.filter(triggered_at__date=filter_day)
+
+    if status_filter == "open":
+        day_alerts_qs = LateAlert.objects.filter(status=LateAlert.Status.OPEN)
+        filter_day_label = None
+    elif status_filter == "acknowledged":
+        day_alerts_qs = LateAlert.objects.filter(
+            status=LateAlert.Status.ACKNOWLEDGED,
+            triggered_at__date=filter_day,
+        )
+        filter_day_label = filter_day
+    else:
+        status_filter = "day"
+        day_alerts_qs = LateAlert.objects.filter(triggered_at__date=filter_day)
+        filter_day_label = filter_day
+
+    summary = get_live_critical_alert_summary(timezone.localdate())
     alerts = (
         day_alerts_qs.select_related(
             "assignment", "assignment__site", "assignment__guard", "admin_recipient"
@@ -1359,7 +1377,7 @@ def alertes_view(request):
     replacement_done = list(
         ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(
-            shift_date=filter_day,
+            shift_date=filter_day if status_filter != "open" else timezone.localdate(),
             status=ShiftAssignment.Status.REPLACED,
         )
         .order_by("site__name", "start_time")
@@ -1373,7 +1391,12 @@ def alertes_view(request):
             "nav_active": "alertes",
             "alerts": alerts,
             "filter_day": filter_day,
+            "filter_day_label": filter_day_label,
+            "status_filter": status_filter,
             "alerts_open_count": summary["alerts_open_count"],
+            "alerts_open_all_count": LateAlert.objects.filter(
+                status=LateAlert.Status.OPEN
+            ).count(),
             "replacement_done": replacement_done,
             "replacement_needed": summary["replacement_needed"],
         },
