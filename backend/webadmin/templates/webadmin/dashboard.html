@@ -227,7 +227,10 @@
     </div>
 
     <div class="card cobra-panel">
-      <div class="card-header"><i class="bi bi-clock-history me-2"></i>Derniers pointages</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-2"></i>Derniers pointages</span>
+        <a href="{% url 'webadmin-pointages' %}#derniers-pointages" class="btn btn-sm btn-outline-primary">Historique complet</a>
+      </div>
       <div class="table-responsive">
         <table class="table table-sm cobra-table mb-0">
           <thead class="table-light">
@@ -266,7 +269,7 @@
         </table>
       </div>
       <div class="card-footer bg-white border-0 text-end">
-        <a href="{% url 'webadmin-pointages' %}" class="btn btn-sm btn-outline-primary">Historique complet</a>
+        <a href="{% url 'webadmin-pointages' %}#derniers-pointages" class="btn btn-sm btn-outline-primary">Voir tout l'historique (50 derniers)</a>
       </div>
     </div>
   </div>

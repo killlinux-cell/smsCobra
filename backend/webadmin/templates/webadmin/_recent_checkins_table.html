@@ -1,0 +1,58 @@
+{% load cobra_tags %}
+<div class="card cobra-panel mb-4" id="derniers-pointages">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-clock-history me-2"></i>{{ title|default:"Derniers pointages" }}</span>
+    {% if show_export %}
+    <a href="{% url 'webadmin-pointages-export-csv' %}?month={{ month_value|default:'' }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-download me-1"></i>Export CSV
+    </a>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Selfie</th>
+          <th>Date et heure</th>
+          <th>Vigile</th>
+          <th>Site</th>
+          <th>Type</th>
+          <th>Géoloc.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in recent_checkins %}
+        <tr>
+          <td>
+            {% if c.photo %}
+            <a href="{{ c.photo.url }}" target="_blank" rel="noopener noreferrer" title="Agrandir le selfie">
+              <img src="{{ c.photo.url }}" alt="" class="rounded" style="width:48px;height:48px;object-fit:cover;">
+            </a>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">{{ c.timestamp|date:"d/m/Y H:i" }}</td>
+          <td>{{ c.guard.display_name }} <span class="text-muted small">({{ c.guard.username }})</span></td>
+          <td>{{ c.assignment.site.name }}</td>
+          <td><span class="badge bg-secondary">{{ c.type|type_pointage_fr }}</span></td>
+          <td class="small">
+            {% if c.within_geofence %}<span class="text-success">OK</span>{% else %}<span class="text-warning">Hors zone</span>{% endif %}
+            {% if c.distance_from_site_meters is not None %}
+            <span class="text-muted">({{ c.distance_from_site_meters|floatformat:0 }} m)</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">Aucun pointage enregistré pour le moment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if recent_checkins %}
+  <div class="card-footer bg-white border-0 small text-muted">
+    {{ recent_checkins|length }} pointage{% if recent_checkins|length != 1 %}s{% endif %} affiché{% if recent_checkins|length != 1 %}s{% endif %}
+    (selfies, horaires et géolocalisation).
+  </div>
+  {% endif %}
+</div>

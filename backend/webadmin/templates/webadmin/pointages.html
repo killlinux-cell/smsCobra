@@ -1,5 +1,8 @@
 {% extends "webadmin/base.html" %}
+{% load cobra_tags %}
 {% block content %}
+{% include "webadmin/_recent_checkins_table.html" with title="Derniers pointages (historique détaillé)" show_export=True month_value=month_value %}
+
 <div class="card cobra-panel mb-4">
   <div class="card-body py-3">
     <form method="get" class="d-flex flex-wrap align-items-end gap-2">

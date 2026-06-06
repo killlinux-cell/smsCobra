@@ -50,6 +50,25 @@ from .alert_state import get_live_critical_alert_summary, refresh_late_alerts_if
 _logger = logging.getLogger(__name__)
 
 
+def collect_recent_checkins(*, limit: int = 10) -> list[Checkin]:
+    """Derniers pointages avec selfies (déduplique START/END par affectation)."""
+    recent_raw = Checkin.objects.select_related(
+        "guard", "assignment__site"
+    ).order_by("-timestamp")[: max(limit * 5, 50)]
+    rows: list[Checkin] = []
+    seen_start_end: set[tuple[int, str]] = set()
+    for checkin in recent_raw:
+        if checkin.type in (Checkin.Type.START, Checkin.Type.END):
+            key = (checkin.assignment_id, checkin.type)
+            if key in seen_start_end:
+                continue
+            seen_start_end.add(key)
+        rows.append(checkin)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
 def _dashboard_map_payload(assignments_qs):
     """
     Marqueurs Leaflet : chaque affectation du jour (vigile au poste = coordonnées du site).
@@ -407,23 +426,7 @@ def dashboard_view(request):
         .filter(visited_at__date=today)
         .order_by("-visited_at")[:25]
     )
-    recent_raw = (
-        Checkin.objects.select_related("guard", "assignment__site").order_by("-timestamp")[:50]
-    )
-    recent_checkins = []
-    seen_start_end = set()
-    for c in recent_raw:
-        # On masque les doublons START/END sur la même affectation (mais on garde toutes les PRESENCE).
-        if c.type in [Checkin.Type.START, Checkin.Type.END]:
-            key = (c.assignment_id, c.type)
-            if key in seen_start_end:
-                continue
-            seen_start_end.add(key)
-        recent_checkins.append(c)
-        if len(recent_checkins) >= 10:
-            break
-
-    map_qs = assignments.select_related("site", "guard").order_by("site__name", "start_time")
+    recent_checkins = collect_recent_checkins(limit=10)
     dashboard_map_data = _dashboard_map_payload(map_qs)
 
     tile_path = reverse("webadmin-map-tiles", kwargs={"z": 0, "x": 0, "y": 0})
@@ -1632,6 +1635,8 @@ def pointages_view(request):
                 status = "off"
             selected_calendar_days.append({"date": d, "status": status})
 
+    recent_checkins = collect_recent_checkins(limit=50)
+
     return render(
         request,
         "webadmin/pointages.html",
@@ -1647,6 +1652,7 @@ def pointages_view(request):
             "search_q": search_q,
             "page_obj": page_obj,
             "total_vigiles": paginator.count,
+            "recent_checkins": recent_checkins,
         },
     )
 
