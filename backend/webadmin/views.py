@@ -427,6 +427,7 @@ def dashboard_view(request):
         .order_by("-visited_at")[:25]
     )
     recent_checkins = collect_recent_checkins(limit=10)
+    map_qs = assignments.select_related("site", "guard").order_by("site__name", "start_time")
     dashboard_map_data = _dashboard_map_payload(map_qs)
 
     tile_path = reverse("webadmin-map-tiles", kwargs={"z": 0, "x": 0, "y": 0})
