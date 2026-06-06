@@ -1,0 +1,32 @@
+{% if cobra_critical_count %}
+<div class="alert cobra-critical-banner cobra-critical-global d-flex flex-wrap justify-content-between align-items-center gap-2 mb-0 {% if cobra_replacement_needed_count %}cobra-critical-pulse{% endif %}" role="alert">
+  <div class="d-flex align-items-center gap-2">
+    <span class="cobra-critical-dot" aria-hidden="true"></span>
+    <div>
+      <div class="fw-bold">Alerte critique en cours</div>
+      <div class="small mb-0">
+        {% if cobra_replacement_needed_count %}
+        {{ cobra_replacement_needed_count }} remplacement{% if cobra_replacement_needed_count != 1 %}s{% endif %} à traiter{% if cobra_alerts_open_count %} · {% endif %}
+        {% endif %}
+        {% if cobra_alerts_open_count %}
+        {{ cobra_alerts_open_count }} alerte{% if cobra_alerts_open_count != 1 %}s{% endif %} ouverte{% if cobra_alerts_open_count != 1 %}s{% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-danger"
+      id="alert-sound-toggle"
+      aria-pressed="true"
+      data-alert-sound-enabled="1"
+    >
+      <i class="bi bi-volume-up-fill me-1"></i>Son activé
+    </button>
+    <a href="{% url 'webadmin-alertes' %}" class="btn btn-sm btn-danger">
+      <i class="bi bi-bell-fill me-1"></i>Voir les alertes
+    </a>
+  </div>
+</div>
+{% endif %}

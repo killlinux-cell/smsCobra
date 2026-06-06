@@ -47,6 +47,7 @@
       </a>
       <a class="nav-link {% if nav_active == 'alertes' %}active{% endif %}" href="{% url 'webadmin-alertes' %}">
         <i class="bi bi-bell-fill"></i> Alertes
+        {% if cobra_critical_count %}<span class="badge rounded-pill bg-danger ms-1">{{ cobra_critical_count }}</span>{% endif %}
       </a>
       <a class="nav-link {% if nav_active == 'notifications' %}active{% endif %}" href="{% url 'webadmin-notifications-push' %}">
         <i class="bi bi-phone-vibrate"></i> Push mobile
@@ -79,6 +80,8 @@
       {% endfor %}
     {% endif %}
 
+    {% include "webadmin/_critical_alerts_global.html" %}
+
     <div class="cobra-topbar">
       <h2 class="cobra-topbar__title">{{ page_title }}</h2>
       <div class="cobra-topbar__actions d-flex gap-2 align-items-center">
@@ -95,6 +98,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{% static 'webadmin/js/pwa.js' %}" defer></script>
   <script src="{% static 'webadmin/js/mobile-nav.js' %}" defer></script>
+  {% include "webadmin/_alert_sound_script.html" with critical_count=cobra_critical_count|default:0 %}
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

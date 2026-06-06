@@ -46,6 +46,7 @@ urlpatterns = [
         name="webadmin-affectation-delete",
     ),
     path("alertes/", views.alertes_view, name="webadmin-alertes"),
+    path("alertes/status.json", views.critical_alerts_status_view, name="webadmin-critical-alerts-status"),
     path("rapports/", views.rapports_view, name="webadmin-rapports"),
     path("rapports/export/csv/", views.export_reports_csv_view, name="webadmin-rapports-export-csv"),
     path("pointages/", views.pointages_view, name="webadmin-pointages"),

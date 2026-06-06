@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Max, Q, Sum
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -45,9 +45,8 @@ from .forms import (
     VigileUpdateForm,
 )
 from .templatetags.cobra_tags import ASSIGNMENT_STATUS_FR
+from .alert_state import get_live_critical_alert_summary, refresh_late_alerts_if_due
 
-_ALERT_SCAN_CACHE_KEY = "cobra:webadmin_alert_scan"
-_ALERT_SCAN_INTERVAL_SEC = 180
 _logger = logging.getLogger(__name__)
 
 
@@ -116,24 +115,6 @@ def _dashboard_map_payload(assignments_qs):
             )
 
     return {"markers": markers, "circles": circles}
-
-
-def _refresh_late_alerts_if_due() -> None:
-    """
-    Lance la détection retards / passation / présence sans Celery obligatoire.
-    Au plus une fois toutes les _ALERT_SCAN_INTERVAL_SEC secondes par instance Django.
-    """
-    if not cache.add(_ALERT_SCAN_CACHE_KEY, 1, timeout=_ALERT_SCAN_INTERVAL_SEC):
-        return
-    try:
-        from alerts.tasks import detect_missed_shift_task
-
-        detect_missed_shift_task()
-    except Exception:
-        cache.delete(_ALERT_SCAN_CACHE_KEY)
-        _logger.exception(
-            "Echec du scan d'alertes depuis le tableau de bord (la page reste accessible)."
-        )
 
 
 def _reports_queryset(request):
@@ -407,7 +388,7 @@ def notifications_push_view(request):
 
 @admin_web_required
 def dashboard_view(request):
-    _refresh_late_alerts_if_due()
+    refresh_late_alerts_if_due()
     # Date « métier » = fuseau Django (Africa/Abidjan), pas la date OS du serveur.
     today = timezone.localdate()
     assignments = ShiftAssignment.objects.filter(shift_date=today)
@@ -1345,8 +1326,20 @@ def affectation_delete_view(request, pk):
 
 
 @admin_web_required
+def critical_alerts_status_view(request):
+    """JSON léger pour le bandeau / son d'alerte sur toutes les pages du dashboard."""
+    summary = get_live_critical_alert_summary()
+    return JsonResponse(
+        {
+            "critical_count": summary["critical_count"],
+            "alerts_open_count": summary["alerts_open_count"],
+            "replacement_needed_count": summary["replacement_needed_count"],
+        }
+    )
+
+
+@admin_web_required
 def alertes_view(request):
-    _refresh_late_alerts_if_due()
     day_raw = (request.GET.get("date") or "").strip()
     if day_raw:
         try:
@@ -1355,51 +1348,22 @@ def alertes_view(request):
             filter_day = timezone.localdate()
     else:
         filter_day = timezone.localdate()
+    summary = get_live_critical_alert_summary(filter_day)
     day_alerts_qs = LateAlert.objects.filter(triggered_at__date=filter_day)
-    open_count = day_alerts_qs.filter(status=LateAlert.Status.OPEN).count()
     alerts = (
         day_alerts_qs.select_related(
             "assignment", "assignment__site", "assignment__guard", "admin_recipient"
         )
         .order_by("-triggered_at")[:500]
     )
-
-    day_assignments = list(
+    replacement_done = list(
         ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(
             shift_date=filter_day,
-            status__in=ShiftAssignment.active_on_duty_statuses(),
+            status=ShiftAssignment.Status.REPLACED,
         )
         .order_by("site__name", "start_time")
     )
-    started_assignment_ids = set(
-        Checkin.objects.filter(
-            assignment_id__in=[a.id for a in day_assignments],
-            type=Checkin.Type.START,
-        ).values_list("assignment_id", flat=True)
-    )
-    now = timezone.now()
-    replacement_done = [a for a in day_assignments if a.status == ShiftAssignment.Status.REPLACED]
-    replacement_needed = []
-    for assignment in day_assignments:
-        if assignment.id in started_assignment_ids:
-            continue
-        tz = ZoneInfo(assignment.site.timezone or "UTC")
-        deadline = datetime.combine(
-            assignment.shift_date,
-            assignment.start_time,
-            tzinfo=tz,
-        ) + timedelta(minutes=assignment.site.late_tolerance_minutes)
-        if now <= deadline:
-            continue
-        minutes_overdue = int((now - deadline).total_seconds() // 60)
-        replacement_needed.append(
-            {
-                "assignment": assignment,
-                "deadline": deadline,
-                "minutes_overdue": max(minutes_overdue, 0),
-            }
-        )
 
     return render(
         request,
@@ -1409,9 +1373,9 @@ def alertes_view(request):
             "nav_active": "alertes",
             "alerts": alerts,
             "filter_day": filter_day,
-            "alerts_open_count": open_count,
+            "alerts_open_count": summary["alerts_open_count"],
             "replacement_done": replacement_done,
-            "replacement_needed": replacement_needed,
+            "replacement_needed": summary["replacement_needed"],
         },
     )
 

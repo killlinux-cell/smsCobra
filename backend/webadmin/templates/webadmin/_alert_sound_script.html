@@ -3,13 +3,14 @@
 (() => {
   const key = "cobra_alert_sound_enabled";
   const toggleBtn = document.getElementById("alert-sound-toggle");
-  const criticalCount = {{ critical_count|default:0 }};
-  if (!toggleBtn || criticalCount <= 0) return;
+  const pollUrl = "{% url 'webadmin-critical-alerts-status' %}";
+  let criticalCount = {{ critical_count|default:0 }};
 
   const alertSoundUrl = "{% static 'webadmin/audio/alert-sound.mp3' %}";
   let alertAudio = null;
 
   function updateButton(enabled) {
+    if (!toggleBtn) return;
     toggleBtn.dataset.alertSoundEnabled = enabled ? "1" : "0";
     toggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
     toggleBtn.innerHTML = enabled
@@ -18,6 +19,7 @@
   }
 
   function playAlertSound() {
+    if (criticalCount <= 0) return;
     try {
       if (!alertAudio) {
         alertAudio = new Audio(alertSoundUrl);
@@ -32,23 +34,44 @@
     } catch (_) {}
   }
 
-  const stored = localStorage.getItem(key);
-  let enabled = stored !== "0";
-  updateButton(enabled);
+  function soundEnabled() {
+    return localStorage.getItem(key) !== "0";
+  }
 
-  toggleBtn.addEventListener("click", () => {
-    enabled = !enabled;
-    localStorage.setItem(key, enabled ? "1" : "0");
-    updateButton(enabled);
-    if (enabled) playAlertSound();
-  });
+  async function refreshCriticalCount() {
+    try {
+      const resp = await fetch(pollUrl, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (typeof data.critical_count === "number") {
+        criticalCount = data.critical_count;
+      }
+    } catch (_) {}
+  }
 
-  if (enabled) {
-    setTimeout(() => {
-      if (!document.hidden) playAlertSound();
-    }, 250);
-    setInterval(() => {
-      if (!document.hidden && localStorage.getItem(key) !== "0") playAlertSound();
+  if (toggleBtn) {
+    updateButton(soundEnabled());
+    toggleBtn.addEventListener("click", () => {
+      const enabled = !soundEnabled();
+      localStorage.setItem(key, enabled ? "1" : "0");
+      updateButton(enabled);
+      if (enabled) playAlertSound();
+    });
+  }
+
+  if (soundEnabled()) {
+    if (criticalCount > 0) {
+      setTimeout(() => {
+        if (!document.hidden) playAlertSound();
+      }, 250);
+    }
+    setInterval(async () => {
+      if (document.hidden || !soundEnabled()) return;
+      await refreshCriticalCount();
+      playAlertSound();
     }, 45000);
   }
 })();

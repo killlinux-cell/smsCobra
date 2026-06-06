@@ -7,8 +7,9 @@
   <a href="{% url 'webadmin-dashboard' %}" class="cobra-mobile-brand">
     <img src="{% static 'webadmin/img/sms-logo.png' %}" alt="SMS" width="120" height="36" decoding="async">
   </a>
-  <a href="{% url 'webadmin-alertes' %}" class="cobra-mobile-alerts-btn {% if nav_active == 'alertes' %}active{% endif %}" aria-label="Alertes" title="Alertes">
+  <a href="{% url 'webadmin-alertes' %}" class="cobra-mobile-alerts-btn {% if nav_active == 'alertes' %}active{% endif %}{% if cobra_critical_count %} has-critical{% endif %}" aria-label="Alertes{% if cobra_critical_count %} ({{ cobra_critical_count }}){% endif %}" title="Alertes{% if cobra_critical_count %} — {{ cobra_critical_count }} en cours{% endif %}">
     <i class="bi bi-bell-fill"></i>
+    {% if cobra_critical_count %}<span class="cobra-mobile-alerts-badge">{{ cobra_critical_count }}</span>{% endif %}
   </a>
 </header>
 
@@ -43,6 +44,7 @@
       </a>
       <a class="nav-link {% if nav_active == 'alertes' %}active{% endif %}" href="{% url 'webadmin-alertes' %}">
         <i class="bi bi-bell-fill"></i> Alertes
+        {% if cobra_critical_count %}<span class="badge rounded-pill bg-danger ms-1">{{ cobra_critical_count }}</span>{% endif %}
       </a>
       <a class="nav-link {% if nav_active == 'notifications' %}active{% endif %}" href="{% url 'webadmin-notifications-push' %}">
         <i class="bi bi-phone-vibrate"></i> Push mobile

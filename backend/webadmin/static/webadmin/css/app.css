@@ -461,6 +461,43 @@ body.cobra-app {
   background: linear-gradient(135deg, #fff1f2 0%, #ffffff 100%);
 }
 
+.cobra-critical-global {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  margin: 0 calc(-1 * var(--cobra-main-pad, 1.25rem)) 1rem;
+  padding: 0.75rem 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12);
+}
+
+.cobra-mobile-alerts-btn {
+  position: relative;
+}
+
+.cobra-mobile-alerts-btn.has-critical {
+  color: #dc2626;
+}
+
+.cobra-mobile-alerts-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
 .cobra-critical-pulse {
   animation: cobraCriticalPulse 1.6s ease-in-out infinite;
 }

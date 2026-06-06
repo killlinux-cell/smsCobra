@@ -1,35 +1,6 @@
 {% extends "webadmin/base.html" %}
 {% load cobra_tags %}
 {% block content %}
-{% if replacement_needed or alerts_open_count %}
-<div class="alert cobra-critical-banner d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 {% if replacement_needed %}cobra-critical-pulse{% endif %}" role="alert">
-  <div class="d-flex align-items-center gap-2">
-    <span class="cobra-critical-dot" aria-hidden="true"></span>
-    <div>
-      <div class="fw-bold">Alerte critique en cours</div>
-      <div class="small mb-0">
-        {{ replacement_needed|length }} remplacement{% if replacement_needed|length != 1 %}s{% endif %} à traiter ·
-        {{ alerts_open_count }} alerte{% if alerts_open_count != 1 %}s{% endif %} ouverte{% if alerts_open_count != 1 %}s{% endif %}
-      </div>
-    </div>
-  </div>
-  <div class="d-flex align-items-center gap-2">
-    <button
-      type="button"
-      class="btn btn-sm btn-outline-danger"
-      id="alert-sound-toggle"
-      aria-pressed="true"
-      data-alert-sound-enabled="1"
-    >
-      <i class="bi bi-volume-up-fill me-1"></i>Son activé
-    </button>
-    <a href="{% url 'webadmin-affectations' %}" class="btn btn-sm btn-danger">
-      <i class="bi bi-lightning-charge-fill me-1"></i>Dépêcher maintenant
-    </a>
-  </div>
-</div>
-{% endif %}
-
 <div class="card cobra-panel mb-4">
   <div class="card-body py-3">
     <form method="get" class="row g-3 align-items-end flex-wrap" role="search">
@@ -179,12 +150,4 @@
     </table>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-{% if replacement_needed or alerts_open_count %}
-{% with critical_count=replacement_needed|length|add:alerts_open_count %}
-{% include "webadmin/_alert_sound_script.html" %}
-{% endwith %}
-{% endif %}
 {% endblock %}
