@@ -1,22 +1,16 @@
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, timedelta
 
 from celery import shared_task
 from django.utils import timezone
 
 from checkins.models import Checkin
+from checkins.window import end_checkin_deadline, start_checkin_deadline
 from reports.attendance import refresh_attendance_report
 from shifts.models import ShiftAssignment
 from shifts.services import ensure_assignments_for_dates
 
 from .models import LateAlert
 from .services import send_push_to_admins
-
-
-def _aware_at(site, day, t, plus_minutes: int = 0):
-    tz = ZoneInfo(site.timezone or "UTC")
-    local = datetime.combine(day, t, tzinfo=tz) + timedelta(minutes=plus_minutes)
-    return local
 
 
 @shared_task
@@ -30,11 +24,9 @@ def detect_missed_shift_task():
         status__in=ShiftAssignment.active_on_duty_statuses(),
     )
     for assignment in assignments:
-        deadline = _aware_at(
-            assignment.site,
-            assignment.shift_date,
-            assignment.start_time,
-            assignment.site.late_tolerance_minutes,
+        deadline = start_checkin_deadline(
+            assignment,
+            tolerance_minutes=assignment.site.late_tolerance_minutes,
         )
         has_start = Checkin.objects.filter(
             assignment=assignment,
@@ -61,7 +53,7 @@ def detect_missed_shift_task():
     incoming_qs = (
         ShiftAssignment.objects.filter(
             shift_date=today,
-            status=ShiftAssignment.Status.SCHEDULED,
+            status__in=ShiftAssignment.active_on_duty_statuses(),
             outgoing_handover_assignments__isnull=False,
         )
         .select_related("site", "guard")
@@ -69,7 +61,7 @@ def detect_missed_shift_task():
     )
     for incoming in incoming_qs:
         grace = incoming.site.relief_late_alert_minutes
-        deadline = _aware_at(incoming.site, incoming.shift_date, incoming.start_time, grace)
+        deadline = start_checkin_deadline(incoming, tolerance_minutes=grace)
         has_start = Checkin.objects.filter(
             assignment=incoming,
             type=Checkin.Type.START,
@@ -106,11 +98,9 @@ def detect_missed_shift_task():
         has_end = Checkin.objects.filter(assignment=assignment, type=Checkin.Type.END).exists()
         if not has_start or has_end:
             continue
-        deadline = _aware_at(
-            assignment.site,
-            assignment.shift_date,
-            assignment.end_time,
-            assignment.site.late_tolerance_minutes,
+        deadline = end_checkin_deadline(
+            assignment,
+            tolerance_minutes=assignment.site.late_tolerance_minutes,
         )
         if now <= deadline:
             continue
@@ -145,11 +135,9 @@ def detect_missed_shift_task():
         has_start = Checkin.objects.filter(assignment=assignment, type=Checkin.Type.START).exists()
         if has_start:
             continue
-        deadline = _aware_at(
-            assignment.site,
-            assignment.shift_date,
-            assignment.end_time,
-            assignment.site.late_tolerance_minutes,
+        deadline = end_checkin_deadline(
+            assignment,
+            tolerance_minutes=assignment.site.late_tolerance_minutes,
         )
         if now <= deadline:
             continue

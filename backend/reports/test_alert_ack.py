@@ -57,3 +57,6 @@ class AlertAckReportTests(TestCase):
         )
         self.assertIn("Paul", report.notes)
         self.assertIn("acquittée", report.notes.lower())
+        self.assertFalse(report.was_absent)
+        self.assertIsNotNone(report.started_at)
+        self.assertIsNotNone(report.ended_at)

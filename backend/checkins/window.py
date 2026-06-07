@@ -32,6 +32,18 @@ def assignment_window(assignment):
     return start_at, end_at, tz
 
 
+def start_checkin_deadline(assignment, *, tolerance_minutes: int = 0):
+    """Heure limite de prise de service (début prévu + tolérance)."""
+    start_at, _, _ = assignment_window(assignment)
+    return start_at + timedelta(minutes=int(tolerance_minutes or 0))
+
+
+def end_checkin_deadline(assignment, *, tolerance_minutes: int = 0):
+    """Heure limite de fin de service (fin réelle du créneau + tolérance)."""
+    _, end_at, _ = assignment_window(assignment)
+    return end_at + timedelta(minutes=int(tolerance_minutes or 0))
+
+
 def _now_local(assignment, now=None):
     _, _, site_tzinfo = assignment_window(assignment)
     ts = now if now is not None else timezone.now()

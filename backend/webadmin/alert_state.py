@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, timedelta
 
 from django.core.cache import cache
 from django.utils import timezone
@@ -12,6 +11,7 @@ from django.utils import timezone
 from accounts.models import User
 from alerts.models import LateAlert
 from checkins.models import Checkin
+from checkins.window import end_checkin_deadline, start_checkin_deadline
 from shifts.models import ShiftAssignment
 
 _logger = logging.getLogger(__name__)
@@ -46,13 +46,15 @@ def refresh_late_alerts_if_due() -> None:
 
 
 def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
-    """Affectations du jour sans prise de service après la tolérance de retard."""
+    """Affectations sans prise de service après la tolérance (jour + nuit en cours)."""
     filter_day = for_day or timezone.localdate()
+    candidate_days = {filter_day, filter_day - timedelta(days=1)}
+    active_statuses = ShiftAssignment.active_on_duty_statuses()
     day_assignments = list(
         ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(
-            shift_date=filter_day,
-            status__in=ShiftAssignment.active_on_duty_statuses(),
+            shift_date__in=candidate_days,
+            status__in=[*active_statuses, ShiftAssignment.Status.MISSED],
         )
         .order_by("site__name", "start_time")
     )
@@ -69,13 +71,16 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
     for assignment in day_assignments:
         if assignment.id in started_assignment_ids:
             continue
-        tz = ZoneInfo(assignment.site.timezone or "UTC")
-        deadline = datetime.combine(
-            assignment.shift_date,
-            assignment.start_time,
-            tzinfo=tz,
-        ) + timedelta(minutes=assignment.site.late_tolerance_minutes)
+        is_active = assignment.status in active_statuses
+        is_unresolved_missed = assignment.status == ShiftAssignment.Status.MISSED
+        if not is_active and not is_unresolved_missed:
+            continue
+        tolerance = int(assignment.site.late_tolerance_minutes or 0)
+        deadline = start_checkin_deadline(assignment, tolerance_minutes=tolerance)
         if now <= deadline:
+            continue
+        shift_end_deadline = end_checkin_deadline(assignment, tolerance_minutes=tolerance)
+        if now > shift_end_deadline:
             continue
         minutes_overdue = int((now - deadline).total_seconds() // 60)
         replacement_needed.append(
@@ -85,6 +90,12 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
                 "minutes_overdue": max(minutes_overdue, 0),
             }
         )
+    replacement_needed.sort(
+        key=lambda row: (
+            row["assignment"].site.name,
+            row["assignment"].start_time,
+        )
+    )
     return replacement_needed
 
 
