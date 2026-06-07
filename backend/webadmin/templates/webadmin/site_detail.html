@@ -187,6 +187,7 @@
           <th>Titulaire actuel</th>
           <th>Titulaire suspendu</th>
           <th>Remplaçant temp.</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -204,6 +205,9 @@
             {% if fp.replacement_active and fp.replacement_guard %}
             <a href="{% url 'webadmin-vigile-detail' fp.replacement_guard.pk %}">{{ fp.replacement_guard.display_name }}</a>
             {% else %}—{% endif %}
+          </td>
+          <td class="text-end" style="min-width: 220px;">
+            {% include "webadmin/_titular_retire_form.html" with fixed=fp retire_next=request.path %}
           </td>
         </tr>
         {% endfor %}

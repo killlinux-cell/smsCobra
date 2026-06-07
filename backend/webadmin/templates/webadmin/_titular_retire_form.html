@@ -1,0 +1,21 @@
+{% if fixed and fixed.is_active and not fixed.has_suspended_titular %}
+<div class="mt-2 p-2 rounded border border-secondary-subtle bg-light">
+  <div class="small fw-semibold text-secondary mb-1">
+    <i class="bi bi-person-dash me-1"></i>Retirer ce titulaire
+  </div>
+  <p class="small text-muted mb-2 mb-md-1">
+    Arrête le poste fixe et les affectations planifiées futures (réduction d'effectif, mutation…).
+  </p>
+  <form method="post" action="{% url 'webadmin-retire-titular' fixed.pk %}" class="mt-1"
+        onsubmit="return confirm('Retirer {{ fixed.titular_guard.display_name|escapejs }} de ce poste ?');">
+    {% csrf_token %}
+    {% if retire_next %}<input type="hidden" name="next" value="{{ retire_next }}">{% endif %}
+    <label class="form-label small mb-1">Motif (obligatoire)</label>
+    <textarea name="reason" class="form-control form-control-sm" rows="2" required minlength="10"
+              placeholder="Ex. réduction à 1 vigile de nuit, mutation sur autre site…"></textarea>
+    <button type="submit" class="btn btn-sm btn-outline-danger mt-2">
+      <i class="bi bi-person-x me-1"></i>Retirer du poste
+    </button>
+  </form>
+</div>
+{% endif %}

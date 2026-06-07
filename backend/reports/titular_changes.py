@@ -133,3 +133,43 @@ def log_titular_reinstatement(
         reason=reason_short,
         actor=actor,
     )
+
+
+def log_titular_retirement(
+    *,
+    fixed_post,
+    retired_guard,
+    reason: str,
+    actor,
+) -> TitularChangeLog:
+    """Retrait volontaire d'un titulaire (réduction d'effectif, mutation, etc.)."""
+    ts = timezone.now()
+    ts_str = timezone.localtime(ts).strftime("%d/%m/%Y %H:%M")
+    site_name = fixed_post.site.name if fixed_post.site_id else "Site"
+    shift_label = fixed_post.get_shift_type_display()
+    retired_name = _guard_label(retired_guard)
+    actor_name = _guard_label(actor)
+    report_date = timezone.localdate()
+    reason_short = (reason or "").strip()[:200]
+
+    line = (
+        f"[{ts_str}] Retiré du poste titulaire sur « {site_name} » ({shift_label}) "
+        f"par {actor_name}. Motif : {reason_short}"
+    )
+    _append_report_note(
+        site_id=fixed_post.site_id,
+        guard_id=retired_guard.pk,
+        report_date=report_date,
+        line=line,
+    )
+
+    return TitularChangeLog.objects.create(
+        kind=TitularChangeLog.Kind.RETIRED,
+        site_id=fixed_post.site_id,
+        fixed_post=fixed_post,
+        shift_type=fixed_post.shift_type,
+        from_guard=retired_guard,
+        to_guard=None,
+        reason=reason_short,
+        actor=actor,
+    )

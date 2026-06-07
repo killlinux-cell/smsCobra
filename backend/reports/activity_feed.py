@@ -394,6 +394,14 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                 f"« {site_name} » — {shift_label} : {from_l} suspendu, "
                 f"{to_l} devient titulaire (absence / dépêche)."
             )
+        elif log.kind == TitularChangeLog.Kind.RETIRED:
+            title = "Titulaire retiré"
+            body = (
+                f"« {site_name} » — {shift_label} : {from_l} retiré du poste"
+                f"{f' par {actor_l}' if actor_l else ''}."
+            )
+            if log.reason:
+                body += f" Motif : {log.reason}"
         else:
             title = "Titulaire réintégré"
             body = (

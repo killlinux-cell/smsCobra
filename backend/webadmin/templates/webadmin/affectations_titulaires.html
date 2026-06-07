@@ -5,6 +5,8 @@
   Lors d'une <strong>dépêche</strong> sur un titulaire absent, le remplaçant devient automatiquement
   <strong>titulaire</strong> sur ce site jusqu'à ce que le superviseur <strong>repositionne</strong>
   l'absent (motif d'absence justifié requis).
+  Pour <strong>réduire l'effectif</strong> (ex. 2 → 1 vigile de nuit), modifiez l'effectif cible sur le site
+  puis <strong>retirez</strong> le titulaire concerné via le formulaire ci-dessous.
 </div>
 
 <div class="d-flex justify-content-end mb-3">
@@ -33,7 +35,7 @@
           <td class="small">
             {% if row.day_fixed_list %}
               {% for fp in row.day_fixed_list %}
-                {% include "webadmin/_titular_post_cell.html" with fixed=fp today_assignment=None %}
+                {% include "webadmin/_titular_post_cell.html" with fixed=fp today_assignment=None retire_next=request.path %}
                 {% if not forloop.last %}<hr class="my-2">{% endif %}
               {% endfor %}
             {% else %}
@@ -43,7 +45,7 @@
           <td class="small">
             {% if row.night_fixed_list %}
               {% for fp in row.night_fixed_list %}
-                {% include "webadmin/_titular_post_cell.html" with fixed=fp today_assignment=None %}
+                {% include "webadmin/_titular_post_cell.html" with fixed=fp today_assignment=None retire_next=request.path %}
                 {% if not forloop.last %}<hr class="my-2">{% endif %}
               {% endfor %}
             {% else %}

@@ -33,6 +33,7 @@ class TitularChangeLog(models.Model):
     class Kind(models.TextChoices):
         PROMOTED = "titular_promoted", "Promotion titulaire"
         REINSTATED = "titular_reinstated", "Réintégration titulaire"
+        RETIRED = "titular_retired", "Retrait titulaire"
 
     kind = models.CharField(max_length=32, choices=Kind.choices)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="titular_change_logs")

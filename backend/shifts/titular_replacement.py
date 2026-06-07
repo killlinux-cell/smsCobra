@@ -177,3 +177,179 @@ def reinstate_suspended_titular(
             actor=actor,
         )
     return fixed_post
+
+
+def _cancel_scheduled_assignments_for_retired_post(
+    post: FixedPost,
+    *,
+    from_date: date,
+) -> int:
+    """Supprime les affectations planifiées à partir de from_date (sauf créneau en cours pointé)."""
+    from checkins.models import Checkin
+
+    start_time, _ = _slot_for(post.shift_type)
+    guard_id = post.titular_guard_id
+    qs = ShiftAssignment.objects.filter(
+        site_id=post.site_id,
+        start_time=start_time,
+        guard_id=guard_id,
+        shift_date__gte=from_date,
+        status=ShiftAssignment.Status.SCHEDULED,
+    )
+    delete_ids: list[int] = []
+    for assignment in qs.only("id", "shift_date"):
+        if assignment.shift_date == from_date:
+            has_start = Checkin.objects.filter(
+                assignment_id=assignment.id,
+                type=Checkin.Type.START,
+            ).exists()
+            if has_start:
+                continue
+        delete_ids.append(assignment.id)
+    if not delete_ids:
+        return 0
+    deleted, _ = ShiftAssignment.objects.filter(pk__in=delete_ids).delete()
+    return deleted
+
+
+@transaction.atomic
+def retire_titular_fixed_post(
+    fixed_post: FixedPost,
+    *,
+    reason: str,
+    actor=None,
+    from_date: date | None = None,
+) -> tuple[FixedPost, int]:
+    """Retire un titulaire : poste fixe inactif + plus d'affectations planifiées futures."""
+    reason = (reason or "").strip()
+    if not fixed_post.is_active:
+        raise ValidationError("Ce poste fixe est déjà inactif.")
+    if fixed_post.suspended_titular_guard_id:
+        raise ValidationError(
+            "Un titulaire est suspendu sur ce poste. Repositionnez-le avant de retirer le titulaire actuel."
+        )
+    if len(reason) < 10:
+        raise ValidationError(
+            "Indiquez un motif d'au moins 10 caractères "
+            "(réduction d'effectif, mutation, fin de contrat, etc.)."
+        )
+
+    effective_from = from_date or timezone.localdate()
+    retired_guard = fixed_post.titular_guard
+    cancelled = _cancel_scheduled_assignments_for_retired_post(
+        fixed_post,
+        from_date=effective_from,
+    )
+
+    fixed_post.is_active = False
+    fixed_post.end_date = effective_from
+    fixed_post.replacement_guard_id = None
+    fixed_post.replacement_active = False
+    fixed_post.save(
+        update_fields=[
+            "is_active",
+            "end_date",
+            "replacement_guard_id",
+            "replacement_active",
+            "updated_at",
+        ]
+    )
+
+    if retired_guard:
+        from reports.titular_changes import log_titular_retirement
+
+        log_titular_retirement(
+            fixed_post=fixed_post,
+            retired_guard=retired_guard,
+            reason=reason,
+            actor=actor,
+        )
+    return fixed_post, cancelled
+
+
+def _cancel_scheduled_assignments_for_retired_post(
+    post: FixedPost,
+    *,
+    from_date: date,
+) -> int:
+    """Supprime les affectations planifiées à partir de from_date (sauf créneau en cours pointé)."""
+    from checkins.models import Checkin
+
+    start_time, _ = _slot_for(post.shift_type)
+    guard_id = post.titular_guard_id
+    qs = ShiftAssignment.objects.filter(
+        site_id=post.site_id,
+        start_time=start_time,
+        guard_id=guard_id,
+        shift_date__gte=from_date,
+        status=ShiftAssignment.Status.SCHEDULED,
+    )
+    delete_ids: list[int] = []
+    for assignment in qs.only("id", "shift_date"):
+        if assignment.shift_date == from_date:
+            has_start = Checkin.objects.filter(
+                assignment_id=assignment.id,
+                type=Checkin.Type.START,
+            ).exists()
+            if has_start:
+                continue
+        delete_ids.append(assignment.id)
+    if not delete_ids:
+        return 0
+    deleted, _ = ShiftAssignment.objects.filter(pk__in=delete_ids).delete()
+    return deleted
+
+
+@transaction.atomic
+def retire_titular_fixed_post(
+    fixed_post: FixedPost,
+    *,
+    reason: str,
+    actor=None,
+    from_date: date | None = None,
+) -> tuple[FixedPost, int]:
+    """Retire un titulaire : poste fixe inactif + plus d'affectations planifiées futures."""
+    reason = (reason or "").strip()
+    if not fixed_post.is_active:
+        raise ValidationError("Ce poste fixe est déjà inactif.")
+    if fixed_post.suspended_titular_guard_id:
+        raise ValidationError(
+            "Un titulaire est suspendu sur ce poste. Repositionnez-le avant de retirer le titulaire actuel."
+        )
+    if len(reason) < 10:
+        raise ValidationError(
+            "Indiquez un motif d'au moins 10 caractères "
+            "(réduction d'effectif, mutation, fin de contrat, etc.)."
+        )
+
+    effective_from = from_date or timezone.localdate()
+    retired_guard = fixed_post.titular_guard
+    cancelled = _cancel_scheduled_assignments_for_retired_post(
+        fixed_post,
+        from_date=effective_from,
+    )
+
+    fixed_post.is_active = False
+    fixed_post.end_date = effective_from
+    fixed_post.replacement_guard_id = None
+    fixed_post.replacement_active = False
+    fixed_post.save(
+        update_fields=[
+            "is_active",
+            "end_date",
+            "replacement_guard_id",
+            "replacement_active",
+            "updated_at",
+        ]
+    )
+
+    if retired_guard:
+        from reports.titular_changes import log_titular_retirement
+
+        log_titular_retirement(
+            fixed_post=fixed_post,
+            retired_guard=retired_guard,
+            reason=reason,
+            actor=actor,
+        )
+    return fixed_post, cancelled

@@ -21,6 +21,7 @@
   {% elif fixed.replacement_active and fixed.replacement_guard %}
   <div class="mt-1 text-muted small">Remplaçant temporaire actif : {{ fixed.replacement_guard.display_name }}</div>
   {% endif %}
+  {% include "webadmin/_titular_retire_form.html" with fixed=fixed retire_next=retire_next %}
   {% if today_assignment %}
   <div class="mt-1"><span class="text-muted">En poste aujourd'hui</span> {{ today_assignment.guard.display_name }}
     {% if today_assignment.original_guard_id %}

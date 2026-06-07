@@ -1759,6 +1759,44 @@ def reinstate_titular_view(request, fixed_post_id: int):
 
 
 @admin_web_required
+def retire_titular_view(request, fixed_post_id: int):
+    """Retire un titulaire du poste fixe (réduction d'effectif, mutation, etc.)."""
+    post = get_object_or_404(
+        FixedPost.objects.select_related("site", "titular_guard"),
+        pk=fixed_post_id,
+        is_active=True,
+    )
+    next_url = (request.POST.get("next") or "").strip() or reverse(
+        "webadmin-affectations-titulaires"
+    )
+    if request.method != "POST":
+        return redirect(next_url)
+    reason = (request.POST.get("reason") or "").strip()
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    from shifts.titular_replacement import retire_titular_fixed_post
+
+    try:
+        _, cancelled = retire_titular_fixed_post(
+            post,
+            reason=reason,
+            actor=request.user,
+        )
+    except DjangoValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect(next_url)
+
+    name = post.titular_guard.display_name
+    site = post.site.name
+    shift = post.get_shift_type_display()
+    detail = f"{cancelled} affectation(s) planifiée(s) annulée(s)." if cancelled else ""
+    messages.success(
+        request,
+        f"{name} a été retiré du poste {shift.lower()} sur « {site} ». {detail}".strip(),
+    )
+    return redirect(next_url)
+
+
+@admin_web_required
 def dispatch_view(request):
     if request.method != "POST":
         return redirect("webadmin-affectations")

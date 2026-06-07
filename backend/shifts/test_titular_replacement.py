@@ -11,6 +11,7 @@ from shifts.services import ensure_assignments_for_dates
 from shifts.titular_replacement import (
     promote_replacement_to_titular_on_dispatch,
     reinstate_suspended_titular,
+    retire_titular_fixed_post,
 )
 
 User = get_user_model()
@@ -98,3 +99,71 @@ class TitularPromotionTests(TestCase):
         post = FixedPost.objects.get(pk=self.post.pk)
         with self.assertRaises(ValidationError):
             reinstate_suspended_titular(post, reason="court")
+
+
+class TitularRetirementTests(TestCase):
+    def setUp(self):
+        self.guard = User.objects.create_user(username="g_ret", password="x", role="vigile")
+        self.other = User.objects.create_user(username="g2_ret", password="x", role="vigile")
+        self.site = Site.objects.create(
+            name="S Ret",
+            address="A",
+            expected_start_time=time(18, 0),
+            expected_end_time=time(6, 0),
+            night_staff_required=2,
+            latitude=1,
+            longitude=1,
+        )
+        self.post = FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        self.today = timezone.localdate()
+        ensure_assignments_for_dates([self.today, self.today + timedelta(days=1)])
+
+    def test_retire_deactivates_post_and_cancels_future_assignments(self):
+        tomorrow = self.today + timedelta(days=1)
+        self.assertTrue(
+            ShiftAssignment.objects.filter(
+                site=self.site,
+                guard=self.guard,
+                shift_date=tomorrow,
+                start_time=time(18, 0),
+            ).exists()
+        )
+        post, cancelled = retire_titular_fixed_post(
+            self.post,
+            reason="Réduction d'effectif : passage à 1 vigile de nuit sur le site.",
+        )
+        self.assertFalse(post.is_active)
+        self.assertEqual(post.end_date, self.today)
+        self.assertGreaterEqual(cancelled, 1)
+        self.assertFalse(
+            ShiftAssignment.objects.filter(
+                site=self.site,
+                guard=self.guard,
+                shift_date=tomorrow,
+                start_time=time(18, 0),
+                status=ShiftAssignment.Status.SCHEDULED,
+            ).exists()
+        )
+        ensure_assignments_for_dates([tomorrow])
+        self.assertFalse(
+            ShiftAssignment.objects.filter(
+                site=self.site,
+                guard=self.guard,
+                shift_date=tomorrow,
+                start_time=time(18, 0),
+            ).exists()
+        )
+
+    def test_retire_blocked_when_titular_suspended(self):
+        self.post.suspended_titular_guard_id = self.other.id
+        self.post.save(update_fields=["suspended_titular_guard_id"])
+        with self.assertRaises(ValidationError):
+            retire_titular_fixed_post(
+                self.post,
+                reason="Réduction d'effectif sur le site concerné.",
+            )
