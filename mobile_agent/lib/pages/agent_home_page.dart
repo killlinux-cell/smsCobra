@@ -26,6 +26,8 @@ class AgentHomePage extends StatefulWidget {
 class _AgentHomePageState extends State<AgentHomePage>
     with SingleTickerProviderStateMixin {
   bool loading = true;
+  bool syncing = false;
+  bool checkinInProgress = false;
   bool profileLoading = true;
   bool profileLoadFailed = false;
   AgentProfile? profile;
@@ -59,30 +61,47 @@ class _AgentHomePageState extends State<AgentHomePage>
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      loading = true;
-      if (profile == null) profileLoading = true;
-      profileLoadFailed = false;
-    });
+  Future<void> _load({bool silent = false, int? preserveAssignmentId}) async {
+    if (!mounted) return;
+    if (silent) {
+      setState(() => syncing = true);
+    } else {
+      setState(() {
+        loading = true;
+        if (profile == null) profileLoading = true;
+        profileLoadFailed = false;
+      });
+    }
     try {
       final result = await widget.api.fetchTodayAssignments();
       AgentProfile? me;
-      try {
-        me = await widget.api.fetchMe();
-      } catch (_) {
-        profileLoadFailed = true;
+      if (!silent) {
+        try {
+          me = await widget.api.fetchMe();
+        } catch (_) {
+          profileLoadFailed = true;
+        }
       }
       if (!mounted) return;
-      final active = pickActiveAssignment(result, DateTime.now());
+      final preserveId = preserveAssignmentId ?? selected?.id;
+      Assignment? resolved = pickActiveAssignment(result, DateTime.now());
+      if (preserveId != null) {
+        for (final assignment in result) {
+          if (assignment.id == preserveId) {
+            resolved = assignment;
+            break;
+          }
+        }
+      }
       setState(() {
         assignments = result;
-        selected = active;
-        profile = me ?? profile;
+        selected = resolved;
+        if (me != null) profile = me;
         profileLoading = false;
-        feedback = "Planning synchronisé.";
-        serviceStarted = selected != null && selected!.hasStart && !selected!.hasEnd;
-        nextPresenceDue = parseIsoOrNull(selected?.presenceDueAtIso);
+        feedback = silent ? feedback : "Planning synchronisé.";
+        serviceStarted =
+            resolved != null && resolved.hasStart && !resolved.hasEnd;
+        nextPresenceDue = parseIsoOrNull(resolved?.presenceDueAtIso);
         if (serviceStarted) {
           _startPresenceCountdown();
         } else {
@@ -92,13 +111,105 @@ class _AgentHomePageState extends State<AgentHomePage>
     } catch (_) {
       if (mounted) {
         setState(() {
-          feedback = "Erreur de synchronisation.";
+          feedback = silent
+              ? "Synchronisation partielle — réessayez."
+              : "Erreur de synchronisation.";
           profileLoading = false;
         });
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() {
+          loading = false;
+          syncing = false;
+        });
+      }
     }
+  }
+
+  void _replaceAssignmentInList(Assignment updated) {
+    assignments = assignments
+        .map((a) => a.id == updated.id ? updated : a)
+        .toList(growable: false);
+    if (selected?.id == updated.id) {
+      selected = updated;
+    }
+  }
+
+  void _applyOptimisticCheckin(String type) {
+    final current = selected;
+    if (current == null) return;
+
+    Assignment updated;
+    switch (type) {
+      case "start":
+        updated = current.copyWith(
+          hasStart: true,
+          canEnd: false,
+          clearEndBlockReason: true,
+        );
+        serviceStarted = true;
+        nextPresenceDue = DateTime.now().add(const Duration(hours: 1));
+        _startPresenceCountdown();
+      case "end":
+        updated = current.copyWith(
+          hasEnd: true,
+          canEnd: false,
+          clearEndBlockReason: true,
+        );
+        serviceStarted = false;
+        nextPresenceDue = null;
+        _stopPresenceCountdown();
+      case "presence":
+        updated = current;
+        nextPresenceDue = DateTime.now().add(const Duration(hours: 1));
+      default:
+        return;
+    }
+
+    _replaceAssignmentInList(updated);
+  }
+
+  Future<void> _syncAfterCheckin({
+    required int assignmentId,
+    required String type,
+  }) async {
+    await _load(silent: true, preserveAssignmentId: assignmentId);
+    if (!mounted) return;
+
+    final synced = selected;
+    final needsRetry = switch (type) {
+      "start" => synced == null || !synced.hasStart,
+      "end" => synced == null || !synced.hasEnd,
+      _ => false,
+    };
+    if (needsRetry) {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      await _load(silent: true, preserveAssignmentId: assignmentId);
+    }
+  }
+
+  String _checkinSuccessMessage(String type) {
+    return switch (type) {
+      "start" => "Prise de service enregistrée.",
+      "end" => "Fin de service enregistrée.",
+      "presence" => "Présence confirmée.",
+      _ => "Pointage enregistré.",
+    };
+  }
+
+  void _showCheckinSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color(0xFF15803D),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
   Future<({String lat, String lon})> _getCurrentLatLon() async {
@@ -191,18 +302,22 @@ class _AgentHomePageState extends State<AgentHomePage>
       setState(() => feedback = "Aucune affectation disponible.");
       return;
     }
-    final imgPath = await FaceCapturePage.capture(
-      context,
-      title: "Reconnaissance faciale",
-      hint: "Centrez votre visage dans le cadran pour valider le pointage.",
-    );
-    if (imgPath == null) {
-      setState(() => feedback = "Selfie obligatoire: pointage annulé.");
-      return;
-    }
+    if (checkinInProgress) return;
+
+    final assignmentId = selected!.id;
+    setState(() => checkinInProgress = true);
     try {
+      final imgPath = await FaceCapturePage.capture(
+        context,
+        title: "Reconnaissance faciale",
+        hint: "Centrez votre visage dans le cadran pour valider le pointage.",
+      );
+      if (imgPath == null) {
+        setState(() => feedback = "Selfie obligatoire: pointage annulé.");
+        return;
+      }
       final challengeId = await widget.api.requestBiometricChallenge(
-        assignmentId: selected!.id,
+        assignmentId: assignmentId,
         checkinType: type,
         deviceId: "mobile_agent",
       );
@@ -211,19 +326,28 @@ class _AgentHomePageState extends State<AgentHomePage>
         selfiePath: imgPath,
       );
       final gps = await _getCurrentLatLon();
-      final resp = await widget.api.sendCheckin(
+      await widget.api.sendCheckin(
         type: type,
-        assignmentId: selected!.id,
+        assignmentId: assignmentId,
         photoPath: imgPath,
         latitude: gps.lat,
         longitude: gps.lon,
         verificationToken: verificationToken,
       );
-      setState(() => feedback = resp);
-      await _load();
+      if (!mounted) return;
+
+      final successMessage = _checkinSuccessMessage(type);
+      setState(() {
+        _applyOptimisticCheckin(type);
+        feedback = successMessage;
+      });
+      _showCheckinSuccess(successMessage);
+      await _syncAfterCheckin(assignmentId: assignmentId, type: type);
     } catch (e) {
       final msg = _checkinErrorMessage(e);
-      setState(() => feedback = msg);
+      if (mounted) setState(() => feedback = msg);
+    } finally {
+      if (mounted) setState(() => checkinInProgress = false);
     }
   }
 
@@ -281,8 +405,9 @@ class _AgentHomePageState extends State<AgentHomePage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AgentBrandHeader(
-            onSync: _load,
+            onSync: () => _load(),
             onLogout: _logout,
+            syncing: syncing || checkinInProgress,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -383,7 +508,8 @@ class _AgentHomePageState extends State<AgentHomePage>
                                       accent: const Color(0xFF4F46E5),
                                       filled: selected?.hasStart == true,
                                       enabled: selected != null &&
-                                          selected!.hasStart != true,
+                                          selected!.hasStart != true &&
+                                          !checkinInProgress,
                                       onTap: () => _checkin("start"),
                                     ),
                                   ),
@@ -400,7 +526,8 @@ class _AgentHomePageState extends State<AgentHomePage>
                                       accent: const Color(0xFF0284C7),
                                       filled: selected?.hasEnd == true,
                                       enabled: selected != null &&
-                                          selected!.canEnd == true,
+                                          selected!.canEnd == true &&
+                                          !checkinInProgress,
                                       onTap: () => _checkin("end"),
                                     ),
                                   ),
@@ -502,7 +629,9 @@ class _AgentHomePageState extends State<AgentHomePage>
                               ModernActionButton(
                                 label: "Confirmer présence",
                                 icon: Icons.timer_rounded,
-                                enabled: serviceStarted && _presenceDueNow,
+                                enabled: serviceStarted &&
+                                    _presenceDueNow &&
+                                    !checkinInProgress,
                                 onTap: () => _checkin("presence"),
                                 colors: const [
                                   Color(0xFF0F766E),

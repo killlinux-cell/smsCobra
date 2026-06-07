@@ -9,10 +9,12 @@ class AgentBrandHeader extends StatelessWidget {
     super.key,
     required this.onSync,
     required this.onLogout,
+    this.syncing = false,
   });
 
   final VoidCallback onSync;
   final VoidCallback onLogout;
+  final bool syncing;
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +128,8 @@ class AgentBrandHeader extends StatelessWidget {
                   _RoundIconBtn(
                     icon: Icons.sync_rounded,
                     tooltip: "Actualiser",
-                    onPressed: onSync,
+                    onPressed: syncing ? null : onSync,
+                    spinning: syncing,
                   ),
                   const SizedBox(height: 6),
                   _RoundIconBtn(
@@ -149,14 +152,17 @@ class _RoundIconBtn extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.spinning = false,
   });
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool spinning;
 
   @override
   Widget build(BuildContext context) {
+    final iconWidget = Icon(icon, color: Colors.white, size: 22);
     return Material(
       color: Colors.white.withAlpha(45),
       shape: const CircleBorder(),
@@ -164,7 +170,16 @@ class _RoundIconBtn extends StatelessWidget {
       child: IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
-        icon: Icon(icon, color: Colors.white, size: 22),
+        icon: spinning
+            ? SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white.withAlpha(230),
+                ),
+              )
+            : iconWidget,
       ),
     );
   }
