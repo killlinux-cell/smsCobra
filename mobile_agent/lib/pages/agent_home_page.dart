@@ -307,33 +307,43 @@ class _AgentHomePageState extends State<AgentHomePage>
     final assignmentId = selected!.id;
     setState(() => checkinInProgress = true);
     try {
-      final imgPath = await FaceCapturePage.capture(
-        context,
-        title: "Reconnaissance faciale",
-        hint: "Centrez votre visage dans le cadran pour valider le pointage.",
-      );
-      if (imgPath == null) {
-        setState(() => feedback = "Selfie obligatoire: pointage annulé.");
-        return;
+      if (type == "presence") {
+        final imgPath = await FaceCapturePage.capture(
+          context,
+          title: "Reconnaissance faciale",
+          hint: "Centrez votre visage dans le cadran pour confirmer votre présence.",
+        );
+        if (imgPath == null) {
+          setState(() => feedback = "Selfie obligatoire: confirmation annulée.");
+          return;
+        }
+        final challengeId = await widget.api.requestBiometricChallenge(
+          assignmentId: assignmentId,
+          checkinType: type,
+          deviceId: "mobile_agent",
+        );
+        final verificationToken = await widget.api.verifyBiometric(
+          challengeId: challengeId,
+          selfiePath: imgPath,
+        );
+        final gps = await _getCurrentLatLon();
+        await widget.api.sendCheckin(
+          type: type,
+          assignmentId: assignmentId,
+          photoPath: imgPath,
+          latitude: gps.lat,
+          longitude: gps.lon,
+          verificationToken: verificationToken,
+        );
+      } else {
+        final gps = await _getCurrentLatLon();
+        await widget.api.sendCheckin(
+          type: type,
+          assignmentId: assignmentId,
+          latitude: gps.lat,
+          longitude: gps.lon,
+        );
       }
-      final challengeId = await widget.api.requestBiometricChallenge(
-        assignmentId: assignmentId,
-        checkinType: type,
-        deviceId: "mobile_agent",
-      );
-      final verificationToken = await widget.api.verifyBiometric(
-        challengeId: challengeId,
-        selfiePath: imgPath,
-      );
-      final gps = await _getCurrentLatLon();
-      await widget.api.sendCheckin(
-        type: type,
-        assignmentId: assignmentId,
-        photoPath: imgPath,
-        latitude: gps.lat,
-        longitude: gps.lon,
-        verificationToken: verificationToken,
-      );
       if (!mounted) return;
 
       final successMessage = _checkinSuccessMessage(type);
@@ -503,7 +513,7 @@ class _AgentHomePageState extends State<AgentHomePage>
                                       title: "Prise de service",
                                       subtitle: selected?.hasStart == true
                                           ? "Effectuée"
-                                          : "Selfie + GPS",
+                                          : "1 clic + GPS",
                                       icon: Icons.login_rounded,
                                       accent: const Color(0xFF4F46E5),
                                       filled: selected?.hasStart == true,
@@ -520,7 +530,7 @@ class _AgentHomePageState extends State<AgentHomePage>
                                       subtitle: selected?.hasEnd == true
                                           ? "Effectuée"
                                           : (selected?.canEnd == true
-                                              ? "Selfie + GPS"
+                                              ? "1 clic + GPS"
                                               : "Non disponible"),
                                       icon: Icons.logout_rounded,
                                       accent: const Color(0xFF0284C7),

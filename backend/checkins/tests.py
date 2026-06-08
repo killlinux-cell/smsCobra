@@ -216,6 +216,71 @@ class CheckinFlowTests(TestCase):
         c = Checkin.objects.latest("id")
         self.assertFalse(c.within_geofence)
 
+    def test_start_allowed_without_photo_or_biometric_in_enforce_mode(self):
+        r = self.client.post(
+            "/api/v1/checkins/start",
+            {
+                "assignment": str(self.assignment.id),
+                "latitude": "5.348",
+                "longitude": "-4.024",
+            },
+            format="multipart",
+        )
+        self.assertEqual(r.status_code, 201, r.data)
+        c = Checkin.objects.get(assignment=self.assignment, type=Checkin.Type.START)
+        self.assertFalse(c.photo)
+        self.assertFalse(c.biometric_verified)
+
+    def test_end_allowed_without_photo_or_biometric_in_enforce_mode(self):
+        now_local = timezone.localtime()
+        start_dt = now_local - timedelta(hours=2)
+        end_dt = now_local - timedelta(minutes=1)
+        self.assignment.shift_date = start_dt.date()
+        self.assignment.start_time = start_dt.time().replace(second=0, microsecond=0)
+        self.assignment.end_time = end_dt.time().replace(second=0, microsecond=0)
+        self.assignment.save(update_fields=["shift_date", "start_time", "end_time"])
+        Checkin.objects.create(
+            guard=self.user,
+            assignment=self.assignment,
+            type=Checkin.Type.START,
+            latitude=5.348,
+            longitude=-4.024,
+        )
+        r = self.client.post(
+            "/api/v1/checkins/end",
+            {
+                "assignment": str(self.assignment.id),
+                "latitude": "5.348",
+                "longitude": "-4.024",
+            },
+            format="multipart",
+        )
+        self.assertEqual(r.status_code, 201, r.data)
+        c = Checkin.objects.get(assignment=self.assignment, type=Checkin.Type.END)
+        self.assertFalse(c.photo)
+        self.assertFalse(c.biometric_verified)
+
+    def test_presence_still_requires_photo(self):
+        Checkin.objects.create(
+            guard=self.user,
+            assignment=self.assignment,
+            type=Checkin.Type.START,
+            latitude=5.348,
+            longitude=-4.024,
+        )
+        r = self.client.post(
+            "/api/v1/checkins/presence",
+            {
+                "assignment": str(self.assignment.id),
+                "latitude": "5.348",
+                "longitude": "-4.024",
+                "verification_token": self._issue_verification_token("presence"),
+            },
+            format="multipart",
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("photo", r.data)
+
     @override_settings(BIOMETRIC_ENFORCEMENT_MODE="observe")
     def test_observation_mode_allows_checkin_without_token(self):
         r = self.client.post(

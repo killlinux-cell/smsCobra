@@ -4,7 +4,7 @@ from .models import Checkin
 
 
 class CheckinSerializer(serializers.ModelSerializer):
-    photo = serializers.ImageField(required=True, allow_empty_file=False)
+    photo = serializers.ImageField(required=False, allow_null=True, allow_empty_file=True)
 
     class Meta:
         model = Checkin
@@ -12,6 +12,11 @@ class CheckinSerializer(serializers.ModelSerializer):
         read_only_fields = ("timestamp", "within_geofence", "distance_from_site_meters", "guard", "type")
 
     def validate(self, attrs):
+        checkin_type = self.context.get("checkin_type")
+        if checkin_type == Checkin.Type.PRESENCE and not attrs.get("photo"):
+            raise serializers.ValidationError(
+                {"photo": "Selfie obligatoire pour la confirmation de présence horaire."}
+            )
         lat = attrs.get("latitude")
         lon = attrs.get("longitude")
         if lat is not None and lon is not None:

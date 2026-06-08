@@ -48,7 +48,15 @@ class CheckinBaseView(APIView):
     def biometric_enforced(self) -> bool:
         return getattr(settings, "BIOMETRIC_ENFORCEMENT_MODE", "enforce") == "enforce"
 
+    def _biometric_required(self) -> bool:
+        """Prise / fin de service : GPS uniquement ; selfie requis pour la présence horaire."""
+        if self.checkin_type in (Checkin.Type.START, Checkin.Type.END):
+            return False
+        return self.biometric_enforced
+
     def _validate_verification_token(self, request, assignment):
+        if not self._biometric_required():
+            return None, None
         verification_token = (request.data.get("verification_token") or "").strip()
         if not verification_token:
             if not self.biometric_enforced:
@@ -138,7 +146,10 @@ class CheckinBaseView(APIView):
 
         serializer_data = request.data.copy()
         serializer_data.pop("verification_token", None)
-        serializer = CheckinSerializer(data=serializer_data)
+        serializer = CheckinSerializer(
+            data=serializer_data,
+            context={"checkin_type": self.checkin_type},
+        )
         serializer.is_valid(raise_exception=True)
         biometric_verified = verification is not None
         checkin = serializer.save(

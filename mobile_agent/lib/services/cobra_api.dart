@@ -316,10 +316,10 @@ class CobraApi {
   Future<String> sendCheckin({
     required String type,
     required int assignmentId,
-    required String photoPath,
     required String latitude,
     required String longitude,
-    required String verificationToken,
+    String? photoPath,
+    String? verificationToken,
   }) async {
     final token = await getAccessToken();
     final uri = Uri.parse("$apiBase/api/v1/checkins/$type");
@@ -328,14 +328,18 @@ class CobraApi {
     req.fields["assignment"] = assignmentId.toString();
     req.fields["latitude"] = latitude;
     req.fields["longitude"] = longitude;
-    req.fields["verification_token"] = verificationToken;
-    req.files.add(
-      await http.MultipartFile.fromPath(
-        "photo",
-        photoPath,
-        filename: "selfie.jpg",
-      ),
-    );
+    if (verificationToken != null && verificationToken.isNotEmpty) {
+      req.fields["verification_token"] = verificationToken;
+    }
+    if (photoPath != null && photoPath.isNotEmpty) {
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          "photo",
+          photoPath,
+          filename: "selfie.jpg",
+        ),
+      );
+    }
     final streamed = await req.send();
     final resp = await http.Response.fromStream(streamed);
     if (resp.statusCode >= 400) {
