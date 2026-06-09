@@ -16,8 +16,15 @@ import 'face_capture_page.dart';
 import 'login_page.dart';
 
 class AgentHomePage extends StatefulWidget {
-  const AgentHomePage({super.key, required this.api});
+  const AgentHomePage({
+    super.key,
+    required this.api,
+    this.initialAssignmentId,
+    this.initialAssignment,
+  });
   final CobraApi api;
+  final int? initialAssignmentId;
+  final Assignment? initialAssignment;
 
   @override
   State<AgentHomePage> createState() => _AgentHomePageState();
@@ -48,10 +55,23 @@ class _AgentHomePageState extends State<AgentHomePage>
       vsync: this,
       duration: const Duration(milliseconds: 1700),
     )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.88, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
-    _load();
+    _pulse = Tween<double>(
+      begin: 0.88,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    if (widget.initialAssignment != null) {
+      selected = widget.initialAssignment;
+      assignments = [widget.initialAssignment!];
+      serviceStarted =
+          selected!.hasStart && !selected!.hasEnd;
+      nextPresenceDue = parseIsoOrNull(selected?.presenceDueAtIso);
+      if (serviceStarted) {
+        _startPresenceCountdown();
+      }
+      loading = false;
+      profileLoading = true;
+    }
+    _load(preserveAssignmentId: widget.initialAssignmentId ?? selected?.id);
   }
 
   @override
@@ -228,12 +248,12 @@ class _AgentHomePageState extends State<AgentHomePage>
     }
 
     Future<Position> readFix() => Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.best,
-            distanceFilter: 0,
-            timeLimit: Duration(seconds: 28),
-          ),
-        );
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0,
+        timeLimit: Duration(seconds: 28),
+      ),
+    );
 
     var pos = await readFix().timeout(const Duration(seconds: 30));
     // Une ancienne position en cache peut placer le vigile à des centaines de mètres du site réel.
@@ -278,7 +298,8 @@ class _AgentHomePageState extends State<AgentHomePage>
     if (!serviceStarted) return false;
     if (nextPresenceDue == null) return false;
     final now = DateTime.now();
-    return now.isAfter(nextPresenceDue!) || now.isAtSameMomentAs(nextPresenceDue!);
+    return now.isAfter(nextPresenceDue!) ||
+        now.isAtSameMomentAs(nextPresenceDue!);
   }
 
   double get _presenceProgress {
@@ -311,10 +332,13 @@ class _AgentHomePageState extends State<AgentHomePage>
         final imgPath = await FaceCapturePage.capture(
           context,
           title: "Reconnaissance faciale",
-          hint: "Centrez votre visage dans le cadran pour confirmer votre présence.",
+          hint:
+              "Centrez votre visage dans le cadran pour confirmer votre présence.",
         );
         if (imgPath == null) {
-          setState(() => feedback = "Selfie obligatoire: confirmation annulée.");
+          setState(
+            () => feedback = "Selfie obligatoire: confirmation annulée.",
+          );
           return;
         }
         final challengeId = await widget.api.requestBiometricChallenge(
@@ -387,7 +411,9 @@ class _AgentHomePageState extends State<AgentHomePage>
     if (s.contains("Fin de service hors créneau")) {
       return "Fin de service hors créneau autorisé pour ce poste.";
     }
-    if (s.contains("Fin bloquée") || s.contains("relevé") || s.contains("releve")) {
+    if (s.contains("Fin bloquée") ||
+        s.contains("relevé") ||
+        s.contains("releve")) {
       return "Fin bloquée : le vigile de relève doit d'abord pointer sa prise de service.";
     }
     if (s.contains("Affectation invalide")) {
@@ -495,188 +521,200 @@ class _AgentHomePageState extends State<AgentHomePage>
                                   _PosteMissionHighlight(assignment: selected),
                                   const SizedBox(height: 16),
                                   const Divider(height: 1),
-                              const SizedBox(height: 14),
-                              Text(
-                                "Pointage début / fin",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: Colors.grey.shade700,
-                                ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    "Pointage début / fin",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: _ShiftActionTile(
+                                          title: "Prise de service",
+                                          subtitle: selected?.hasStart == true
+                                              ? "Effectuée"
+                                              : "1 clic + GPS",
+                                          icon: Icons.login_rounded,
+                                          accent: const Color(0xFF4F46E5),
+                                          filled: selected?.hasStart == true,
+                                          enabled:
+                                              selected != null &&
+                                              selected!.hasStart != true &&
+                                              !checkinInProgress,
+                                          onTap: () => _checkin("start"),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: _ShiftActionTile(
+                                          title: "Fin de service",
+                                          subtitle: selected?.hasEnd == true
+                                              ? "Effectuée"
+                                              : (selected?.canEnd == true
+                                                    ? "1 clic + GPS"
+                                                    : "Non disponible"),
+                                          icon: Icons.logout_rounded,
+                                          accent: const Color(0xFF0284C7),
+                                          filled: selected?.hasEnd == true,
+                                          enabled:
+                                              selected != null &&
+                                              selected!.canEnd == true &&
+                                              !checkinInProgress,
+                                          onTap: () => _checkin("end"),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (selected != null &&
+                                      !selected!.canEnd &&
+                                      selected!.endBlockReason != null) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        selected!.endBlockReason!,
+                                        style: const TextStyle(
+                                          color: Color(0xFF475569),
+                                          fontSize: 12,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    "Les pointages sont liés à l’affectation affichée (date du poste prise en compte).",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 10),
-                              Row(
+                            ),
+                            const SizedBox(height: 14),
+                            GlassCard(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: _ShiftActionTile(
-                                      title: "Prise de service",
-                                      subtitle: selected?.hasStart == true
-                                          ? "Effectuée"
-                                          : "1 clic + GPS",
-                                      icon: Icons.login_rounded,
-                                      accent: const Color(0xFF4F46E5),
-                                      filled: selected?.hasStart == true,
-                                      enabled: selected != null &&
-                                          selected!.hasStart != true &&
-                                          !checkinInProgress,
-                                      onTap: () => _checkin("start"),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _ShiftActionTile(
-                                      title: "Fin de service",
-                                      subtitle: selected?.hasEnd == true
-                                          ? "Effectuée"
-                                          : (selected?.canEnd == true
-                                              ? "1 clic + GPS"
-                                              : "Non disponible"),
-                                      icon: Icons.logout_rounded,
-                                      accent: const Color(0xFF0284C7),
-                                      filled: selected?.hasEnd == true,
-                                      enabled: selected != null &&
-                                          selected!.canEnd == true &&
-                                          !checkinInProgress,
-                                      onTap: () => _checkin("end"),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (selected != null &&
-                                  !selected!.canEnd &&
-                                  selected!.endBlockReason != null) ...[
-                                const SizedBox(height: 10),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    selected!.endBlockReason!,
-                                    style: const TextStyle(
-                                      color: Color(0xFF475569),
-                                      fontSize: 12,
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 10),
-                              Text(
-                                "Les pointages sont liés à l’affectation affichée (date du poste prise en compte).",
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        GlassCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.timelapse_rounded,
-                                    color: Color(0xFF0F766E),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    "Présence horaire (selfie + GPS)",
-                                    style: TextStyle(fontWeight: FontWeight.w800),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                serviceStarted
-                                    ? "Prochaine confirmation dans: ${_remainingPresenceText()}"
-                                    : "Commencez par la prise de service.",
-                                style: const TextStyle(color: Color(0xFF6B7280)),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    width: 42,
-                                    height: 42,
-                                    child: TweenAnimationBuilder<double>(
-                                      tween: Tween<double>(
-                                        begin: 0,
-                                        end: _presenceProgress,
+                                  const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.timelapse_rounded,
+                                        color: Color(0xFF0F766E),
                                       ),
-                                      duration: const Duration(milliseconds: 400),
-                                      builder: (context, value, _) {
-                                        return CircularProgressIndicator(
-                                          value: value,
-                                          strokeWidth: 4,
-                                          backgroundColor: const Color(0xFFE2E8F0),
-                                        );
-                                      },
+                                      SizedBox(width: 8),
+                                      Text(
+                                        "Présence horaire (selfie + GPS)",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    serviceStarted
+                                        ? "Prochaine confirmation dans: ${_remainingPresenceText()}"
+                                        : "Commencez par la prise de service.",
+                                    style: const TextStyle(
+                                      color: Color(0xFF6B7280),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 42,
+                                        height: 42,
+                                        child: TweenAnimationBuilder<double>(
+                                          tween: Tween<double>(
+                                            begin: 0,
+                                            end: _presenceProgress,
+                                          ),
+                                          duration: const Duration(
+                                            milliseconds: 400,
+                                          ),
+                                          builder: (context, value, _) {
+                                            return CircularProgressIndicator(
+                                              value: value,
+                                              strokeWidth: 4,
+                                              backgroundColor: const Color(
+                                                0xFFE2E8F0,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          _presenceDueNow
+                                              ? "Présence attendue maintenant."
+                                              : "Progression vers la prochaine présence.",
+                                          style: const TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ModernActionButton(
+                                    label: "Confirmer présence",
+                                    icon: Icons.timer_rounded,
+                                    enabled:
+                                        serviceStarted &&
+                                        _presenceDueNow &&
+                                        !checkinInProgress,
+                                    onTap: () => _checkin("presence"),
+                                    colors: const [
+                                      Color(0xFF0F766E),
+                                      Color(0xFF0E9F6E),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            GlassCard(
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline_rounded,
+                                    color: Color(0xFF475569),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      _presenceDueNow
-                                          ? "Présence attendue maintenant."
-                                          : "Progression vers la prochaine présence.",
+                                      feedback,
                                       style: const TextStyle(
-                                        color: Color(0xFF64748B),
-                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 10),
-                              ModernActionButton(
-                                label: "Confirmer présence",
-                                icon: Icons.timer_rounded,
-                                enabled: serviceStarted &&
-                                    _presenceDueNow &&
-                                    !checkinInProgress,
-                                onTap: () => _checkin("presence"),
-                                colors: const [
-                                  Color(0xFF0F766E),
-                                  Color(0xFF0E9F6E),
-                                ],
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                        GlassCard(
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.info_outline_rounded,
-                                color: Color(0xFF475569),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  feedback,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+          ),
         ],
       ),
     );
@@ -733,11 +771,7 @@ class _PosteMissionHighlight extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF3730A3),
-            Color(0xFF4F46E5),
-            Color(0xFF6366F1),
-          ],
+          colors: [Color(0xFF3730A3), Color(0xFF4F46E5), Color(0xFF6366F1)],
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
@@ -913,7 +947,10 @@ class _ShiftActionTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: enabled || filled ? 2 : 1),
+            border: Border.all(
+              color: borderColor,
+              width: enabled || filled ? 2 : 1,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

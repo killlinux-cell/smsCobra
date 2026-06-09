@@ -52,6 +52,9 @@ class _LoginPageState extends State<LoginPage> {
     if (s.contains("network_timeout")) {
       return "Le serveur met trop longtemps a repondre. Reessayez.";
     }
+    if (s.contains("Identification ambiguë")) {
+      return "Plusieurs vigiles ressemblants. Réessayez avec un meilleur éclairage.";
+    }
     if (s.contains("Visage non reconnu")) {
       return "Visage non reconnu ou aucun service planifie aujourd'hui.";
     }
@@ -92,11 +95,21 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     try {
-      final guardUsername = await widget.api.faceIdentifyLogin(imgPath);
-      identifiedGuard = guardUsername;
+      final result = await widget.api.faceIdentifyLogin(imgPath);
+      final assignment = result.assignment;
+      final label = assignment != null
+          ? "${result.guardName} — ${assignment.siteName} (${assignment.startTime}–${assignment.endTime})"
+          : result.guardName;
+      identifiedGuard = label;
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => AgentHomePage(api: widget.api)),
+        MaterialPageRoute(
+          builder: (_) => AgentHomePage(
+            api: widget.api,
+            initialAssignmentId: result.assignmentId,
+            initialAssignment: assignment,
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) setState(() => error = _mapError(e));
@@ -118,7 +131,8 @@ class _LoginPageState extends State<LoginPage> {
     final imgPath = await FaceCapturePage.capture(
       context,
       title: "Passage contrôleur",
-      hint: "Placez le visage du contrôleur dans le cadran puis prenez la photo.",
+      hint:
+          "Placez le visage du contrôleur dans le cadran puis prenez la photo.",
     );
     if (imgPath == null) {
       if (mounted) setState(() => loading = false);
@@ -276,7 +290,9 @@ class _LoginPageState extends State<LoginPage> {
                               : (id) {
                                   if (id == null) return;
                                   setState(() {
-                                    selectedSite = entrySites.firstWhere((e) => e.id == id);
+                                    selectedSite = entrySites.firstWhere(
+                                      (e) => e.id == id,
+                                    );
                                   });
                                 },
                         ),

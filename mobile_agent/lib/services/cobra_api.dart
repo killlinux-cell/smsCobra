@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/agent_profile.dart';
 import '../models/assignment.dart';
+import '../models/face_identify_result.dart';
 
 class EntrySite {
   final int id;
@@ -126,9 +127,11 @@ class CobraApi {
     }
   }
 
-  /// Connexion vigile sans identifiant: identification directe par visage.
-  /// [siteId] optionnel : restreint les candidats à ce site (sinon tous les services récents).
-  Future<String> faceIdentifyLogin(String selfiePath, {int? siteId}) async {
+  /// Connexion vigile : selfie → vigile reconnu + affectation serveur (site optionnel).
+  Future<FaceIdentifyResult> faceIdentifyLogin(
+    String selfiePath, {
+    int? siteId,
+  }) async {
     final uri = Uri.parse("$apiBase/api/v1/auth/face-identify");
     final req = http.MultipartRequest("POST", uri);
     if (siteId != null && siteId > 0) {
@@ -148,7 +151,25 @@ class CobraApi {
         await _storeJwtFromBody(resp.body);
         final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
         final username = (decoded["guard_username"] ?? "").toString();
-        return username;
+        final guardName = (decoded["guard_name"] ?? username).toString();
+        final assignmentId = (decoded["assignment_id"] as num?)?.toInt() ?? 0;
+        Assignment? assignment;
+        final rawAssignment = decoded["assignment"];
+        if (rawAssignment is Map<String, dynamic>) {
+          assignment = _assignmentFromJson(rawAssignment);
+        }
+        final scoreRaw = decoded["face_match_score"];
+        final faceScore = scoreRaw is num ? scoreRaw.toDouble() : null;
+        if (assignmentId <= 0) {
+          throw Exception("Affectation introuvable après identification.");
+        }
+        return FaceIdentifyResult(
+          guardUsername: username,
+          guardName: guardName,
+          assignmentId: assignmentId,
+          assignment: assignment,
+          faceMatchScore: faceScore,
+        );
       }
       String? detail;
       try {
@@ -166,11 +187,48 @@ class CobraApi {
     }
   }
 
+  Assignment _assignmentFromJson(Map<String, dynamic> m) {
+    final id = (m["id"] as num).toInt();
+    final site = (m["site_name"] ?? "Site ${m["site"]}").toString();
+    final start = (m["start_time"] ?? "").toString().substring(0, 5);
+    final end = (m["end_time"] ?? "").toString().substring(0, 5);
+    final hasStart = (m["has_start"] ?? false) as bool;
+    final hasEnd = (m["has_end"] ?? false) as bool;
+    final canEnd = (m["can_end"] ?? false) as bool;
+    final endBlockReason = (m["end_block_reason"] as String?);
+    final presenceDueAtIso =
+        (m["presence_due_at"] as String?) ?? m["presence_due_at_iso"] as String?;
+    final shiftRaw = m["shift_date"]?.toString().split("T").first ?? "";
+    DateTime shiftDate;
+    try {
+      shiftDate = DateTime.parse(shiftRaw);
+    } catch (_) {
+      shiftDate = DateTime.now();
+    }
+    final d = shiftDate.day.toString().padLeft(2, "0");
+    final mo = shiftDate.month.toString().padLeft(2, "0");
+    final y = shiftDate.year.toString();
+    return Assignment(
+      id: id,
+      label: "$d/$mo/$y • $site • $start-$end • #$id",
+      siteName: site,
+      shiftDate: shiftDate,
+      startTime: start,
+      endTime: end,
+      hasStart: hasStart,
+      hasEnd: hasEnd,
+      canEnd: canEnd,
+      endBlockReason: endBlockReason,
+      presenceDueAtIso: presenceDueAtIso,
+    );
+  }
+
   Future<List<EntrySite>> fetchEntrySites() async {
     final uri = Uri.parse("$apiBase/api/v1/entry/sites");
     try {
       final resp = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (resp.statusCode != 200) throw Exception("entry_sites_http_${resp.statusCode}");
+      if (resp.statusCode != 200)
+        throw Exception("entry_sites_http_${resp.statusCode}");
       final decoded = jsonDecode(resp.body);
       if (decoded is! List) return const [];
       return decoded
@@ -230,7 +288,9 @@ class CobraApi {
         }
         return "Passage contrôleur validé.";
       }
-      throw Exception(detail ?? "controller_face_checkin_http_${resp.statusCode}");
+      throw Exception(
+        detail ?? "controller_face_checkin_http_${resp.statusCode}",
+      );
     } on SocketException {
       throw Exception("network_unreachable");
     } on TimeoutException {
@@ -273,44 +333,9 @@ class CobraApi {
     );
     if (resp.statusCode != 200) throw Exception("sync_failed");
     final list = jsonDecode(resp.body) as List<dynamic>;
-    return list.map((e) {
-      final m = e as Map<String, dynamic>;
-      final id = (m["id"] as num).toInt();
-      final site = (m["site_name"] ?? "Site ${m["site"]}").toString();
-      final start = (m["start_time"] ?? "").toString().substring(0, 5);
-      final end = (m["end_time"] ?? "").toString().substring(0, 5);
-      final hasStart = (m["has_start"] ?? false) as bool;
-      final hasEnd = (m["has_end"] ?? false) as bool;
-      final canEnd = (m["can_end"] ?? false) as bool;
-      final endBlockReason = (m["end_block_reason"] as String?);
-      final presenceDueAtIso =
-          (m["presence_due_at"] as String?) ??
-          m["presence_due_at_iso"] as String?;
-      final shiftRaw = m["shift_date"]?.toString().split("T").first ?? "";
-      DateTime shiftDate;
-      try {
-        shiftDate = DateTime.parse(shiftRaw);
-      } catch (_) {
-        shiftDate = DateTime.now();
-      }
-      final d = shiftDate.day.toString().padLeft(2, "0");
-      final mo = shiftDate.month.toString().padLeft(2, "0");
-      final y = shiftDate.year.toString();
-
-      return Assignment(
-        id: id,
-        label: "$d/$mo/$y • $site • $start-$end • #$id",
-        siteName: site,
-        shiftDate: shiftDate,
-        startTime: start,
-        endTime: end,
-        hasStart: hasStart,
-        hasEnd: hasEnd,
-        canEnd: canEnd,
-        endBlockReason: endBlockReason,
-        presenceDueAtIso: presenceDueAtIso,
-      );
-    }).toList();
+    return list
+        .map((e) => _assignmentFromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<String> sendCheckin({
@@ -398,7 +423,9 @@ class CobraApi {
           if (d is String && d.isNotEmpty) detail = d;
         }
       } catch (_) {}
-      throw Exception(detail ?? "biometric_challenge_failed_${resp.statusCode}");
+      throw Exception(
+        detail ?? "biometric_challenge_failed_${resp.statusCode}",
+      );
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final challengeId = (data["challenge_id"] ?? "").toString();

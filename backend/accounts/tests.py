@@ -127,7 +127,7 @@ class VigileFaceIdentifyAPITests(TestCase):
             role=User.Role.VIGILE,
             profile_photo=photo,
         )
-        ShiftAssignment.objects.create(
+        self.assignment = ShiftAssignment.objects.create(
             guard=self.vigile,
             site=self.site,
             shift_date=date.today(),
@@ -147,10 +147,11 @@ class VigileFaceIdentifyAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn("access", resp.data)
         self.assertEqual(resp.data.get("guard_username"), "VIR-222")
+        self.assertEqual(resp.data.get("assignment_id"), self.assignment.id)
 
     @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(True, 0.93, ""))
-    def test_face_identify_without_site_id_still_identifies_planned_guard(self, _mock, _enc):
+    def test_face_identify_without_site_id_returns_guard_assignment(self, _mock, _enc):
         selfie = SimpleUploadedFile("s.png", _PNG_1PX, content_type="image/png")
         resp = self.client.post(
             "/api/v1/auth/face-identify",
@@ -159,6 +160,78 @@ class VigileFaceIdentifyAPITests(TestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data.get("guard_username"), "VIR-222")
+        self.assertEqual(resp.data.get("assignment_id"), self.assignment.id)
+
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
+    def test_face_identify_without_site_id_not_other_guard_assignment(self, _enc):
+        vigile_photo = self.vigile.profile_photo
+
+        def _verify_only_vigile(selfie, profile_photo, selfie_encoding=None):
+            if profile_photo == vigile_photo:
+                return (True, 0.93, "")
+            return (False, 0.1, "face_mismatch")
+
+        site_b = Site.objects.create(
+            name="Site B",
+            address="Abidjan",
+            expected_start_time=time(8, 0),
+            expected_end_time=time(17, 0),
+            latitude=5.35,
+            longitude=-4.03,
+        )
+        other_photo = SimpleUploadedFile("p2.png", _PNG_1PX, content_type="image/png")
+        other = User.objects.create_user(
+            username="VIR-OTHER",
+            password="x",
+            role=User.Role.VIGILE,
+            profile_photo=other_photo,
+        )
+        other_assignment = ShiftAssignment.objects.create(
+            guard=other,
+            site=site_b,
+            shift_date=date.today(),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+        )
+        selfie = SimpleUploadedFile("s.png", _PNG_1PX, content_type="image/png")
+        with patch(
+            "accounts.views.verify_selfie_against_profile",
+            side_effect=_verify_only_vigile,
+        ):
+            resp = self.client.post(
+                "/api/v1/auth/face-identify",
+                {"selfie": selfie},
+                format="multipart",
+            )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data.get("assignment_id"), self.assignment.id)
+        self.assertNotEqual(resp.data.get("assignment_id"), other_assignment.id)
+
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
+    @patch("accounts.views.verify_selfie_against_profile", return_value=(True, 0.93, ""))
+    def test_face_identify_rejects_ambiguous_match(self, _mock, _enc):
+        other_photo = SimpleUploadedFile("p2.png", _PNG_1PX, content_type="image/png")
+        other = User.objects.create_user(
+            username="VIR-333",
+            password="x",
+            role=User.Role.VIGILE,
+            profile_photo=other_photo,
+        )
+        ShiftAssignment.objects.create(
+            guard=other,
+            site=self.site,
+            shift_date=date.today(),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+        )
+        selfie = SimpleUploadedFile("s.png", _PNG_1PX, content_type="image/png")
+        resp = self.client.post(
+            "/api/v1/auth/face-identify",
+            {"selfie": selfie},
+            format="multipart",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("ambigu", resp.data.get("detail", "").lower())
 
     @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(False, 0.1, "face_mismatch"))

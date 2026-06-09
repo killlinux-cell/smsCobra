@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -10,7 +11,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from checkins.face_verify import encode_selfie_upload, verify_selfie_against_profile
 from sites.models import Site
+from shifts.assignment_pick import pick_assignment_for_guard
 from shifts.models import ShiftAssignment
+from shifts.serializers import ShiftAssignmentSerializer
 from shifts.services import ensure_assignments_for_dates
 
 from .models import ControllerSiteAssignment, ControllerVisit, User
@@ -97,12 +100,11 @@ class VigileFaceLoginView(APIView):
 
 class VigileFaceIdentifyView(APIView):
     """
-    Connexion vigile sans identifiant: selfie -> identification du vigile planifié.
-    Refuse si le visage ne correspond à aucun vigile ayant un service aujourd'hui.
+    Connexion vigile sans identifiant : selfie → vigile planifié + son affectation.
 
-    ``site_id`` (optionnel) restreint les candidats au site donné (moins de comparaisons,
-    évite les homonymes visuels entre sites). Sans ``site_id``, tous les services
-    d'hier et d'aujourd'hui sont pris en compte.
+    ``site_id`` optionnel : restreint les candidats (et l'affectation) à ce site.
+    Sans ``site_id``, tous les services récents sont pris en compte ; l'affectation
+    renvoyée est toujours celle du vigile reconnu, jamais celle d'un autre.
     """
 
     permission_classes = [AllowAny]
@@ -180,21 +182,19 @@ class VigileFaceIdentifyView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        best_user = None
-        best_score = -1.0
+        matches: list[tuple[User, float]] = []
         for candidate in candidates:
             if not candidate.profile_photo:
                 continue
-            ok, score, fail_reason = verify_selfie_against_profile(
+            ok, score, _fail_reason = verify_selfie_against_profile(
                 selfie,
                 candidate.profile_photo,
                 selfie_encoding=selfie_enc,
             )
-            if ok and score is not None and score > best_score:
-                best_user = candidate
-                best_score = score
+            if ok and score is not None:
+                matches.append((candidate, float(score)))
 
-        if best_user is None:
+        if not matches:
             return Response(
                 {
                     "detail": (
@@ -205,13 +205,44 @@ class VigileFaceIdentifyView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        matches.sort(key=lambda row: row[1], reverse=True)
+        best_user, best_score = matches[0]
+        min_margin = float(
+            getattr(settings, "FACE_IDENTIFY_MIN_SCORE_MARGIN", 0.08)
+        )
+        if len(matches) > 1 and (best_score - matches[1][1]) < min_margin:
+            return Response(
+                {
+                    "detail": (
+                        "Identification ambiguë : plusieurs vigiles ressemblants. "
+                        "Réessayez avec un meilleur éclairage ou contactez le superviseur."
+                    )
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        assignment = pick_assignment_for_guard(best_user.id, site_id=site_id)
+        if assignment is None:
+            return Response(
+                {
+                    "detail": (
+                        "Visage reconnu mais aucune affectation active pour ce vigile."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         refresh = RefreshToken.for_user(best_user)
+        assignment_payload = ShiftAssignmentSerializer(assignment).data
         return Response(
             {
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "guard_username": best_user.username,
                 "guard_name": best_user.display_name,
+                "assignment_id": assignment.id,
+                "assignment": assignment_payload,
+                "face_match_score": round(best_score, 4),
             },
             status=status.HTTP_200_OK,
         )
