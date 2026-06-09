@@ -44,6 +44,11 @@ urlpatterns = [
         views.retire_titular_view,
         name="webadmin-retire-titular",
     ),
+    path(
+        "affectations/titulaires/liberer-suspendu/<int:fixed_post_id>/",
+        views.dismiss_suspended_titular_view,
+        name="webadmin-dismiss-suspended-titular",
+    ),
     path("affectations/<int:pk>/modifier/", views.affectation_edit_view, name="webadmin-affectation-edit"),
     path(
         "affectations/<int:pk>/supprimer/",

@@ -159,7 +159,7 @@ class TitularRetirementTests(TestCase):
             ).exists()
         )
 
-    def test_retire_blocked_when_titular_suspended(self):
+    def test_retire_blocked_when_titular_suspended_without_clear(self):
         self.post.suspended_titular_guard_id = self.other.id
         self.post.save(update_fields=["suspended_titular_guard_id"])
         with self.assertRaises(ValidationError):
@@ -167,3 +167,13 @@ class TitularRetirementTests(TestCase):
                 self.post,
                 reason="Réduction d'effectif sur le site concerné.",
             )
+
+    def test_retire_allowed_with_clear_suspended(self):
+        self.post.suspended_titular_guard_id = self.other.id
+        self.post.save(update_fields=["suspended_titular_guard_id"])
+        post, _ = retire_titular_fixed_post(
+            self.post,
+            reason="Reduction effectif nuit sur ce site.",
+            clear_suspended=True,
+        )
+        self.assertFalse(post.is_active)

@@ -11,6 +11,7 @@
     </div>
     <form method="post" action="{% url 'webadmin-reinstate-titular' fixed.pk %}" class="mt-2">
       {% csrf_token %}
+      {% if retire_next %}<input type="hidden" name="next" value="{{ retire_next }}">{% endif %}
       <label class="form-label small mb-1">Motif de réintégration (justification absence)</label>
       <textarea name="reason" class="form-control form-control-sm" rows="2" required minlength="10" placeholder="Ex. certificat médical, convocation, etc."></textarea>
       <button type="submit" class="btn btn-sm btn-success mt-2">

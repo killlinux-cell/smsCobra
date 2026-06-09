@@ -1080,6 +1080,24 @@ def vigile_delete_view(request, pk):
 
     if request.method == "POST":
         if not delete_ctx["can_delete"]:
+            if request.POST.get("force_release") == "1":
+                try:
+                    label = vigile.display_name
+                    delete_vigile(vigile, actor=request.user, force_release=True)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    redir = reverse("webadmin-vigile-delete", args=[pk])
+                    if list_qs:
+                        redir = f"{redir}?{list_qs}"
+                    return redirect(redir)
+                messages.success(
+                    request,
+                    f"Le vigile {label} a été libéré de ses postes puis supprimé définitivement.",
+                )
+                redir = reverse("webadmin-vigiles")
+                if list_qs:
+                    redir = f"{redir}?{list_qs}"
+                return redirect(redir)
             messages.error(request, delete_ctx["blockers"][0])
             redir = reverse("webadmin-vigile-delete", args=[pk])
             if list_qs:
@@ -1737,17 +1755,28 @@ def reinstate_titular_view(request, fixed_post_id: int):
         pk=fixed_post_id,
         is_active=True,
     )
+    next_url = (request.POST.get("next") or "").strip() or reverse(
+        "webadmin-affectations-titulaires"
+    )
     if request.method != "POST":
-        return redirect("webadmin-affectations-titulaires")
+        return redirect(next_url)
     reason = (request.POST.get("reason") or "").strip()
     from django.core.exceptions import ValidationError as DjangoValidationError
+    from django.db import IntegrityError
     from shifts.titular_replacement import reinstate_suspended_titular
 
     try:
         reinstate_suspended_titular(post, reason=reason, actor=request.user)
     except DjangoValidationError as exc:
         messages.error(request, exc.messages[0])
-        return redirect("webadmin-affectations-titulaires")
+        return redirect(next_url)
+    except IntegrityError:
+        messages.error(
+            request,
+            "Réintégration impossible : conflit de planning ou de poste. "
+            "Contactez le support ou libérez le titulaire suspendu sans réintégration.",
+        )
+        return redirect(next_url)
 
     name = post.titular_guard.display_name
     site = post.site.name
@@ -1755,7 +1784,7 @@ def reinstate_titular_view(request, fixed_post_id: int):
         request,
         f"{name} a été repositionné comme titulaire sur « {site} » ({post.get_shift_type_display()}).",
     )
-    return redirect("webadmin-affectations-titulaires")
+    return redirect(next_url)
 
 
 @admin_web_required
@@ -1772,6 +1801,7 @@ def retire_titular_view(request, fixed_post_id: int):
     if request.method != "POST":
         return redirect(next_url)
     reason = (request.POST.get("reason") or "").strip()
+    clear_suspended = request.POST.get("clear_suspended") == "1"
     from django.core.exceptions import ValidationError as DjangoValidationError
     from shifts.titular_replacement import retire_titular_fixed_post
 
@@ -1780,6 +1810,7 @@ def retire_titular_view(request, fixed_post_id: int):
             post,
             reason=reason,
             actor=request.user,
+            clear_suspended=clear_suspended,
         )
     except DjangoValidationError as exc:
         messages.error(request, exc.messages[0])
@@ -1792,6 +1823,43 @@ def retire_titular_view(request, fixed_post_id: int):
     messages.success(
         request,
         f"{name} a été retiré du poste {shift.lower()} sur « {site} ». {detail}".strip(),
+    )
+    return redirect(next_url)
+
+
+@admin_web_required
+def dismiss_suspended_titular_view(request, fixed_post_id: int):
+    """Libère le titulaire suspendu sans réintégration (le titulaire actuel reste)."""
+    post = get_object_or_404(
+        FixedPost.objects.select_related("site", "titular_guard", "suspended_titular_guard"),
+        pk=fixed_post_id,
+        is_active=True,
+    )
+    next_url = (request.POST.get("next") or "").strip() or reverse(
+        "webadmin-affectations-titulaires"
+    )
+    if request.method != "POST":
+        return redirect(next_url)
+    reason = (request.POST.get("reason") or "").strip()
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    from shifts.titular_replacement import dismiss_suspended_titular
+
+    try:
+        suspended_name = (
+            post.suspended_titular_guard.display_name
+            if post.suspended_titular_guard_id
+            else "Titulaire suspendu"
+        )
+        titular_name = post.titular_guard.display_name
+        dismiss_suspended_titular(post, reason=reason, actor=request.user)
+    except DjangoValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect(next_url)
+
+    messages.success(
+        request,
+        f"{suspended_name} a été libéré (sans réintégration) sur « {post.site.name} ». "
+        f"{titular_name} reste titulaire actuel.",
     )
     return redirect(next_url)
 

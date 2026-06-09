@@ -51,6 +51,12 @@
           </button>
           {% else %}
           <button type="button" class="btn btn-danger" disabled>Supprimer définitivement</button>
+          {% if delete_ctx.can_force_release %}
+          <button type="submit" name="force_release" value="1" class="btn btn-warning"
+                  onclick="return confirm('Libérer ce vigile de tous ses postes actifs puis le supprimer ?');">
+            <i class="bi bi-unlock me-1"></i>Libérer les postes puis supprimer
+          </button>
+          {% endif %}
           {% endif %}
         </form>
       </div>

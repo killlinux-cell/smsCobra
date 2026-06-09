@@ -46,6 +46,18 @@ class VigileDeleteTests(TestCase):
         ctx = get_vigile_delete_context(self.guard)
         self.assertFalse(ctx["can_delete"])
         self.assertTrue(ctx["blockers"])
+        self.assertTrue(ctx["can_force_release"])
+
+    def test_force_release_allows_delete(self):
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        pk = self.guard.pk
+        delete_vigile(self.guard, force_release=True)
+        self.assertFalse(User.objects.filter(pk=pk).exists())
 
     def test_delete_removes_user(self):
         pk = self.guard.pk
