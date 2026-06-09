@@ -153,10 +153,13 @@
                 </td>
                 <td class="small text-center">
                   <span class="text-muted">{{ row.planifie }}</span> planifié{% if row.planifie != 1 %}s{% endif %}
+                  {% if row.extra %}
+                  · <span class="text-info">{{ row.extra }}</span> extra{% if row.extra != 1 %}s{% endif %}
+                  {% endif %}
                   · <span class="text-success">{{ row.termine }}</span> terminé{% if row.termine != 1 %}s{% endif %}
                   · <span class="text-danger">{{ row.manque }}</span> manqué{% if row.manque != 1 %}s{% endif %}
                   {% if row.remplace_statut %}
-                  · <span class="text-warning">{{ row.remplace_statut }}</span> avec remplaçant
+                  · <span class="text-warning">{{ row.remplace_statut }}</span> dépêche{% if row.remplace_statut != 1 %}s{% endif %}
                   {% endif %}
                 </td>
                 <td class="small text-center">

@@ -558,6 +558,15 @@ def site_detail_view(request, pk):
             else:
                 note_role(fp.replacement_guard, f"Remplaçant désigné — {lab}")
 
+    from webadmin.site_guard_roles import enrich_guard_roles_from_assignments, sort_role_labels
+
+    enrich_guard_roles_from_assignments(
+        fixed_posts,
+        assignments_qs,
+        today=today,
+        note_role=note_role,
+    )
+
     status_counters: dict[int, dict[str, int]] = defaultdict(
         lambda: {"planifie": 0, "extra": 0, "termine": 0, "manque": 0, "remplace_statut": 0}
     )
@@ -606,9 +615,16 @@ def site_detail_view(request, pk):
         u = users_by_id.get(uid)
         if u is None:
             continue
-        roles = sorted(guards_map.get(uid, {}).get("roles", []))
+        roles = sort_role_labels(list(guards_map.get(uid, {}).get("roles", [])))
         c = status_counters.get(
-            uid, {"planifie": 0, "termine": 0, "manque": 0, "remplace_statut": 0}
+            uid,
+            {
+                "planifie": 0,
+                "extra": 0,
+                "termine": 0,
+                "manque": 0,
+                "remplace_statut": 0,
+            },
         )
         att = attendance_by_guard.get(uid, {"pointes": 0, "retards": 0})
         guard_rows.append(
@@ -616,6 +632,7 @@ def site_detail_view(request, pk):
                 "user": u,
                 "roles": roles,
                 "planifie": c["planifie"],
+                "extra": c.get("extra", 0),
                 "termine": c["termine"],
                 "manque": c["manque"],
                 "remplace_statut": c["remplace_statut"],
