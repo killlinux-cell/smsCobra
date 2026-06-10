@@ -185,8 +185,21 @@ def build_vigile_placement(vigile: User) -> dict:
             )
 
     is_posted = bool(placements)
+    distinct_sites: list[dict] = []
+    seen_site_ids: set[int] = set()
+    for row in placements:
+        site_id = row["site_id"]
+        if site_id in seen_site_ids:
+            continue
+        seen_site_ids.add(site_id)
+        distinct_sites.append(
+            {"site_id": site_id, "site_name": row["site_name"]}
+        )
+
     return {
         "placements": placements,
+        "distinct_sites": distinct_sites,
+        "distinct_site_count": len(distinct_sites),
         "upcoming": upcoming,
         "is_posted": is_posted,
         "today": today,

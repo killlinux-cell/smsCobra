@@ -10,10 +10,10 @@
         <p class="cobra-vigile-placement__eyebrow mb-1">Poste actuel</p>
         <h2 class="cobra-vigile-placement__title mb-0">
           {{ vigile.display_name|default:vigile.username }}
-          {% if placement.placements|length == 1 %}
-          est posté sur <span class="cobra-vigile-placement__site-highlight">{{ placement.placements.0.site_name }}</span>
+          {% if placement.distinct_site_count == 1 %}
+          est posté sur <span class="cobra-vigile-placement__site-highlight">{{ placement.distinct_sites.0.site_name }}</span>
           {% else %}
-          est posté sur <span class="cobra-vigile-placement__count">{{ placement.placements|length }} sites</span>
+          est posté sur <span class="cobra-vigile-placement__count">{{ placement.distinct_site_count }} sites</span>
           {% endif %}
         </h2>
       </div>

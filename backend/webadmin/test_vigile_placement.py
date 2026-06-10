@@ -101,3 +101,47 @@ class VigilePlacementTests(TestCase):
         data = build_vigile_placement(self.guard)
         self.assertTrue(data["is_posted"])
         self.assertEqual(data["placements"][0]["role"], "Remplaçant désigné")
+
+    def test_same_site_day_and_night_counts_one_site_in_banner(self):
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        data = build_vigile_placement(self.guard)
+        self.assertEqual(len(data["placements"]), 2)
+        self.assertEqual(data["distinct_site_count"], 1)
+        self.assertEqual(data["distinct_sites"][0]["site_name"], "TREICHVILLE")
+
+    def test_two_sites_counted_separately(self):
+        site_b = Site.objects.create(
+            name="PLATEAU",
+            address="B",
+            expected_start_time=time(6, 0),
+            expected_end_time=time(18, 0),
+            latitude=2,
+            longitude=2,
+        )
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        FixedPost.objects.create(
+            site=site_b,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        data = build_vigile_placement(self.guard)
+        self.assertEqual(data["distinct_site_count"], 2)
+        names = {s["site_name"] for s in data["distinct_sites"]}
+        self.assertEqual(names, {"TREICHVILLE", "PLATEAU"})
