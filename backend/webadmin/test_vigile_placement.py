@@ -57,3 +57,47 @@ class VigilePlacementTests(TestCase):
         data = build_vigile_placement(self.guard)
         self.assertTrue(data["is_posted"])
         self.assertIn("aujourd'hui", data["placements"][0]["role"].lower())
+
+    def test_completed_today_not_shown_as_posted(self):
+        ShiftAssignment.objects.create(
+            guard=self.guard,
+            site=self.site,
+            shift_date=timezone.localdate(),
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.COMPLETED,
+        )
+        data = build_vigile_placement(self.guard)
+        self.assertFalse(data["is_posted"])
+        self.assertEqual(len(data["placements"]), 0)
+
+    def test_extra_today_shows_extra_role(self):
+        ShiftAssignment.objects.create(
+            guard=self.guard,
+            site=self.site,
+            shift_date=timezone.localdate(),
+            start_time=time(6, 0),
+            end_time=time(18, 0),
+            status=ShiftAssignment.Status.EXTRA,
+        )
+        data = build_vigile_placement(self.guard)
+        self.assertTrue(data["is_posted"])
+        self.assertEqual(data["placements"][0]["role"], "Extra")
+
+    def test_designated_replacement_shown(self):
+        other = User.objects.create_user(
+            username="v2",
+            password="x",
+            role=User.Role.VIGILE,
+        )
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=other,
+            replacement_guard=self.guard,
+            replacement_active=False,
+            is_active=True,
+        )
+        data = build_vigile_placement(self.guard)
+        self.assertTrue(data["is_posted"])
+        self.assertEqual(data["placements"][0]["role"], "Remplaçant désigné")

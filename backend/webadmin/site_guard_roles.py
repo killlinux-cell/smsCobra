@@ -67,6 +67,7 @@ def enrich_guard_roles_from_assignments(
             elif (
                 assignment.status == ShiftAssignment.Status.REPLACED
                 and assignment.original_guard_id
+                and slot_key not in covered
             ):
                 note_role(guard, f"Dépêche — {lab}")
             elif assignment.status in active_statuses and slot_key not in covered:

@@ -104,9 +104,26 @@ def build_vigile_placement(vigile: User) -> dict:
                 variant="info",
                 detail=f"Pour {tit}",
             )
+        elif fp.replacement_guard_id == vigile.pk:
+            add(
+                site_id=fp.site_id,
+                site_name=site_name,
+                role="Remplaçant désigné",
+                shift_label=shift_label,
+                variant="secondary",
+                detail=(
+                    f"Titulaire : {fp.titular_guard.display_name}"
+                    if fp.titular_guard_id
+                    else ""
+                ),
+            )
 
     today_assignments = (
-        ShiftAssignment.objects.filter(shift_date=today, guard=vigile)
+        ShiftAssignment.objects.filter(
+            shift_date=today,
+            guard=vigile,
+            status__in=ShiftAssignment.active_on_duty_statuses(),
+        )
         .select_related("site", "original_guard")
         .order_by("site__name", "start_time")
     )
@@ -122,7 +139,11 @@ def build_vigile_placement(vigile: User) -> dict:
         )
         if slot[1] and slot in fixed_slots:
             continue
-        if (
+        if assignment.status == ShiftAssignment.Status.EXTRA:
+            role = "Extra"
+            detail = ""
+            variant = "info"
+        elif (
             assignment.status == ShiftAssignment.Status.REPLACED
             and assignment.original_guard_id
         ):

@@ -95,3 +95,35 @@ class SiteGuardRolesTests(TestCase):
         )
         self.assertEqual(ordered[0], "Titulaire — jour")
         self.assertEqual(ordered[1], "Dépêche — nuit")
+
+    def test_promoted_titular_no_duplicate_depeche_role(self):
+        """Après promotion titulaire, pas de double rôle Titulaire + Dépêche."""
+        self.fixed.titular_guard = self.dispatch
+        self.fixed.suspended_titular_guard = self.titular
+        self.fixed.save(
+            update_fields=["titular_guard", "suspended_titular_guard", "updated_at"]
+        )
+        ShiftAssignment.objects.create(
+            guard=self.dispatch,
+            site=self.site,
+            shift_date=self.today,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
+            status=ShiftAssignment.Status.REPLACED,
+            original_guard=self.titular,
+        )
+        roles: dict[int, set[str]] = {}
+
+        def note_role(user, label: str) -> None:
+            roles.setdefault(user.id, set()).add(label)
+
+        note_role(self.dispatch, "Titulaire — nuit")
+        enrich_guard_roles_from_assignments(
+            [self.fixed],
+            ShiftAssignment.objects.filter(site=self.site),
+            today=self.today,
+            note_role=note_role,
+        )
+        dispatch_roles = roles[self.dispatch.id]
+        self.assertIn("Titulaire — nuit", dispatch_roles)
+        self.assertNotIn("Dépêche — nuit", dispatch_roles)

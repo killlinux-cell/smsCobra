@@ -148,28 +148,33 @@ class CobraApi {
       final streamed = await req.send().timeout(const Duration(seconds: 90));
       final resp = await http.Response.fromStream(streamed);
       if (resp.statusCode == 200) {
-        await _storeJwtFromBody(resp.body);
-        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
-        final username = (decoded["guard_username"] ?? "").toString();
-        final guardName = (decoded["guard_name"] ?? username).toString();
-        final assignmentId = (decoded["assignment_id"] as num?)?.toInt() ?? 0;
-        Assignment? assignment;
-        final rawAssignment = decoded["assignment"];
-        if (rawAssignment is Map<String, dynamic>) {
-          assignment = _assignmentFromJson(rawAssignment);
+        try {
+          final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+          final username = (decoded["guard_username"] ?? "").toString();
+          final guardName = (decoded["guard_name"] ?? username).toString();
+          final assignmentId = (decoded["assignment_id"] as num?)?.toInt() ?? 0;
+          if (assignmentId <= 0) {
+            throw Exception("Affectation introuvable après identification.");
+          }
+          Assignment? assignment;
+          final rawAssignment = decoded["assignment"];
+          if (rawAssignment is Map<String, dynamic>) {
+            assignment = _assignmentFromJson(rawAssignment);
+          }
+          final scoreRaw = decoded["face_match_score"];
+          final faceScore = scoreRaw is num ? scoreRaw.toDouble() : null;
+          await _storeJwtFromBody(resp.body);
+          return FaceIdentifyResult(
+            guardUsername: username,
+            guardName: guardName,
+            assignmentId: assignmentId,
+            assignment: assignment,
+            faceMatchScore: faceScore,
+          );
+        } catch (e) {
+          await logout();
+          rethrow;
         }
-        final scoreRaw = decoded["face_match_score"];
-        final faceScore = scoreRaw is num ? scoreRaw.toDouble() : null;
-        if (assignmentId <= 0) {
-          throw Exception("Affectation introuvable après identification.");
-        }
-        return FaceIdentifyResult(
-          guardUsername: username,
-          guardName: guardName,
-          assignmentId: assignmentId,
-          assignment: assignment,
-          faceMatchScore: faceScore,
-        );
       }
       String? detail;
       try {
@@ -188,10 +193,16 @@ class CobraApi {
   }
 
   Assignment _assignmentFromJson(Map<String, dynamic> m) {
-    final id = (m["id"] as num).toInt();
+    final idRaw = m["id"];
+    if (idRaw is! num) {
+      throw Exception("Réponse serveur invalide (affectation).");
+    }
+    final id = idRaw.toInt();
     final site = (m["site_name"] ?? "Site ${m["site"]}").toString();
-    final start = (m["start_time"] ?? "").toString().substring(0, 5);
-    final end = (m["end_time"] ?? "").toString().substring(0, 5);
+    final startRaw = (m["start_time"] ?? "").toString();
+    final endRaw = (m["end_time"] ?? "").toString();
+    final start = startRaw.length >= 5 ? startRaw.substring(0, 5) : startRaw;
+    final end = endRaw.length >= 5 ? endRaw.substring(0, 5) : endRaw;
     final hasStart = (m["has_start"] ?? false) as bool;
     final hasEnd = (m["has_end"] ?? false) as bool;
     final canEnd = (m["can_end"] ?? false) as bool;
