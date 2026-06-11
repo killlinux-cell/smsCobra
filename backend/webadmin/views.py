@@ -1144,6 +1144,7 @@ def affectations_list_view(request):
                 .filter(shift_date=today)
                 .order_by("site__name", "start_time"),
                 initial={"assignment": prefill.pk},
+                filter_assignment=prefill,
             )
     if request.method == "POST":
         form = ShiftAssignmentForm(request.POST, for_create=True)

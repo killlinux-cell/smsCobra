@@ -1064,8 +1064,33 @@ class DispatchForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         assignments_qs = kwargs.pop("assignments_qs", None)
+        filter_assignment = kwargs.pop("filter_assignment", None)
         super().__init__(*args, **kwargs)
         if assignments_qs is not None:
             self.fields["assignment"].queryset = assignments_qs
         self.fields["assignment"].widget.attrs.setdefault("class", _SEL)
         self.fields["replacement_guard"].widget.attrs.setdefault("class", _SEL)
+
+        assignment = filter_assignment
+        if assignment is not None and not hasattr(assignment, "shift_date"):
+            assignment = ShiftAssignment.objects.filter(pk=assignment).first()
+        if assignment is None and self.is_bound:
+            raw = (self.data.get("assignment") or "").strip()
+            if raw.isdigit():
+                assignment = ShiftAssignment.objects.filter(pk=int(raw)).first()
+        if assignment is None:
+            raw_init = self.initial.get("assignment")
+            if raw_init:
+                assignment = ShiftAssignment.objects.filter(pk=raw_init).first()
+
+        from shifts.dispatch_candidates import (
+            replacement_candidate_queryset,
+            vigiles_free_today_queryset,
+        )
+
+        if assignment is not None:
+            self.fields["replacement_guard"].queryset = replacement_candidate_queryset(
+                assignment
+            )
+        else:
+            self.fields["replacement_guard"].queryset = vigiles_free_today_queryset()

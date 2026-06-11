@@ -153,10 +153,48 @@ class TodayAssignmentsDispatchView(generics.ListAPIView):
 
 
 class AdminVigilesListView(generics.ListAPIView):
-    """Liste des vigiles pour choix remplaçant."""
+    """Liste des vigiles pour choix remplaçant (sans affectation active aujourd'hui)."""
 
     permission_classes = [IsAuthenticated, IsAdminRole]
     serializer_class = VigileBriefSerializer
 
     def get_queryset(self):
-        return User.objects.filter(role=User.Role.VIGILE).order_by("username")
+        from shifts.dispatch_candidates import vigiles_free_today_queryset
+
+        return vigiles_free_today_queryset()
+
+
+class DispatchCandidatesView(APIView):
+    """
+    Vigiles disponibles pour remplacer sur une affectation donnée
+    (libres sur le créneau, empreinte OK).
+    """
+
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        raw = (request.query_params.get("assignment_id") or "").strip()
+        if not raw.isdigit():
+            return Response(
+                {"detail": "Paramètre assignment_id requis."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        assignment = (
+            ShiftAssignment.objects.select_related("site", "guard")
+            .filter(pk=int(raw))
+            .first()
+        )
+        if not assignment:
+            return Response(
+                {"detail": "Affectation introuvable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        from shifts.dispatch_candidates import replacement_candidate_queryset
+
+        qs = replacement_candidate_queryset(assignment)
+        data = VigileBriefSerializer(
+            qs,
+            many=True,
+            context={"request": request},
+        ).data
+        return Response(data)

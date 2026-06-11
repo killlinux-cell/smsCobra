@@ -29,6 +29,7 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
   List<dynamic> _assignments = [];
   List<dynamic> _vigiles = [];
   bool _loading = true;
+  bool _loadingCandidates = false;
   int? _assignmentId;
   int? _vigileId;
   bool _sending = false;
@@ -75,22 +76,24 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
     setState(() => _loading = true);
     try {
       final a = await widget.api.fetchTodayAssignments();
-      final v = await widget.api.fetchVigiles();
       if (mounted) {
         setState(() {
           _assignments = a;
-          _vigiles = v;
           _assignmentId = widget.initialAssignmentId;
           _vigileId = null;
+          _vigiles = [];
         });
         widget.onInitialAssignmentConsumed?.call();
+        if (_assignmentId != null) {
+          await _loadCandidates(_assignmentId!);
+        }
       }
     } on AdminSessionExpiredException {
       await widget.onSessionExpired();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur de chargement (affectations / vigiles).')),
+          const SnackBar(content: Text('Erreur de chargement des affectations.')),
         );
       }
     } finally {
@@ -101,6 +104,40 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
         });
       }
     }
+  }
+
+  Future<void> _loadCandidates(int assignmentId) async {
+    setState(() => _loadingCandidates = true);
+    try {
+      final v = await widget.api.fetchDispatchCandidates(assignmentId);
+      if (!mounted) return;
+      setState(() {
+        _vigiles = v;
+        if (_vigileId != null &&
+            !v.any((raw) => (raw as Map)['id'] == _vigileId)) {
+          _vigileId = null;
+        }
+      });
+    } on AdminSessionExpiredException {
+      await widget.onSessionExpired();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de charger les vigiles disponibles.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingCandidates = false);
+    }
+  }
+
+  void _onAssignmentChanged(int? id) {
+    setState(() {
+      _assignmentId = id;
+      _vigileId = null;
+      _vigiles = [];
+    });
+    if (id != null) _loadCandidates(id);
   }
 
   Future<void> _submit() async {
@@ -172,10 +209,11 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
           cobraStaggerItem(
             controller: _staggerCtrl,
             index: 1,
-            child: Padding(
+              child: Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Même action que sur le tableau de bord web : le poste sélectionné sera attribué au vigile choisi (statut « remplacé »).',
+                'Choisissez d’abord le poste : seuls les vigiles libres sur ce créneau '
+                '(sans garde ailleurs, empreinte faciale OK) sont proposés.',
                 style: GoogleFonts.outfit(
                   color: const Color(0xFF64748B),
                   fontSize: 13,
@@ -232,7 +270,7 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
                             ),
                           );
                         }).toList(),
-                        onChanged: (v) => setState(() => _assignmentId = v),
+                        onChanged: _onAssignmentChanged,
                       ),
                     ),
                   ),
@@ -256,34 +294,80 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
                     '2. Vigile remplaçant',
                     style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int>(
-                        isExpanded: true,
-                        value: _vigileId,
-                        hint: const Text('Choisir un vigile…'),
-                        borderRadius: BorderRadius.circular(12),
-                        items: _vigiles.map((raw) {
-                          final m = raw as Map<String, dynamic>;
-                          final id = (m['id'] as num).toInt();
-                          final name = (m['display_name'] ?? m['username'] ?? id).toString();
-                          return DropdownMenuItem<int>(
-                            value: id,
-                            child: Text(name, overflow: TextOverflow.ellipsis),
-                          );
-                        }).toList(),
-                        onChanged: (v) => setState(() => _vigileId = v),
+                  if (_assignmentId == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Sélectionnez un poste ci-dessus.',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    )
+                  else if (_loadingCandidates)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  else if (_vigiles.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Aucun vigile disponible sur ce créneau '
+                        '(tous occupés ou sans empreinte faciale).',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: const Color(0xFFB45309),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 6),
+                      child: Text(
+                        '${_vigiles.length} vigile(s) disponible(s)',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B),
+                        ),
                       ),
                     ),
-                  ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          isExpanded: true,
+                          value: _vigileId,
+                          hint: const Text('Choisir un vigile…'),
+                          borderRadius: BorderRadius.circular(12),
+                          items: _vigiles.map((raw) {
+                            final m = raw as Map<String, dynamic>;
+                            final id = (m['id'] as num).toInt();
+                            final name =
+                                (m['display_name'] ?? m['username'] ?? id).toString();
+                            return DropdownMenuItem<int>(
+                              value: id,
+                              child: Text(name, overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(),
+                          onChanged: (v) => setState(() => _vigileId = v),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
