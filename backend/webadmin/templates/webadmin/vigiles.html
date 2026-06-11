@@ -46,6 +46,7 @@
                     <div class="small text-muted">{{ v.phone_number }}</div>
                     {% endif %}
                     <div class="mt-2 d-flex flex-wrap gap-1 align-items-center">
+                      {% include "webadmin/_vigile_face_badge.html" with user=v %}
                       {% if v.height_cm %}<span class="badge rounded-pill bg-light text-dark border">{{ v.height_cm }} cm</span>{% endif %}
                       {% if v.education_level %}<span class="badge rounded-pill bg-light text-dark border">{{ v.get_education_level_display }}</span>{% endif %}
                       {% if v.date_integration %}<span class="badge rounded-pill bg-light text-dark border">Intégr. {{ v.date_integration|date:"d/m/Y" }}</span>{% endif %}

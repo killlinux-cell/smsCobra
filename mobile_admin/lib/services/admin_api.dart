@@ -189,7 +189,7 @@ class AdminApi {
   }
 
   Future<List<dynamic>> fetchVigiles() async {
-    final uri = Uri.parse("$apiBase/api/v1/admin/alerts/vigiles");
+    final uri = Uri.parse("$apiBase/api/v1/admin/vigiles/");
     final resp = await _authGet(uri);
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
     if (resp.statusCode != 200) throw Exception("vigiles_failed");
@@ -265,7 +265,25 @@ class AdminApi {
     }
     if (streamed.statusCode == 401) throw AdminSessionExpiredException();
     if (streamed.statusCode != 201) {
-      throw Exception("vigile_create_failed");
+      final body = await streamed.stream.bytesToString();
+      String? message;
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map) {
+          final photoErrors = decoded['profile_photo'];
+          if (photoErrors is List && photoErrors.isNotEmpty) {
+            message = photoErrors.first.toString();
+          } else {
+            final detail = decoded['detail'];
+            if (detail != null && detail.toString().isNotEmpty) {
+              message = detail.toString();
+            }
+          }
+        }
+      } catch (_) {
+        // corps non JSON
+      }
+      throw Exception(message ?? 'vigile_create_failed');
     }
   }
 

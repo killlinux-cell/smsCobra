@@ -69,10 +69,30 @@ class ShiftAssignmentDispatchSerializer(serializers.ModelSerializer):
 
 class VigileBriefSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
+    profile_photo = serializers.SerializerMethodField()
+    face_enrollment_ok = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "display_name"]
+        fields = [
+            "id",
+            "username",
+            "display_name",
+            "profile_photo",
+            "face_enrollment_ok",
+        ]
 
     def get_display_name(self, obj: User) -> str:
         return obj.display_name
+
+    def get_profile_photo(self, obj: User):
+        if not obj.profile_photo:
+            return None
+        request = self.context.get("request")
+        url = obj.profile_photo.url
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_face_enrollment_ok(self, obj: User) -> bool:
+        return bool(obj.profile_photo and obj.face_embedding)

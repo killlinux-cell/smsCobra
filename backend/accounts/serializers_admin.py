@@ -29,6 +29,7 @@ class VigileAdminSerializer(serializers.ModelSerializer):
     profile_photo = serializers.SerializerMethodField()
     id_document = serializers.SerializerMethodField()
     id_document_verso = serializers.SerializerMethodField()
+    face_enrollment_ok = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -49,10 +50,14 @@ class VigileAdminSerializer(serializers.ModelSerializer):
             "profile_photo",
             "id_document",
             "id_document_verso",
+            "face_enrollment_ok",
         ]
 
     def get_display_name(self, obj: User) -> str:
         return obj.display_name
+
+    def get_face_enrollment_ok(self, obj: User) -> bool:
+        return bool(obj.profile_photo and obj.face_embedding)
 
     def get_profile_photo(self, obj: User):
         if not obj.profile_photo:

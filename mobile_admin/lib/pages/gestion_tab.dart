@@ -286,6 +286,10 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
               final id = (m['id'] as num?)?.toInt() ?? 0;
               final photoUrl = widget.api.resolveMediaUrl(m['profile_photo']?.toString());
               final domicile = (m['domicile'] ?? '').toString().trim();
+              final faceOk = m['face_enrollment_ok'] == true;
+              final hasPhoto =
+                  m['profile_photo'] != null &&
+                  m['profile_photo'].toString().isNotEmpty;
               return cobraStaggerItem(
                 controller: _staggerV,
                 index: i,
@@ -340,12 +344,20 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                                   ),
                                 ),
                               ],
+                              const SizedBox(height: 6),
+                              _faceEnrollmentChip(hasPhoto: hasPhoto, faceOk: faceOk),
                             ],
                           ),
                         ),
                         Icon(
-                          Icons.verified_user_outlined,
-                          color: CobraAdminColors.accent.withAlpha(220),
+                          faceOk
+                              ? Icons.verified_rounded
+                              : Icons.warning_amber_rounded,
+                          color: faceOk
+                              ? const Color(0xFF16A34A)
+                              : (hasPhoto
+                                    ? const Color(0xFFDC2626)
+                                    : const Color(0xFF94A3B8)),
                           size: 22,
                         ),
                       ],
@@ -492,6 +504,40 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
               );
             }),
         ],
+      ),
+    );
+  }
+
+  Widget _faceEnrollmentChip({required bool hasPhoto, required bool faceOk}) {
+    late final String label;
+    late final Color bg;
+    late final Color fg;
+    if (!hasPhoto) {
+      label = 'Sans photo';
+      bg = const Color(0xFFF1F5F9);
+      fg = const Color(0xFF64748B);
+    } else if (faceOk) {
+      label = 'Empreinte OK';
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF166534);
+    } else {
+      label = 'Photo invalide';
+      bg = const Color(0xFFFEE2E2);
+      fg = const Color(0xFF991B1B);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.outfit(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
       ),
     );
   }

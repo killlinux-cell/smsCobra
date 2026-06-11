@@ -1,0 +1,14 @@
+{# Statut empreinte faciale — vigile avec profile_photo + face_embedding #}
+{% if not user.profile_photo %}
+<span class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary-subtle" title="Aucune photo portrait enregistrée">
+  <i class="bi bi-person-x me-1"></i>Sans photo
+</span>
+{% elif user.face_embedding %}
+<span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" title="Photo portrait valide pour la reconnaissance faciale">
+  <i class="bi bi-shield-check me-1"></i>Empreinte OK
+</span>
+{% else %}
+<span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" title="Photo présente mais aucun visage détectable — reprenez le portrait">
+  <i class="bi bi-exclamation-triangle me-1"></i>Photo invalide
+</span>
+{% endif %}

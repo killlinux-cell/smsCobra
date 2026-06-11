@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/admin_api.dart';
 import '../theme/cobra_admin_theme.dart';
+import 'portrait_capture_page.dart';
 
 class AddVigilePage extends StatefulWidget {
   const AddVigilePage({
@@ -43,7 +44,14 @@ class _AddVigilePageState extends State<AddVigilePage> {
     super.dispose();
   }
 
-  Future<void> _pickPhoto() async {
+  Future<void> _capturePortrait() async {
+    final path = await PortraitCapturePage.capture(context);
+    if (path != null && mounted) {
+      setState(() => _photoPath = path);
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
     final picker = ImagePicker();
     final x = await picker.pickImage(
       source: ImageSource.gallery,
@@ -59,7 +67,9 @@ class _AddVigilePageState extends State<AddVigilePage> {
     if (!_formKey.currentState!.validate()) return;
     if (_photoPath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La photo de profil est obligatoire.')),
+        const SnackBar(
+          content: Text('La photo portrait est obligatoire (caméra guidée).'),
+        ),
       );
       return;
     }
@@ -87,8 +97,9 @@ class _AddVigilePageState extends State<AddVigilePage> {
       await widget.onSessionExpired();
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(msg)),
         );
       }
     } finally {
@@ -115,7 +126,8 @@ class _AddVigilePageState extends State<AddVigilePage> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
             Text(
-              "Identifiant laissé vide : généré automatiquement (VIR-xxx). Connexion vigile par visage.",
+              "Identifiant laissé vide : généré automatiquement (VIR-xxx). "
+              "Utilisez la caméra guidée pour le portrait (vérifié côté serveur).",
               style: GoogleFonts.outfit(
                 fontSize: 13,
                 color: const Color(0xFF64748B),
@@ -126,7 +138,7 @@ class _AddVigilePageState extends State<AddVigilePage> {
               child: Column(
                 children: [
                   GestureDetector(
-                    onTap: _pickPhoto,
+                    onTap: _capturePortrait,
                     child: CircleAvatar(
                       radius: 48,
                       backgroundColor: CobraAdminColors.indigo.withAlpha(40),
@@ -142,10 +154,19 @@ class _AddVigilePageState extends State<AddVigilePage> {
                           : null,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: _capturePortrait,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: CobraAdminColors.indigo,
+                    ),
+                    icon: const Icon(Icons.camera_alt_rounded, size: 20),
+                    label: const Text('Prendre le portrait'),
+                  ),
                   TextButton.icon(
-                    onPressed: _pickPhoto,
+                    onPressed: _pickFromGallery,
                     icon: const Icon(Icons.photo_library_outlined, size: 20),
-                    label: const Text('Choisir une photo'),
+                    label: const Text('Galerie (secours)'),
                   ),
                 ],
               ),

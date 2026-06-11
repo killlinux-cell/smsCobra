@@ -23,7 +23,10 @@
   <div class="row g-4">
     <div class="col-lg-4">
       <div class="card cobra-panel h-100">
-        <div class="card-header">Portrait</div>
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <span>Portrait</span>
+          {% include "webadmin/_vigile_face_badge.html" with user=vigile %}
+        </div>
         <div class="card-body text-center">
           {% if vigile.profile_photo %}
           <img src="{{ vigile.profile_photo.url }}" alt="" class="rounded-3 img-fluid mb-3" style="max-height:280px;object-fit:cover;width:100%;">
