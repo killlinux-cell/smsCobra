@@ -155,11 +155,70 @@ def encode_selfie_upload(selfie) -> Tuple[np.ndarray | None, str]:
             pass
 
 
+def embedding_to_list(encoding: np.ndarray) -> list[float]:
+    return [float(x) for x in encoding.tolist()]
+
+
+def encoding_from_list(stored) -> np.ndarray | None:
+    if not stored or not isinstance(stored, list) or len(stored) < 128:
+        return None
+    try:
+        return np.array(stored, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+
+
+def encode_profile_photo_field(profile_image_field) -> Tuple[np.ndarray | None, str]:
+    """Encode la photo portrait (enrôlement) une fois."""
+    try:
+        import face_recognition  # noqa: F401
+    except ImportError:
+        logger.error("face_recognition non installé : pip install face-recognition")
+        return None, "face_engine_unavailable"
+
+    if not profile_image_field:
+        return None, "no_face_in_reference"
+
+    model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
+    num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
+    ref_path = _temp_path("cobra_ref", ".jpg")
+    try:
+        with profile_image_field.open("rb") as ref_stream:
+            _write_source_to_path(ref_stream, ref_path)
+        ref_img = _load_rgb_image_with_exif(ref_path)
+        ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
+        if ref_enc is None:
+            return None, "no_face_in_reference"
+        return ref_enc, ""
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Erreur encodage photo profil: %s", exc)
+        return None, "face_verify_error"
+    finally:
+        try:
+            if os.path.isfile(ref_path):
+                os.unlink(ref_path)
+        except OSError:
+            pass
+
+
+def _reference_encoding(
+    profile_image_field,
+    *,
+    profile_user=None,
+) -> Tuple[np.ndarray | None, str]:
+    if profile_user is not None:
+        stored = encoding_from_list(getattr(profile_user, "face_embedding", None))
+        if stored is not None:
+            return stored, ""
+    return encode_profile_photo_field(profile_image_field)
+
+
 def verify_selfie_against_profile(
     selfie: UploadedFile,
     profile_image_field,
     *,
     selfie_encoding: np.ndarray | None = None,
+    profile_user=None,
 ) -> Tuple[bool, float | None, str]:
     """
     Retourne (succès, score_qualité_0_1_ou_None, code_raison).
@@ -175,10 +234,7 @@ def verify_selfie_against_profile(
     tolerance = float(
         getattr(settings, "FACE_VERIFICATION_TOLERANCE", DEFAULT_TOLERANCE)
     )
-    model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
-    num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
 
-    ref_path = _temp_path("cobra_ref", ".jpg")
     try:
         if selfie_encoding is None:
             selfie_enc, fail = encode_selfie_upload(selfie)
@@ -187,16 +243,14 @@ def verify_selfie_against_profile(
         else:
             selfie_enc = selfie_encoding
 
-        with profile_image_field.open("rb") as ref_stream:
-            _write_source_to_path(ref_stream, ref_path)
+        ref_enc, ref_fail = _reference_encoding(
+            profile_image_field,
+            profile_user=profile_user,
+        )
+        if ref_fail or ref_enc is None:
+            return False, None, ref_fail or "no_face_in_reference"
 
         import face_recognition
-
-        ref_img = _load_rgb_image_with_exif(ref_path)
-
-        ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
-        if ref_enc is None:
-            return False, None, "no_face_in_reference"
 
         dist = float(face_recognition.face_distance([ref_enc], selfie_enc)[0])
         score = max(0.0, min(1.0, 1.0 - dist))
@@ -208,9 +262,3 @@ def verify_selfie_against_profile(
     except Exception as exc:  # noqa: BLE001 — log + refus sécurisé
         logger.exception("Erreur lors de la vérification faciale: %s", exc)
         return False, None, "face_verify_error"
-    finally:
-        try:
-            if os.path.isfile(ref_path):
-                os.unlink(ref_path)
-        except OSError:
-            pass

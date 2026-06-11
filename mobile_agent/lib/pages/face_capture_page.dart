@@ -16,21 +16,31 @@ class FaceCapturePage extends StatefulWidget {
     super.key,
     required this.title,
     required this.hint,
+    this.requireLiveness = false,
+    this.strictQuality = true,
   });
 
   final String title;
   final String hint;
+  /// Demande un léger mouvement de tête avant capture (anti-photo / écran).
+  final bool requireLiveness;
+  /// Refuse luminosité extrême et plusieurs visages.
+  final bool strictQuality;
 
   static Future<String?> capture(
     BuildContext context, {
     required String title,
     required String hint,
+    bool requireLiveness = false,
+    bool strictQuality = true,
   }) async {
     return Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => FaceCapturePage(
           title: title,
           hint: hint,
+          requireLiveness: requireLiveness,
+          strictQuality: strictQuality,
         ),
       ),
     );
@@ -52,6 +62,12 @@ class _FaceCapturePageState extends State<FaceCapturePage> {
   bool _processing = false;
   int _stableGoodFrames = 0;
   bool _cameraDeniedPermanent = false;
+  String _qualityHint = "Centrez votre visage dans l'ovale.";
+  int _livenessPhase = 0;
+  double? _baselineHeadY;
+  static const double _minBrightness = 45;
+  static const double _maxBrightness = 215;
+  static const double _headTurnDegrees = 12;
 
   static const Map<DeviceOrientation, int> _orientations = {
     DeviceOrientation.portraitUp: 0,
@@ -394,6 +410,71 @@ class _FaceCapturePageState extends State<FaceCapturePage> {
     return inOval && sizeOk;
   }
 
+  double _estimateBrightness(CameraImage image) {
+    final bytes = image.planes.first.bytes;
+    if (bytes.isEmpty) return 128;
+    var sum = 0;
+    var count = 0;
+    final step = (bytes.length / 500).floor().clamp(1, bytes.length);
+    for (var i = 0; i < bytes.length; i += step) {
+      sum += bytes[i];
+      count++;
+    }
+    return sum / count;
+  }
+
+  String? _qualityIssue(int faceCount, double brightness) {
+    if (!widget.strictQuality) return null;
+    if (faceCount == 0) return "Aucun visage detecte.";
+    if (faceCount > 1) return "Un seul visage doit etre visible.";
+    if (brightness < _minBrightness) {
+      return "Trop sombre — rapprochez-vous d'une source de lumiere.";
+    }
+    if (brightness > _maxBrightness) {
+      return "Trop lumineux — evitez le contre-jour.";
+    }
+    return null;
+  }
+
+  String _livenessHint() {
+    if (!widget.requireLiveness) return _qualityHint;
+    switch (_livenessPhase) {
+      case 0:
+        return "Regardez droit la camera.";
+      case 1:
+        return "Tournez legerement la tete a gauche ou a droite.";
+      default:
+        return _qualityHint;
+    }
+  }
+
+  bool _livenessSatisfied(Face face) {
+    if (!widget.requireLiveness) return true;
+    final headY = face.headEulerAngleY ?? 0;
+    if (_livenessPhase == 0) {
+      return true;
+    }
+    if (_livenessPhase == 1) {
+      final base = _baselineHeadY;
+      if (base == null) return false;
+      return (headY - base).abs() >= _headTurnDegrees;
+    }
+    return true;
+  }
+
+  void _advanceLiveness(Face face, bool aligned) {
+    if (!widget.requireLiveness || !aligned) return;
+    final headY = face.headEulerAngleY ?? 0;
+    if (_livenessPhase == 0 && _stableGoodFrames >= 4) {
+      _baselineHeadY = headY;
+      _livenessPhase = 1;
+      _stableGoodFrames = 0;
+    } else if (_livenessPhase == 1 && _livenessSatisfied(face)) {
+      _livenessPhase = 2;
+      _stableGoodFrames = 0;
+    }
+  }
+
   Future<void> _onCameraImage(CameraImage image) async {
     final c = _controller;
     final detector = _faceDetector;
@@ -418,9 +499,11 @@ class _FaceCapturePageState extends State<FaceCapturePage> {
 
       final imageSize = Size(image.width.toDouble(), image.height.toDouble());
       final lens = c.description.lensDirection;
+      final brightness = _estimateBrightness(image);
+      final qualityIssue = _qualityIssue(faces.length, brightness);
 
       var aligned = false;
-      if (faces.length == 1) {
+      if (faces.length == 1 && qualityIssue == null) {
         aligned = _faceAlignedInOval(
           faces.first,
           canvas,
@@ -428,16 +511,26 @@ class _FaceCapturePageState extends State<FaceCapturePage> {
           rotation,
           lens,
         );
+        if (aligned) {
+          _advanceLiveness(faces.first, aligned);
+        }
       }
 
-      if (aligned) {
+      if (aligned && faces.length == 1 && _livenessSatisfied(faces.first)) {
         _stableGoodFrames = (_stableGoodFrames + 1).clamp(0, 8);
       } else {
         _stableGoodFrames = 0;
       }
-      final ready = _stableGoodFrames >= 3;
-      if (ready != _faceReady) {
-        setState(() => _faceReady = ready);
+
+      final livenessOk = !widget.requireLiveness || _livenessPhase >= 2;
+      final ready = aligned && livenessOk && _stableGoodFrames >= 3;
+
+      final nextHint = qualityIssue ?? _livenessHint();
+      if (ready != _faceReady || nextHint != _qualityHint) {
+        setState(() {
+          _faceReady = ready;
+          _qualityHint = nextHint;
+        });
       }
     } catch (_) {
       // ignorer une frame défaillante
@@ -557,7 +650,7 @@ class _FaceCapturePageState extends State<FaceCapturePage> {
                           Text(
                             _faceReady
                                 ? "Prêt — vous pouvez capturer."
-                                : "Centrez votre visage dans l'ovale.",
+                                : _qualityHint,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,

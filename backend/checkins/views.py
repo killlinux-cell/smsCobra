@@ -409,7 +409,7 @@ class BiometricVerifyView(APIView):
             )
 
         ok, match_score, fail_reason = face_verify.verify_selfie_against_profile(
-            selfie, request.user.profile_photo
+            selfie, request.user.profile_photo, profile_user=request.user
         )
         if not ok:
             verification.status = BiometricVerification.Status.REJECTED

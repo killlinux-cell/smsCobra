@@ -166,7 +166,7 @@ class VigileFaceIdentifyAPITests(TestCase):
     def test_face_identify_without_site_id_not_other_guard_assignment(self, _enc):
         vigile_photo = self.vigile.profile_photo
 
-        def _verify_only_vigile(selfie, profile_photo, selfie_encoding=None):
+        def _verify_only_vigile(selfie, profile_photo, selfie_encoding=None, profile_user=None):
             if profile_photo == vigile_photo:
                 return (True, 0.93, "")
             return (False, 0.1, "face_mismatch")

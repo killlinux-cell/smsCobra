@@ -153,4 +153,7 @@ class VigileCreateSerializer(serializers.Serializer):
         # Si absent, on en crée un aléatoire robuste pour garder le compte sécurisé.
         user.set_password(pwd or secrets.token_urlsafe(24))
         user.save()
+        from accounts.face_profile import refresh_face_embedding_if_vigile
+
+        refresh_face_embedding_if_vigile(user, photo_updated=True)
         return user

@@ -75,6 +75,11 @@ class User(AbstractUser):
         blank=True,
         help_text="Niveau d'études ou diplôme le plus élevé.",
     )
+    face_embedding = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Empreinte faciale 128D pré-calculée à partir de la photo portrait.",
+    )
 
     def __str__(self) -> str:
         return f"{self.username} ({self.role})"

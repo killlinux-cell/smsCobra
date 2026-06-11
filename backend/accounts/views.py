@@ -71,7 +71,9 @@ class VigileFaceLoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        ok, _score, fail_reason = verify_selfie_against_profile(selfie, user.profile_photo)
+        ok, _score, fail_reason = verify_selfie_against_profile(
+            selfie, user.profile_photo, profile_user=user
+        )
         if not ok:
             messages = {
                 "face_engine_unavailable": "Service de reconnaissance faciale indisponible sur le serveur.",
@@ -190,6 +192,7 @@ class VigileFaceIdentifyView(APIView):
                 selfie,
                 candidate.profile_photo,
                 selfie_encoding=selfie_enc,
+                profile_user=candidate,
             )
             if ok and score is not None:
                 matches.append((candidate, float(score)))

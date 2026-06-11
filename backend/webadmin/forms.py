@@ -379,6 +379,9 @@ class VigileCreationForm(forms.ModelForm):
         user.set_password(secrets.token_urlsafe(24))
         if commit:
             user.save()
+            from accounts.face_profile import refresh_face_embedding_if_vigile
+
+            refresh_face_embedding_if_vigile(user, photo_updated=True)
         return user
 
 
@@ -628,6 +631,10 @@ class VigileUpdateForm(forms.ModelForm):
             user.education_level = ""
         if commit:
             user.save()
+            from accounts.face_profile import refresh_face_embedding_if_vigile
+
+            photo_updated = bool(self.cleaned_data.get("profile_photo"))
+            refresh_face_embedding_if_vigile(user, photo_updated=photo_updated)
         return user
 
 

@@ -334,6 +334,7 @@ class _AgentHomePageState extends State<AgentHomePage>
           title: "Reconnaissance faciale",
           hint:
               "Centrez votre visage dans le cadran pour confirmer votre présence.",
+          strictQuality: true,
         );
         if (imgPath == null) {
           setState(

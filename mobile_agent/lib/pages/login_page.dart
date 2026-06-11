@@ -61,8 +61,17 @@ class _LoginPageState extends State<LoginPage> {
     if (s.contains("Aucun vigile planifié")) {
       return "Aucun vigile planifie avec photo d'enrolement disponible.";
     }
-    if (s.contains("Aucun visage détecté")) {
+    if (s.contains("Aucun visage detecte") || s.contains("Aucun visage détecté")) {
       return "Aucun visage detecte. Reprenez la photo en vous cadrant mieux.";
+    }
+    if (s.contains("Un seul visage")) {
+      return "Un seul vigile doit etre visible sur la photo.";
+    }
+    if (s.contains("Trop sombre")) {
+      return "Photo trop sombre. Placez-vous dans un endroit plus eclaire.";
+    }
+    if (s.contains("Trop lumineux")) {
+      return "Photo trop lumineuse. Evitez le soleil ou le contre-jour.";
     }
     if (s.contains("Aucun contrôleur actif")) {
       return "Aucun contrôleur avec photo n'est autorisé sur ce site.";
@@ -88,7 +97,9 @@ class _LoginPageState extends State<LoginPage> {
     final imgPath = await FaceCapturePage.capture(
       context,
       title: "Identification par visage",
-      hint: "Placez votre visage dans le cadran ovale puis prenez la photo.",
+      hint: "Placez votre visage dans l'ovale puis suivez les instructions.",
+      requireLiveness: true,
+      strictQuality: true,
     );
     if (imgPath == null) {
       if (mounted) setState(() => loading = false);
