@@ -9,6 +9,7 @@ import '../widgets/glass_panel.dart';
 import 'add_edit_site_page.dart';
 import 'add_vigile_page.dart';
 import 'assignment_form_page.dart';
+import 'site_detail_page.dart';
 import 'vigile_detail_page.dart';
 
 /// Onglet Gestion : vigiles + sites (liste et création, édition site), aligné sur le dashboard web.
@@ -257,6 +258,21 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
     if (ok == true) _loadVigiles();
   }
 
+  Future<void> _openSiteDetail(Map<String, dynamic> site) async {
+    final id = (site['id'] as num?)?.toInt();
+    if (id == null) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => SiteDetailPage(
+          api: widget.api,
+          siteId: id,
+          onSessionExpired: widget.onSessionExpired,
+        ),
+      ),
+    );
+    _loadSites();
+  }
+
   Future<void> _openAddSite() async {
     final ok = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -270,16 +286,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
   }
 
   Future<void> _openEditSite(Map<String, dynamic> site) async {
-    final ok = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => AddEditSitePage(
-          api: widget.api,
-          onSessionExpired: widget.onSessionExpired,
-          existing: site,
-        ),
-      ),
-    );
-    if (ok == true) _loadSites();
+    await _openSiteDetail(site);
   }
 
   @override
@@ -798,7 +805,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                                   Padding(
                                     padding: const EdgeInsets.only(top: 6),
                                     child: Text(
-                                      'Géofence : $radius m — appuyez pour modifier',
+                                      'Géofence : $radius m — appuyez pour la fiche',
                                       style: GoogleFonts.outfit(
                                         fontSize: 12,
                                         color: CobraAdminColors.indigo,

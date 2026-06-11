@@ -481,6 +481,8 @@ class AdminApi {
     required int vigileId,
     required Map<String, String> fields,
     String? photoPath,
+    String? idDocumentPath,
+    String? idDocumentVersoPath,
   }) async {
     Future<http.StreamedResponse> sendRequest() async {
       final headers = await _authHeaders();
@@ -494,6 +496,19 @@ class AdminApi {
       if (photoPath != null && photoPath.isNotEmpty) {
         req.files.add(
           await http.MultipartFile.fromPath("profile_photo", photoPath),
+        );
+      }
+      if (idDocumentPath != null && idDocumentPath.isNotEmpty) {
+        req.files.add(
+          await http.MultipartFile.fromPath("id_document", idDocumentPath),
+        );
+      }
+      if (idDocumentVersoPath != null && idDocumentVersoPath.isNotEmpty) {
+        req.files.add(
+          await http.MultipartFile.fromPath(
+            "id_document_verso",
+            idDocumentVersoPath,
+          ),
         );
       }
       return req.send();

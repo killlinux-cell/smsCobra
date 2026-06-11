@@ -30,6 +30,10 @@ class VigileAdminSerializer(serializers.ModelSerializer):
     id_document = serializers.SerializerMethodField()
     id_document_verso = serializers.SerializerMethodField()
     face_enrollment_ok = serializers.SerializerMethodField()
+    placement = serializers.SerializerMethodField()
+    date_joined = serializers.DateTimeField(read_only=True)
+    last_login = serializers.DateTimeField(read_only=True)
+    role = serializers.CharField(read_only=True)
 
     class Meta:
         model = User
@@ -52,7 +56,16 @@ class VigileAdminSerializer(serializers.ModelSerializer):
             "id_document_verso",
             "face_enrollment_ok",
             "is_active_on_duty",
+            "placement",
+            "date_joined",
+            "last_login",
+            "role",
         ]
+
+    def get_placement(self, obj: User) -> dict:
+        from webadmin.vigile_placement import build_vigile_placement
+
+        return build_vigile_placement(obj)
 
     def get_display_name(self, obj: User) -> str:
         return obj.display_name
@@ -189,6 +202,8 @@ class VigileCreateSerializer(serializers.Serializer):
 
 class VigileUpdateSerializer(serializers.ModelSerializer):
     profile_photo = serializers.ImageField(required=False, allow_null=True)
+    id_document = serializers.FileField(required=False, allow_null=True)
+    id_document_verso = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -204,6 +219,8 @@ class VigileUpdateSerializer(serializers.ModelSerializer):
             "height_cm",
             "education_level",
             "profile_photo",
+            "id_document",
+            "id_document_verso",
             "is_active",
             "is_active_on_duty",
         ]
@@ -245,6 +262,8 @@ class VigileUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         photo = validated_data.pop("profile_photo", None)
+        id_doc = validated_data.pop("id_document", None)
+        id_doc_verso = validated_data.pop("id_document_verso", None)
         photo_updated = photo is not None
         for field, value in validated_data.items():
             if field == "education_level" and not value:
@@ -254,6 +273,18 @@ class VigileUpdateSerializer(serializers.ModelSerializer):
             setattr(instance, field, value)
         if photo_updated:
             instance.profile_photo = photo
+        if id_doc is not None:
+            instance.id_document = id_doc
+        if id_doc_verso is not None:
+            instance.id_document_verso = id_doc_verso
         instance.save()
-        refresh_face_embedding_if_vigile(instance, photo_updated=photo_updated)
+        try:
+            refresh_face_embedding_if_vigile(instance, photo_updated=photo_updated)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Empreinte faciale non calculée à la mise à jour API du vigile %s",
+                instance.username,
+            )
         return instance
