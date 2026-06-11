@@ -8,6 +8,7 @@ import '../widgets/cobra_stagger.dart';
 import '../widgets/glass_panel.dart';
 import 'add_edit_site_page.dart';
 import 'add_vigile_page.dart';
+import 'vigile_detail_page.dart';
 
 /// Onglet Gestion : vigiles + sites (liste et création, édition site), aligné sur le dashboard web.
 class GestionTab extends StatefulWidget {
@@ -126,6 +127,21 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
       final addr = (m['address'] ?? '').toString().toLowerCase();
       return name.contains(q) || addr.contains(q);
     }).toList();
+  }
+
+  Future<void> _openVigileDetail(Map<String, dynamic> vigile) async {
+    final id = (vigile['id'] as num?)?.toInt();
+    if (id == null) return;
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => VigileDetailPage(
+          api: widget.api,
+          vigileId: id,
+          onSessionExpired: widget.onSessionExpired,
+        ),
+      ),
+    );
+    if (ok == true) _loadVigiles();
   }
 
   Future<void> _openAddVigile() async {
@@ -295,9 +311,14 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                 index: i,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: GlassPanel(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _openVigileDetail(m),
+                      child: GlassPanel(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
                       children: [
                         CircleAvatar(
                           radius: 26,
@@ -361,6 +382,8 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                           size: 22,
                         ),
                       ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

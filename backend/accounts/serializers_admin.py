@@ -51,6 +51,7 @@ class VigileAdminSerializer(serializers.ModelSerializer):
             "id_document",
             "id_document_verso",
             "face_enrollment_ok",
+            "is_active_on_duty",
         ]
 
     def get_display_name(self, obj: User) -> str:
@@ -176,3 +177,75 @@ class VigileCreateSerializer(serializers.Serializer):
         user.save()
         refresh_face_embedding_if_vigile(user, photo_updated=True)
         return user
+
+
+class VigileUpdateSerializer(serializers.ModelSerializer):
+    profile_photo = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "domicile",
+            "aval",
+            "date_integration",
+            "height_cm",
+            "education_level",
+            "profile_photo",
+            "is_active",
+            "is_active_on_duty",
+        ]
+        extra_kwargs = {
+            "username": {"required": False},
+            "first_name": {"required": False, "allow_blank": True},
+            "last_name": {"required": False, "allow_blank": True},
+            "email": {"required": False, "allow_blank": True},
+            "phone_number": {"required": False, "allow_blank": True},
+            "domicile": {"required": False, "allow_blank": True},
+            "aval": {"required": False, "allow_blank": True},
+            "date_integration": {"required": False, "allow_null": True},
+            "height_cm": {"required": False, "allow_null": True},
+            "education_level": {"required": False, "allow_blank": True},
+        }
+
+    def validate_username(self, value):
+        u = (value or "").strip()
+        if not u:
+            raise serializers.ValidationError("L'identifiant est obligatoire.")
+        qs = User.objects.filter(username=u)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Cet identifiant est déjà utilisé.")
+        return u
+
+    def validate_profile_photo(self, value):
+        if not value:
+            return value
+        ok, fail_code = validate_profile_photo_upload(value)
+        if not ok:
+            raise serializers.ValidationError(enrollment_photo_error_message(fail_code))
+        try:
+            value.seek(0)
+        except (AttributeError, OSError):
+            pass
+        return value
+
+    def update(self, instance, validated_data):
+        photo = validated_data.pop("profile_photo", None)
+        photo_updated = photo is not None
+        for field, value in validated_data.items():
+            if field == "education_level" and not value:
+                value = ""
+            if field in ("first_name", "last_name", "email", "phone_number", "domicile", "aval"):
+                value = (value or "").strip()
+            setattr(instance, field, value)
+        if photo_updated:
+            instance.profile_photo = photo
+        instance.save()
+        refresh_face_embedding_if_vigile(instance, photo_updated=photo_updated)
+        return instance

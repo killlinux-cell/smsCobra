@@ -6,11 +6,13 @@ from .views import (
     AlertListView,
     DispatchReplacementView,
     LiveStatusView,
+    ReplacementNeededListView,
     TodayAssignmentsDispatchView,
 )
 
 urlpatterns = [
     path("live-status", LiveStatusView.as_view(), name="live-status"),
+    path("replacement-needed", ReplacementNeededListView.as_view(), name="replacement-needed"),
     path("", AlertListView.as_view(), name="alerts-list"),
     path("<int:alert_id>/ack", AckAlertView.as_view(), name="alerts-ack"),
     path("dispatch", DispatchReplacementView.as_view(), name="dispatch"),

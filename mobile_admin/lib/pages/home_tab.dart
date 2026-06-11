@@ -35,8 +35,27 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     'replaced': 'Remplacements effectués',
     'completed': 'Services terminés',
     'missed': 'Absences / manqués',
-    'open_alerts': 'Alertes à traiter',
+    'open_alerts': 'Alertes ouvertes',
+    'replacement_needed_count': 'Remplacements à prévoir',
+    'critical_count': 'Critiques (alertes + retards)',
+    'extras_today': 'Extras aujourd\'hui',
+    'vigiles_count': 'Vigiles enregistrés',
+    'sites_count': 'Sites actifs',
   };
+
+  static const _order = [
+    'total',
+    'scheduled',
+    'replaced',
+    'completed',
+    'missed',
+    'replacement_needed_count',
+    'open_alerts',
+    'critical_count',
+    'extras_today',
+    'vigiles_count',
+    'sites_count',
+  ];
 
   static const _icons = <String, IconData>{
     'total': Icons.calendar_month_rounded,
@@ -45,6 +64,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     'completed': Icons.task_alt_rounded,
     'missed': Icons.warning_amber_rounded,
     'open_alerts': Icons.notifications_active_rounded,
+    'replacement_needed_count': Icons.person_search_rounded,
+    'critical_count': Icons.priority_high_rounded,
+    'extras_today': Icons.group_add_rounded,
+    'vigiles_count': Icons.groups_rounded,
+    'sites_count': Icons.domain_rounded,
   };
 
   @override
@@ -120,12 +144,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               child: Text(_err!, style: const TextStyle(color: CobraAdminColors.danger)),
             )
           else
-            ..._kpi.entries.toList().asMap().entries.map((me) {
+            ..._order.where((k) => _kpi.containsKey(k)).toList().asMap().entries.map((me) {
               final i = me.key;
-              final e = me.value;
-              final key = e.key;
+              final key = me.value;
               final label = _labels[key] ?? key;
-              final raw = e.value;
+              final raw = _kpi[key];
               final value = raw is num ? raw.toString() : raw.toString();
               return cobraStaggerItem(
                 controller: _stagger,
@@ -136,9 +159,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     label: label,
                     value: value,
                     icon: _icons[key],
-                    accent: key == 'open_alerts'
+                    accent: key == 'open_alerts' || key == 'replacement_needed_count'
                         ? CobraAdminColors.danger
-                        : key == 'missed'
+                        : key == 'missed' || key == 'critical_count'
                             ? Colors.orange.shade700
                             : CobraAdminColors.indigo,
                   ),
@@ -162,10 +185,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "• Alertes : consultez et acquittez les retards / passations.\n"
+                  "• Alertes : consultez, acquittez, voyez les remplacements à prévoir.\n"
                   "• Dépêcher : assignez un vigile remplaçant sur un poste du jour.\n"
-                  "• Rapports : synthèse des pointages (retard, horaires).\n"
-                  "• Équipe : liste des vigiles avec recherche rapide.",
+                  "• Rapports : journal d'activité, pointages, passages contrôleurs.\n"
+                  "• Gestion : vigiles (fiche + édition) et sites (création / modification).",
                   style: GoogleFonts.outfit(
                     color: const Color(0xFF475569),
                     fontSize: 13,
@@ -187,7 +210,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Administration complète sur le web",
+                        "Compléments sur le web",
                         style: GoogleFonts.outfit(
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
@@ -196,9 +219,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        "La création des sites, vigiles et affectations se fait depuis l’espace "
-                        "« dashboard » navigateur. Cette app mobile couvre la supervision "
-                        "opérationnelle en temps réel.",
+                        "Planning des affectations, titulaires par site, contrôleurs, "
+                        "exports CSV et pointages détaillés restent sur le tableau de bord navigateur.",
                         style: GoogleFonts.outfit(
                           fontSize: 12,
                           height: 1.4,

@@ -8,10 +8,18 @@ import '../widgets/cobra_stagger.dart';
 import '../widgets/glass_panel.dart';
 
 class DispatchTab extends StatefulWidget {
-  const DispatchTab({super.key, required this.api, required this.onSessionExpired});
+  const DispatchTab({
+    super.key,
+    required this.api,
+    required this.onSessionExpired,
+    this.initialAssignmentId,
+    this.onInitialAssignmentConsumed,
+  });
 
   final AdminApi api;
   final Future<void> Function() onSessionExpired;
+  final int? initialAssignmentId;
+  final VoidCallback? onInitialAssignmentConsumed;
 
   @override
   State<DispatchTab> createState() => _DispatchTabState();
@@ -72,9 +80,10 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
         setState(() {
           _assignments = a;
           _vigiles = v;
-          _assignmentId = null;
+          _assignmentId = widget.initialAssignmentId;
           _vigileId = null;
         });
+        widget.onInitialAssignmentConsumed?.call();
       }
     } on AdminSessionExpiredException {
       await widget.onSessionExpired();
@@ -103,22 +112,23 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
     }
     setState(() => _sending = true);
     try {
-      await widget.api.dispatchReplacement(
+      final detail = await widget.api.dispatchReplacement(
         assignmentId: _assignmentId!,
         replacementGuardId: _vigileId!,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Remplacement enregistré sur le serveur.')),
+          SnackBar(content: Text(detail)),
         );
         await _load();
       }
     } on AdminSessionExpiredException {
       await widget.onSessionExpired();
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Échec : vérifiez les droits et les données.')),
+          SnackBar(content: Text(msg)),
         );
       }
     } finally {

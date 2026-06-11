@@ -67,6 +67,16 @@ class ShiftAssignmentDispatchSerializer(serializers.ModelSerializer):
         return obj.original_guard.display_name
 
 
+class ReplacementNeededRowSerializer(serializers.Serializer):
+    assignment_id = serializers.IntegerField(source="assignment.id")
+    site_name = serializers.CharField(source="assignment.site.name")
+    guard_display = serializers.CharField(source="assignment.guard.display_name")
+    minutes_overdue = serializers.IntegerField()
+    start_time = serializers.TimeField(source="assignment.start_time")
+    end_time = serializers.TimeField(source="assignment.end_time")
+    status = serializers.CharField(source="assignment.status")
+
+
 class VigileBriefSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()

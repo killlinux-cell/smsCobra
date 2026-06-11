@@ -8,10 +8,16 @@ import '../widgets/cobra_stagger.dart';
 import '../widgets/glass_panel.dart';
 
 class AlertsTab extends StatefulWidget {
-  const AlertsTab({super.key, required this.api, required this.onSessionExpired});
+  const AlertsTab({
+    super.key,
+    required this.api,
+    required this.onSessionExpired,
+    this.onDispatchAssignment,
+  });
 
   final AdminApi api;
   final Future<void> Function() onSessionExpired;
+  final void Function(int assignmentId)? onDispatchAssignment;
 
   @override
   State<AlertsTab> createState() => _AlertsTabState();
@@ -22,6 +28,7 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
   late AnimationController _staggerCtrl;
   List<dynamic> _open = [];
   List<dynamic> _other = [];
+  List<dynamic> _replacementNeeded = [];
   bool _loading = true;
 
   @override
@@ -47,6 +54,7 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
     try {
       final open = await widget.api.fetchAlerts(status: 'open');
       final all = await widget.api.fetchAlerts();
+      final replacement = await widget.api.fetchReplacementNeeded();
       final other = all.where((a) {
         final m = a as Map<String, dynamic>;
         return m['status'] != 'open';
@@ -55,6 +63,7 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
         setState(() {
           _open = open;
           _other = other;
+          _replacementNeeded = replacement;
         });
       }
     } on AdminSessionExpiredException {
@@ -107,6 +116,68 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
         );
       }
     }
+  }
+
+  Widget _replacementCard(Map<String, dynamic> m) {
+    final site = (m['site_name'] ?? 'Site').toString();
+    final guard = (m['guard_display'] ?? 'Vigile').toString();
+    final overdue = (m['minutes_overdue'] as num?)?.toInt() ?? 0;
+    final assignmentId = (m['assignment_id'] as num?)?.toInt();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassPanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: CobraAdminColors.danger.withAlpha(35),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Remplacement à prévoir',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: CobraAdminColors.danger,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (overdue > 0)
+                  Text(
+                    '+$overdue min',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w700,
+                      color: CobraAdminColors.danger,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(site, style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 16)),
+            Text(guard, style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 14)),
+            if (assignmentId != null && widget.onDispatchAssignment != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => widget.onDispatchAssignment!(assignmentId),
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+                  label: const Text('Dépêcher un remplaçant'),
+                  style: FilledButton.styleFrom(backgroundColor: CobraAdminColors.accent),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _card(Map<String, dynamic> m, {required bool canAck}) {
@@ -243,7 +314,7 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
                           ),
                         ],
                       )
-                    : _open.isEmpty
+                    : _open.isEmpty && _replacementNeeded.isEmpty
                         ? ListView(
                             children: [
                               const SizedBox(height: 80),
@@ -258,17 +329,42 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
                           )
                         : ListView(
                             padding: const EdgeInsets.all(16),
-                            children: _open
-                                .asMap()
-                                .entries
-                                .map(
-                                  (e) => cobraStaggerItem(
-                                    controller: _staggerCtrl,
-                                    index: e.key,
-                                    child: _card(e.value as Map<String, dynamic>, canAck: true),
+                            children: [
+                              if (_replacementNeeded.isNotEmpty) ...[
+                                Text(
+                                  'Postes sans prise de service',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
                                   ),
-                                )
-                                .toList(),
+                                ),
+                                const SizedBox(height: 8),
+                                ..._replacementNeeded.map(
+                                  (r) => _replacementCard(
+                                    Map<String, dynamic>.from(r as Map),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Alertes ouvertes',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              ..._open.asMap().entries.map(
+                                    (e) => cobraStaggerItem(
+                                      controller: _staggerCtrl,
+                                      index: e.key,
+                                      child: _card(
+                                        e.value as Map<String, dynamic>,
+                                        canAck: true,
+                                      ),
+                                    ),
+                                  ),
+                            ],
                           ),
               ),
               RefreshIndicator(

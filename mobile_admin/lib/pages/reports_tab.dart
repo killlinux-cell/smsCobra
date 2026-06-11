@@ -22,6 +22,7 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
   List<dynamic> _reportRows = [];
   Map<String, dynamic> _controllerVisits = const {};
   bool _loading = true;
+  String? _reportDateFilter;
   late final AnimationController _staggerCtrl;
   late final TabController _tabCtrl;
 
@@ -46,10 +47,13 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      final today = DateTime.now();
+      final todayStr =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
       final results = await Future.wait<dynamic>([
         widget.api.fetchActivityFeed(limit: 80),
-        widget.api.fetchReports(limit: 50),
-        widget.api.fetchControllerVisits(),
+        widget.api.fetchReports(limit: 50, date: _reportDateFilter),
+        widget.api.fetchControllerVisits(date: _reportDateFilter ?? todayStr),
       ]);
       if (!mounted) return;
       setState(() {
@@ -566,6 +570,32 @@ class _ReportsTabState extends State<ReportsTab> with TickerProviderStateMixin {
                     color: const Color(0xFF64748B),
                     fontSize: 13,
                   ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    FilterChip(
+                      label: const Text('Tout'),
+                      selected: _reportDateFilter == null,
+                      onSelected: (_) {
+                        setState(() => _reportDateFilter = null);
+                        _load();
+                      },
+                    ),
+                    FilterChip(
+                      label: const Text("Aujourd'hui"),
+                      selected: _reportDateFilter != null,
+                      onSelected: (_) {
+                        final t = DateTime.now();
+                        setState(() {
+                          _reportDateFilter =
+                              '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+                        });
+                        _load();
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),

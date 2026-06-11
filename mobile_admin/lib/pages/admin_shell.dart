@@ -27,6 +27,7 @@ class AdminShell extends StatefulWidget {
 class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateMixin {
   int _index = 0;
   int _homeRemountKey = 0;
+  int? _pendingDispatchAssignmentId;
   String? _pushBanner;
 
   AdminProfile? _profile;
@@ -140,6 +141,13 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
     );
   }
 
+  void _goToDispatch(int assignmentId) {
+    setState(() {
+      _pendingDispatchAssignmentId = assignmentId;
+      _index = 2;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
@@ -149,8 +157,21 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
         onRefreshAll: _refreshAll,
         onSessionExpired: _sessionExpired,
       ),
-      AlertsTab(api: widget.api, onSessionExpired: _sessionExpired),
-      DispatchTab(api: widget.api, onSessionExpired: _sessionExpired),
+      AlertsTab(
+        api: widget.api,
+        onSessionExpired: _sessionExpired,
+        onDispatchAssignment: _goToDispatch,
+      ),
+      DispatchTab(
+        api: widget.api,
+        onSessionExpired: _sessionExpired,
+        initialAssignmentId: _pendingDispatchAssignmentId,
+        onInitialAssignmentConsumed: () {
+          if (_pendingDispatchAssignmentId != null) {
+            setState(() => _pendingDispatchAssignmentId = null);
+          }
+        },
+      ),
       ReportsTab(api: widget.api, onSessionExpired: _sessionExpired),
       GestionTab(api: widget.api, onSessionExpired: _sessionExpired),
     ];

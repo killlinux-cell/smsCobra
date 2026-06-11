@@ -150,6 +150,32 @@ class AdminApi {
     if (resp.statusCode != 200) throw Exception("fcm_failed");
   }
 
+  Future<Map<String, dynamic>> fetchVigile(int vigileId) async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/vigiles/$vigileId/");
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("vigile_failed");
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchSite(int siteId) async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/sites/$siteId/");
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("site_failed");
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> fetchReplacementNeeded() async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/alerts/replacement-needed");
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("replacement_needed_failed");
+    final decoded = jsonDecode(resp.body);
+    if (decoded is List) return decoded;
+    return [];
+  }
+
   Future<Map<String, dynamic>> fetchLiveStatus() async {
     final uri = Uri.parse("$apiBase/api/v1/admin/alerts/live-status");
     final resp = await _authGet(uri);
@@ -287,7 +313,7 @@ class AdminApi {
     }
   }
 
-  Future<void> dispatchReplacement({
+  Future<String> dispatchReplacement({
     required int assignmentId,
     required int replacementGuardId,
   }) async {
@@ -300,13 +326,78 @@ class AdminApi {
       }),
     );
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
-    if (resp.statusCode != 200) throw Exception("dispatch_failed");
+    if (resp.statusCode != 200) {
+      try {
+        final decoded = jsonDecode(resp.body);
+        if (decoded is Map && decoded['detail'] != null) {
+          throw Exception(decoded['detail'].toString());
+        }
+      } catch (e) {
+        if (e is Exception && e.toString().contains('Exception:')) rethrow;
+      }
+      throw Exception("dispatch_failed");
+    }
+    try {
+      final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+      return decoded['detail']?.toString() ?? 'Remplacement enregistré.';
+    } catch (_) {
+      return 'Remplacement enregistré.';
+    }
   }
 
-  Future<List<dynamic>> fetchActivityFeed({int limit = 60}) async {
+  Future<Map<String, dynamic>> updateVigileMultipart({
+    required int vigileId,
+    required Map<String, String> fields,
+    String? photoPath,
+  }) async {
+    Future<http.StreamedResponse> sendRequest() async {
+      final headers = await _authHeaders();
+      final req = http.MultipartRequest(
+        "PATCH",
+        Uri.parse("$apiBase/api/v1/admin/vigiles/$vigileId/"),
+      );
+      final auth = headers["Authorization"];
+      if (auth != null && auth.isNotEmpty) req.headers["Authorization"] = auth;
+      req.fields.addAll(fields);
+      if (photoPath != null && photoPath.isNotEmpty) {
+        req.files.add(
+          await http.MultipartFile.fromPath("profile_photo", photoPath),
+        );
+      }
+      return req.send();
+    }
+
+    var streamed = await sendRequest();
+    if (streamed.statusCode == 401 && await _tryRefreshAccessToken()) {
+      streamed = await sendRequest();
+    }
+    if (streamed.statusCode == 401) throw AdminSessionExpiredException();
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode != 200) {
+      String? message;
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map) {
+          final photoErrors = decoded['profile_photo'];
+          if (photoErrors is List && photoErrors.isNotEmpty) {
+            message = photoErrors.first.toString();
+          } else {
+            final detail = decoded['detail'];
+            if (detail != null) message = detail.toString();
+          }
+        }
+      } catch (_) {}
+      throw Exception(message ?? 'vigile_update_failed');
+    }
+    return jsonDecode(body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> fetchActivityFeed({int limit = 60, int? siteId}) async {
+    final params = <String, String>{"limit": "$limit"};
+    if (siteId != null) params['site'] = '$siteId';
     final uri = Uri.parse(
       "$apiBase/api/v1/admin/reports/activity/",
-    ).replace(queryParameters: {"limit": "$limit"});
+    ).replace(queryParameters: params);
     final resp = await _authGet(uri);
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
     if (resp.statusCode != 200) throw Exception("activity_feed_failed");
@@ -315,8 +406,21 @@ class AdminApi {
     return [];
   }
 
-  Future<List<dynamic>> fetchReports({int limit = 40}) async {
-    final uri = Uri.parse("$apiBase/api/v1/admin/reports/");
+  Future<List<dynamic>> fetchReports({
+    int limit = 40,
+    String? date,
+    String? month,
+    int? siteId,
+    int? guardId,
+  }) async {
+    final params = <String, String>{};
+    if (date != null && date.isNotEmpty) params['date'] = date;
+    if (month != null && month.isNotEmpty) params['month'] = month;
+    if (siteId != null) params['site'] = '$siteId';
+    if (guardId != null) params['guard'] = '$guardId';
+    final uri = Uri.parse("$apiBase/api/v1/admin/reports/").replace(
+      queryParameters: params.isEmpty ? null : params,
+    );
     final resp = await _authGet(uri);
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
     if (resp.statusCode != 200) throw Exception("reports_failed");

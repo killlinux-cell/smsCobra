@@ -7,10 +7,13 @@ from rest_framework.views import APIView
 from accounts.models import User
 from accounts.permissions import IsAdminRole
 from shifts.models import ShiftAssignment
+from sites.models import Site
+from webadmin.alert_state import compute_replacement_needed, get_live_critical_alert_summary
 
 from .models import LateAlert
 from .serializers import (
     LateAlertSerializer,
+    ReplacementNeededRowSerializer,
     ShiftAssignmentDispatchSerializer,
     VigileBriefSerializer,
 )
@@ -105,6 +108,7 @@ class LiveStatusView(APIView):
     def get(self, request):
         today = timezone.localdate()
         assignments = ShiftAssignment.objects.filter(shift_date=today)
+        summary = get_live_critical_alert_summary(today)
         payload = {
             "total": assignments.count(),
             "scheduled": assignments.filter(status=ShiftAssignment.Status.SCHEDULED).count(),
@@ -112,8 +116,25 @@ class LiveStatusView(APIView):
             "completed": assignments.filter(status=ShiftAssignment.Status.COMPLETED).count(),
             "missed": assignments.filter(status=ShiftAssignment.Status.MISSED).count(),
             "open_alerts": LateAlert.objects.filter(status=LateAlert.Status.OPEN).count(),
+            "open_alerts_today": summary["alerts_open_count"],
+            "replacement_needed_count": summary["replacement_needed_count"],
+            "critical_count": summary["critical_count"],
+            "extras_today": assignments.filter(status=ShiftAssignment.Status.EXTRA).count(),
+            "vigiles_count": User.objects.filter(role=User.Role.VIGILE).count(),
+            "sites_count": Site.objects.filter(is_active=True).count(),
         }
         return Response(payload)
+
+
+class ReplacementNeededListView(APIView):
+    """Postes sans prise de service après tolérance — comme le bandeau web."""
+
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        rows = compute_replacement_needed()
+        data = ReplacementNeededRowSerializer(rows, many=True).data
+        return Response(data)
 
 
 class TodayAssignmentsDispatchView(generics.ListAPIView):
