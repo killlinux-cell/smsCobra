@@ -175,7 +175,15 @@ class VigileCreateSerializer(serializers.Serializer):
         # Si absent, on en crée un aléatoire robuste pour garder le compte sécurisé.
         user.set_password(pwd or secrets.token_urlsafe(24))
         user.save()
-        refresh_face_embedding_if_vigile(user, photo_updated=True)
+        try:
+            refresh_face_embedding_if_vigile(user, photo_updated=True)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Empreinte faciale non calculée à la création API du vigile %s",
+                user.username,
+            )
         return user
 
 

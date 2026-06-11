@@ -1,11 +1,18 @@
-from datetime import time
+from datetime import datetime, time
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Site
 
 
 class SiteSerializer(serializers.ModelSerializer):
+    creation_date = serializers.DateField(
+        required=False,
+        write_only=True,
+        help_text="Date d'ouverture du site (aligné webadmin).",
+    )
+
     class Meta:
         model = Site
         fields = "__all__"
@@ -48,6 +55,27 @@ class SiteSerializer(serializers.ModelSerializer):
         return phone
 
     def create(self, validated_data):
+        creation_date = validated_data.pop("creation_date", None)
         validated_data.setdefault("expected_start_time", time(6, 0))
         validated_data.setdefault("expected_end_time", time(18, 0))
-        return super().create(validated_data)
+        validated_data.setdefault("day_staff_required", 1)
+        validated_data.setdefault("night_staff_required", 1)
+        site = super().create(validated_data)
+        if creation_date:
+            site.created_at = timezone.make_aware(
+                datetime.combine(creation_date, time(0, 0)),
+                timezone.get_current_timezone(),
+            )
+            site.save(update_fields=["created_at"])
+        return site
+
+    def update(self, instance, validated_data):
+        creation_date = validated_data.pop("creation_date", None)
+        site = super().update(instance, validated_data)
+        if creation_date:
+            site.created_at = timezone.make_aware(
+                datetime.combine(creation_date, time(0, 0)),
+                timezone.get_current_timezone(),
+            )
+            site.save(update_fields=["created_at"])
+        return site

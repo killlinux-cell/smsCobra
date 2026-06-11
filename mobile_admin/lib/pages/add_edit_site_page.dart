@@ -36,6 +36,11 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
   late final TextEditingController _lateTol;
   late final TextEditingController _reliefLate;
   late final TextEditingController _timezone;
+  late final TextEditingController _dayStaff;
+  late final TextEditingController _nightStaff;
+  late DateTime _creationDate;
+  late TimeOfDay _startTime;
+  late TimeOfDay _endTime;
   bool _active = true;
   bool _saving = false;
 
@@ -65,12 +70,21 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     final lateMin = m?['late_tolerance_minutes'] ?? m?['relief_late_alert_minutes'] ?? 15;
     _lateTol = TextEditingController(text: lateMin.toString());
     _reliefLate = TextEditingController(text: lateMin.toString());
+    _dayStaff = TextEditingController(
+      text: (m?['day_staff_required'] ?? 1).toString(),
+    );
+    _nightStaff = TextEditingController(
+      text: (m?['night_staff_required'] ?? 1).toString(),
+    );
     final tz = m?['timezone'];
     _timezone = TextEditingController(
       text: tz != null && tz.toString().isNotEmpty
           ? tz.toString()
           : 'Africa/Abidjan',
     );
+    _startTime = _parseTime(m?['expected_start_time'], const TimeOfDay(hour: 6, minute: 0));
+    _endTime = _parseTime(m?['expected_end_time'], const TimeOfDay(hour: 18, minute: 0));
+    _creationDate = _parseCreationDate(m?['created_at']) ?? DateTime.now();
     if (m != null) {
       _active = m['is_active'] == true || m['is_active'] == 1;
     }
@@ -90,7 +104,47 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     _lateTol.dispose();
     _reliefLate.dispose();
     _timezone.dispose();
+    _dayStaff.dispose();
+    _nightStaff.dispose();
     super.dispose();
+  }
+
+  TimeOfDay _parseTime(dynamic raw, TimeOfDay fallback) {
+    if (raw == null) return fallback;
+    final parts = raw.toString().split(':');
+    if (parts.length >= 2) {
+      final h = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (h != null && m != null) return TimeOfDay(hour: h, minute: m);
+    }
+    return fallback;
+  }
+
+  DateTime? _parseCreationDate(dynamic raw) {
+    if (raw == null) return null;
+    final s = raw.toString();
+    if (s.length >= 10) {
+      return DateTime.tryParse(s.substring(0, 10));
+    }
+    return null;
+  }
+
+  String _isoDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  String _displayDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  String _formatApiTime(TimeOfDay t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m:00';
+  }
+
+  String _displayTime(TimeOfDay t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   int? _parseInt(String s, int fallback) {
@@ -104,12 +158,78 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
 
   int _toleranceMinutes() => _parseInt(_lateTol.text, 15) ?? 15;
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _pickCreationDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _creationDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null && mounted) setState(() => _creationDate = picked);
+  }
+
+  Future<void> _pickTime({required bool start}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: start ? _startTime : _endTime,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        if (start) {
+          _startTime = picked;
+        } else {
+          _endTime = picked;
+        }
+      });
+    }
+  }
+
+  Map<String, dynamic> _buildPayload({required bool includeCreationDate}) {
     final latStr = _lat.text.trim().replaceAll(',', '.');
     final lngStr = _lng.text.trim().replaceAll(',', '.');
     double? lat;
     double? lng;
+    if (latStr.isNotEmpty || lngStr.isNotEmpty) {
+      lat = double.tryParse(latStr);
+      lng = double.tryParse(lngStr);
+    }
+
+    final body = <String, dynamic>{
+      'name': _name.text.trim(),
+      'address': _address.text.trim(),
+      'site_manager_name': _managerName.text.trim(),
+      'site_manager_phone': _managerPhone.text.trim(),
+      'site_sms_phone': _siteSmsPhone.text.trim(),
+      'timezone': _timezone.text.trim().isEmpty
+          ? 'Africa/Abidjan'
+          : _timezone.text.trim(),
+      'expected_start_time': _formatApiTime(_startTime),
+      'expected_end_time': _formatApiTime(_endTime),
+      'day_staff_required': _parseInt(_dayStaff.text, 1),
+      'night_staff_required': _parseInt(_nightStaff.text, 1),
+      'geofence_radius_meters': _parseInt(_radius.text, 250),
+      'geofence_gps_margin_meters': _parseInt(_gpsMargin.text, 75),
+      'late_tolerance_minutes': _toleranceMinutes(),
+      'relief_late_alert_minutes': _toleranceMinutes(),
+      'is_active': _active,
+    };
+    if (includeCreationDate) {
+      body['creation_date'] = _isoDate(_creationDate);
+    }
+    if (lat != null && lng != null) {
+      body['latitude'] = lat.toString();
+      body['longitude'] = lng.toString();
+    } else if (widget.isEdit) {
+      body['latitude'] = null;
+      body['longitude'] = null;
+    }
+    return body;
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final latStr = _lat.text.trim().replaceAll(',', '.');
+    final lngStr = _lng.text.trim().replaceAll(',', '.');
     if (latStr.isNotEmpty || lngStr.isNotEmpty) {
       if (latStr.isEmpty || lngStr.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -121,9 +241,7 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
         );
         return;
       }
-      lat = double.tryParse(latStr);
-      lng = double.tryParse(lngStr);
-      if (lat == null || lng == null) {
+      if (double.tryParse(latStr) == null || double.tryParse(lngStr) == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Latitude / longitude invalides.')),
         );
@@ -135,52 +253,14 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     try {
       if (widget.isEdit) {
         final id = (widget.existing!['id'] as num).toInt();
-        final body = <String, dynamic>{
-          'name': _name.text.trim(),
-          'address': _address.text.trim(),
-          'site_manager_name': _managerName.text.trim(),
-          'site_manager_phone': _managerPhone.text.trim(),
-          'site_sms_phone': _siteSmsPhone.text.trim(),
-          'geofence_radius_meters': _parseInt(_radius.text, 250),
-          'geofence_gps_margin_meters': _parseInt(_gpsMargin.text, 75),
-          'late_tolerance_minutes': _toleranceMinutes(),
-          'relief_late_alert_minutes': _toleranceMinutes(),
-          'timezone': _timezone.text.trim().isEmpty
-              ? 'Africa/Abidjan'
-              : _timezone.text.trim(),
-          'is_active': _active,
-        };
-        if (lat != null && lng != null) {
-          body['latitude'] = lat.toString();
-          body['longitude'] = lng.toString();
-        } else {
-          body['latitude'] = null;
-          body['longitude'] = null;
-        }
-        await widget.api.updateSite(id, body);
+        await widget.api.updateSite(
+          id,
+          _buildPayload(includeCreationDate: true),
+        );
       } else {
-        final body = <String, dynamic>{
-          'name': _name.text.trim(),
-          'address': _address.text.trim(),
-          'site_manager_name': _managerName.text.trim(),
-          'site_manager_phone': _managerPhone.text.trim(),
-          'site_sms_phone': _siteSmsPhone.text.trim(),
-          'timezone': _timezone.text.trim().isEmpty
-              ? 'Africa/Abidjan'
-              : _timezone.text.trim(),
-          'expected_start_time': '06:00:00',
-          'expected_end_time': '18:00:00',
-          'late_tolerance_minutes': _toleranceMinutes(),
-          'relief_late_alert_minutes': _toleranceMinutes(),
-          'geofence_radius_meters': _parseInt(_radius.text, 250),
-          'geofence_gps_margin_meters': _parseInt(_gpsMargin.text, 75),
-          'is_active': _active,
-        };
-        if (lat != null && lng != null) {
-          body['latitude'] = lat.toString();
-          body['longitude'] = lng.toString();
-        }
-        await widget.api.createSite(body);
+        await widget.api.createSite(
+          _buildPayload(includeCreationDate: true),
+        );
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -195,6 +275,36 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _timeButton(String label, TimeOfDay time, VoidCallback onTap) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          Text(
+            _displayTime(time),
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: CobraAdminColors.ink,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -213,6 +323,32 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
+            Text(
+              'Mêmes champs que le tableau de bord web.',
+              style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Date de création du site',
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 6),
+            OutlinedButton.icon(
+              onPressed: _pickCreationDate,
+              icon: const Icon(Icons.calendar_today_outlined, size: 18),
+              label: Text(
+                _displayDate(_creationDate),
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              ),
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _name,
               decoration: _dec('Nom du site *'),
@@ -232,7 +368,7 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _managerName,
-              decoration: _dec('Nom du responsable du site'),
+              decoration: _dec('Nom du responsable du site', hint: 'Ex. Kouassi Jean'),
               style: GoogleFonts.outfit(),
             ),
             const SizedBox(height: 12),
@@ -259,6 +395,71 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
                 return null;
               },
               style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _timezone,
+              decoration: _dec('Fuseau horaire', hint: 'Africa/Abidjan'),
+              style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
+            _timeButton(
+              'Heure de prise de service attendue',
+              _startTime,
+              () => _pickTime(start: true),
+            ),
+            const SizedBox(height: 8),
+            _timeButton(
+              'Heure de fin de service attendue',
+              _endTime,
+              () => _pickTime(start: false),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _dayStaff,
+                    decoration: _dec('Effectif poste jour', hint: '06h–18h'),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      final n = int.tryParse(v?.trim() ?? '');
+                      if (n == null || n < 1) return 'Min. 1';
+                      return null;
+                    },
+                    style: GoogleFonts.outfit(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _nightStaff,
+                    decoration: _dec('Effectif poste nuit', hint: '18h–06h'),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      final n = int.tryParse(v?.trim() ?? '');
+                      if (n == null || n < 1) return 'Min. 1';
+                      return null;
+                    },
+                    style: GoogleFonts.outfit(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _lateTol,
+              decoration: _dec('Tolérance de retard (prise de service, min)'),
+              keyboardType: TextInputType.number,
+              onChanged: (_) => _syncTolerancePair(),
+              style: GoogleFonts.outfit(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _reliefLate,
+              readOnly: true,
+              decoration: _dec('Alerte relève non arrivée (min) — synchronisé'),
+              style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
             ),
             const SizedBox(height: 12),
             Row(
@@ -291,41 +492,15 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _radius,
-              decoration: _dec('Rayon géofence (m)'),
+              decoration: _dec('Rayon géofence (mètres)'),
               keyboardType: TextInputType.number,
               style: GoogleFonts.outfit(),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _gpsMargin,
-              decoration: _dec('Marge GPS (m)'),
+              decoration: _dec('Marge GPS géofence (mètres)'),
               keyboardType: TextInputType.number,
-              style: GoogleFonts.outfit(),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _lateTol,
-              decoration: _dec('Tolérance de retard (prise de service, min)'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => _syncTolerancePair(),
-              style: GoogleFonts.outfit(),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _reliefLate,
-              readOnly: true,
-              decoration: _dec(
-                'Alerte relève non arrivée (min) — synchronisé',
-              ),
-              keyboardType: TextInputType.number,
-              style: GoogleFonts.outfit(
-                color: const Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _timezone,
-              decoration: _dec('Fuseau (ex. Africa/Abidjan)'),
               style: GoogleFonts.outfit(),
             ),
             const SizedBox(height: 8),
@@ -360,9 +535,10 @@ class _AddEditSitePageState extends State<AddEditSitePage> {
     );
   }
 
-  InputDecoration _dec(String label) {
+  InputDecoration _dec(String label, {String? hint}) {
     return InputDecoration(
       labelText: label,
+      hintText: hint,
       labelStyle: GoogleFonts.outfit(color: const Color(0xFF64748B)),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     );

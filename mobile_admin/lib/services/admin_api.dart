@@ -340,13 +340,19 @@ class AdminApi {
   }
 
   Future<void> createVigileMultipart({
-    String? username,
-    required String firstName,
-    required String lastName,
-    required String email,
-    required String phoneNumber,
-    String? domicile,
     required String photoPath,
+    String? username,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? phoneNumber,
+    String? domicile,
+    String? aval,
+    String? dateIntegration,
+    String? heightCm,
+    String? educationLevel,
+    String? idDocumentPath,
+    String? idDocumentVersoPath,
   }) async {
     Future<http.StreamedResponse> sendRequest() async {
       final headers = await _authHeaders();
@@ -356,23 +362,40 @@ class AdminApi {
       );
       final auth = headers["Authorization"];
       if (auth != null && auth.isNotEmpty) req.headers["Authorization"] = auth;
-      if (username != null && username.trim().isNotEmpty) {
-        req.fields["username"] = username.trim();
+
+      void field(String key, String? value) {
+        if (value != null && value.trim().isNotEmpty) {
+          req.fields[key] = value.trim();
+        }
       }
-      if (firstName.trim().isNotEmpty) {
-        req.fields["first_name"] = firstName.trim();
-      }
-      if (lastName.trim().isNotEmpty) req.fields["last_name"] = lastName.trim();
-      if (email.trim().isNotEmpty) req.fields["email"] = email.trim();
-      if (phoneNumber.trim().isNotEmpty) {
-        req.fields["phone_number"] = phoneNumber.trim();
-      }
-      if (domicile != null && domicile.trim().isNotEmpty) {
-        req.fields["domicile"] = domicile.trim();
-      }
+
+      field("username", username);
+      field("first_name", firstName);
+      field("last_name", lastName);
+      field("email", email);
+      field("phone_number", phoneNumber);
+      field("domicile", domicile);
+      field("aval", aval);
+      field("date_integration", dateIntegration);
+      field("height_cm", heightCm);
+      field("education_level", educationLevel);
+
       req.files.add(
         await http.MultipartFile.fromPath("profile_photo", photoPath),
       );
+      if (idDocumentPath != null && idDocumentPath.isNotEmpty) {
+        req.files.add(
+          await http.MultipartFile.fromPath("id_document", idDocumentPath),
+        );
+      }
+      if (idDocumentVersoPath != null && idDocumentVersoPath.isNotEmpty) {
+        req.files.add(
+          await http.MultipartFile.fromPath(
+            "id_document_verso",
+            idDocumentVersoPath,
+          ),
+        );
+      }
       return req.send();
     }
 
