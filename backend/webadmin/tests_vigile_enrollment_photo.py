@@ -1,10 +1,15 @@
 import base64
 from unittest.mock import patch
 
+import numpy as np
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import Client, TestCase
+from django.urls import reverse
 
 from webadmin.forms import VigileCreationForm, VigileUpdateForm
+
+User = get_user_model()
 
 _PNG_1PX = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -57,3 +62,45 @@ class VigileEnrollmentPhotoFormTests(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn("profile_photo", form.errors)
+
+
+class VigileCreationWebViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="ADM-WEB-V",
+            password="secret123",
+            role=User.Role.ADMIN_SOCIETE,
+        )
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.photo = SimpleUploadedFile(
+            "portrait.jpg",
+            _PNG_1PX,
+            content_type="image/jpeg",
+        )
+
+    @patch(
+        "webadmin.forms.validate_profile_photo_upload",
+        return_value=(True, ""),
+    )
+    @patch(
+        "accounts.face_profile.encode_profile_photo_field",
+        return_value=(np.zeros(128), ""),
+    )
+    def test_vigiles_post_creates_guard(self, _enc, _val):
+        url = reverse("webadmin-vigiles")
+        resp = self.client.post(
+            url,
+            {
+                "username": "",
+                "first_name": "Kouadio",
+                "last_name": "Jean",
+                "email": "kouadio@example.com",
+                "phone_number": "+2250700000001",
+                "profile_photo": self.photo,
+            },
+        )
+        self.assertEqual(resp.status_code, 302, resp.content[:500])
+        self.assertTrue(
+            User.objects.filter(role=User.Role.VIGILE, first_name="Kouadio").exists()
+        )

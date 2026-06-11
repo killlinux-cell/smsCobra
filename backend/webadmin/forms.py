@@ -1,5 +1,6 @@
 import secrets
 from datetime import datetime, timedelta, time
+import logging
 
 from django import forms
 from django.core.files.uploadedfile import UploadedFile
@@ -15,6 +16,8 @@ from shifts.guard_conflicts import (
 )
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
+
+logger = logging.getLogger(__name__)
 
 _CTRL = "form-control"
 _SEL = "form-select"
@@ -404,9 +407,15 @@ class VigileCreationForm(forms.ModelForm):
         user.set_password(secrets.token_urlsafe(24))
         if commit:
             user.save()
-            from accounts.face_profile import refresh_face_embedding_if_vigile
+            try:
+                from accounts.face_profile import refresh_face_embedding_if_vigile
 
-            refresh_face_embedding_if_vigile(user, photo_updated=True)
+                refresh_face_embedding_if_vigile(user, photo_updated=True)
+            except Exception:
+                logger.exception(
+                    "Empreinte faciale non calculée à la création du vigile %s",
+                    user.username,
+                )
         return user
 
 
@@ -663,10 +672,16 @@ class VigileUpdateForm(forms.ModelForm):
             user.education_level = ""
         if commit:
             user.save()
-            from accounts.face_profile import refresh_face_embedding_if_vigile
+            try:
+                from accounts.face_profile import refresh_face_embedding_if_vigile
 
-            photo_updated = bool(self.cleaned_data.get("profile_photo"))
-            refresh_face_embedding_if_vigile(user, photo_updated=photo_updated)
+                photo_updated = bool(self.cleaned_data.get("profile_photo"))
+                refresh_face_embedding_if_vigile(user, photo_updated=photo_updated)
+            except Exception:
+                logger.exception(
+                    "Empreinte faciale non calculée à la mise à jour du vigile %s",
+                    user.username,
+                )
         return user
 
 

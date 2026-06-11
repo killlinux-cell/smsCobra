@@ -265,8 +265,9 @@ class ControllerFaceCheckinAPITests(TestCase):
         )
         ControllerSiteAssignment.objects.create(controller=self.controller, site=self.site)
 
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(True, 0.88, ""))
-    def test_controller_face_checkin_records_visit(self, _mock):
+    def test_controller_face_checkin_records_visit(self, _mock, _enc):
         selfie = SimpleUploadedFile("selfie.png", _PNG_1PX, content_type="image/png")
         resp = self.client.post(
             "/api/v1/auth/controller-face-checkin",
@@ -278,8 +279,9 @@ class ControllerFaceCheckinAPITests(TestCase):
         self.assertEqual(resp.data.get("controller_id"), self.controller.id)
         self.assertEqual(ControllerVisit.objects.count(), 1)
 
+    @patch("accounts.views.encode_selfie_upload", return_value=(object(), ""))
     @patch("accounts.views.verify_selfie_against_profile", return_value=(False, 0.2, "face_mismatch"))
-    def test_controller_face_checkin_refuses_unknown_face(self, _mock):
+    def test_controller_face_checkin_refuses_unknown_face(self, _mock, _enc):
         selfie = SimpleUploadedFile("selfie.png", _PNG_1PX, content_type="image/png")
         resp = self.client.post(
             "/api/v1/auth/controller-face-checkin",

@@ -241,20 +241,24 @@ def validate_profile_photo_upload(source) -> Tuple[bool, str]:
     model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
     num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
 
-    ref_img, load_fail = _load_rgb_image_from_source(source)
-    if load_fail or ref_img is None:
-        return False, load_fail or "face_verify_error"
+    try:
+        ref_img, load_fail = _load_rgb_image_from_source(source)
+        if load_fail or ref_img is None:
+            return False, load_fail or "face_verify_error"
 
-    ref_img, face_count = _image_with_rotation_face_fallback(ref_img, model=model)
-    if face_count == 0:
-        return False, "no_face_in_reference"
-    if face_count > 1:
-        return False, "multiple_faces_in_reference"
+        ref_img, face_count = _image_with_rotation_face_fallback(ref_img, model=model)
+        if face_count == 0:
+            return False, "no_face_in_reference"
+        if face_count > 1:
+            return False, "multiple_faces_in_reference"
 
-    ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
-    if ref_enc is None:
-        return False, "no_face_in_reference"
-    return True, ""
+        ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
+        if ref_enc is None:
+            return False, "no_face_in_reference"
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Erreur validation photo portrait: %s", exc)
+        return False, "face_verify_error"
 
 
 def encode_profile_photo_field(profile_image_field) -> Tuple[np.ndarray | None, str]:
