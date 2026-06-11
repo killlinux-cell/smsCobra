@@ -55,6 +55,13 @@
           <label class="form-label">{{ dispatch_form.replacement_guard.label }}</label>
           {{ dispatch_form.replacement_guard }}
           {% if dispatch_form.replacement_guard.errors %}<div class="text-danger small">{{ dispatch_form.replacement_guard.errors }}</div>{% endif %}
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="cobra-dispatch-include-busy"
+              {% if dispatch_include_busy %}checked{% endif %}>
+            <label class="form-check-label small text-muted" for="cobra-dispatch-include-busy">
+              Afficher aussi les vigiles occupés (cas exceptionnel)
+            </label>
+          </div>
         </div>
         <div class="col-12">
           <button type="submit" class="btn cobra-btn-accent"><i class="bi bi-check2-circle me-1"></i>Confirmer le remplacement</button>
@@ -220,6 +227,31 @@
     extraDaysEl.addEventListener("change", updateExtraCounter);
   }
   syncMode();
+})();
+
+(function () {
+  var busyCb = document.getElementById("cobra-dispatch-include-busy");
+  var assignEl = document.getElementById("id_assignment");
+  if (!busyCb) return;
+
+  function reloadDispatchList() {
+    var params = new URLSearchParams(window.location.search);
+    if (busyCb.checked) {
+      params.set("include_busy", "1");
+    } else {
+      params.delete("include_busy");
+    }
+    if (assignEl && assignEl.value) {
+      params.set("dispatch_assignment", assignEl.value);
+    }
+    var qs = params.toString();
+    window.location.href = qs ? ("?" + qs) : window.location.pathname;
+  }
+
+  busyCb.addEventListener("change", reloadDispatchList);
+  if (assignEl) {
+    assignEl.addEventListener("change", reloadDispatchList);
+  }
 })();
 </script>
 {% endblock %}

@@ -12,10 +12,17 @@ from webadmin.alert_state import compute_replacement_needed, get_live_critical_a
 
 from .models import LateAlert
 from .serializers import (
+    DispatchCandidateSerializer,
     LateAlertSerializer,
     ReplacementNeededRowSerializer,
     ShiftAssignmentDispatchSerializer,
     VigileBriefSerializer,
+)
+from shifts.dispatch_candidates import (
+    dispatch_busy_labels,
+    dispatch_busy_today_labels,
+    replacement_candidate_queryset,
+    vigiles_free_today_queryset,
 )
 
 
@@ -159,15 +166,17 @@ class AdminVigilesListView(generics.ListAPIView):
     serializer_class = VigileBriefSerializer
 
     def get_queryset(self):
-        from shifts.dispatch_candidates import vigiles_free_today_queryset
-
-        return vigiles_free_today_queryset()
+        include_busy = (self.request.query_params.get("include_busy") or "").strip() in (
+            "1",
+            "true",
+            "yes",
+        )
+        return vigiles_free_today_queryset(include_busy=include_busy)
 
 
 class DispatchCandidatesView(APIView):
     """
-    Vigiles disponibles pour remplacer sur une affectation donnée
-    (libres sur le créneau, empreinte OK).
+    Vigiles pour remplacer sur une affectation (libres par défaut, option include_busy).
     """
 
     permission_classes = [IsAuthenticated, IsAdminRole]
@@ -179,6 +188,11 @@ class DispatchCandidatesView(APIView):
                 {"detail": "Paramètre assignment_id requis."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        include_busy = (request.query_params.get("include_busy") or "").strip() in (
+            "1",
+            "true",
+            "yes",
+        )
         assignment = (
             ShiftAssignment.objects.select_related("site", "guard")
             .filter(pk=int(raw))
@@ -189,12 +203,14 @@ class DispatchCandidatesView(APIView):
                 {"detail": "Affectation introuvable."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        from shifts.dispatch_candidates import replacement_candidate_queryset
 
-        qs = replacement_candidate_queryset(assignment)
-        data = VigileBriefSerializer(
+        qs = replacement_candidate_queryset(assignment, include_busy=include_busy)
+        data = DispatchCandidateSerializer(
             qs,
             many=True,
-            context={"request": request},
+            context={
+                "request": request,
+                "dispatch_assignment": assignment,
+            },
         ).data
         return Response(data)

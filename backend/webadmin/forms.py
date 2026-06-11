@@ -90,8 +90,14 @@ class AssignmentChoiceField(forms.ModelChoiceField):
 
 
 class GuardChoiceField(forms.ModelChoiceField):
+    label_suffixes: dict[int, str] = {}
+
     def label_from_instance(self, obj):
-        return obj.display_name
+        base = obj.display_name
+        suffix = getattr(self, "label_suffixes", {}).get(obj.pk)
+        if suffix:
+            return f"{base} ({suffix})"
+        return base
 
 
 class SiteForm(forms.ModelForm):
@@ -1065,6 +1071,7 @@ class DispatchForm(forms.Form):
     def __init__(self, *args, **kwargs):
         assignments_qs = kwargs.pop("assignments_qs", None)
         filter_assignment = kwargs.pop("filter_assignment", None)
+        include_busy = kwargs.pop("include_busy", False)
         super().__init__(*args, **kwargs)
         if assignments_qs is not None:
             self.fields["assignment"].queryset = assignments_qs
@@ -1084,13 +1091,24 @@ class DispatchForm(forms.Form):
                 assignment = ShiftAssignment.objects.filter(pk=raw_init).first()
 
         from shifts.dispatch_candidates import (
+            dispatch_busy_labels,
+            dispatch_busy_today_labels,
             replacement_candidate_queryset,
             vigiles_free_today_queryset,
         )
 
         if assignment is not None:
             self.fields["replacement_guard"].queryset = replacement_candidate_queryset(
-                assignment
+                assignment,
+                include_busy=include_busy,
+            )
+            self.fields["replacement_guard"].label_suffixes = (
+                dispatch_busy_labels(assignment) if include_busy else {}
             )
         else:
-            self.fields["replacement_guard"].queryset = vigiles_free_today_queryset()
+            self.fields["replacement_guard"].queryset = vigiles_free_today_queryset(
+                include_busy=include_busy,
+            )
+            self.fields["replacement_guard"].label_suffixes = (
+                dispatch_busy_today_labels() if include_busy else {}
+            )

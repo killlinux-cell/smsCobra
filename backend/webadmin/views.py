@@ -1115,11 +1115,13 @@ def affectations_list_view(request):
     if filter_site_pk:
         qs = qs.filter(site_id=filter_site_pk)
         filter_site = Site.objects.filter(pk=filter_site_pk).first()
+    include_busy = (request.GET.get("include_busy") or "").strip() in ("1", "true", "yes")
     form = ShiftAssignmentForm(for_create=True)
     dispatch_form = DispatchForm(
         assignments_qs=ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(shift_date=today)
         .order_by("site__name", "start_time"),
+        include_busy=include_busy,
     )
     dispatch_prefill = None
     dispatch_next = reverse("webadmin-affectations")
@@ -1145,6 +1147,7 @@ def affectations_list_view(request):
                 .order_by("site__name", "start_time"),
                 initial={"assignment": prefill.pk},
                 filter_assignment=prefill,
+                include_busy=include_busy,
             )
     if request.method == "POST":
         form = ShiftAssignmentForm(request.POST, for_create=True)
@@ -1222,6 +1225,7 @@ def affectations_list_view(request):
             "filter_site": filter_site,
             "filter_site_pk": filter_site_pk,
             "extras_summary": extras_summary,
+            "dispatch_include_busy": include_busy,
         },
     )
 

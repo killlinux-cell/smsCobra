@@ -244,10 +244,15 @@ class AdminApi {
   }
 
   /// Vigiles disponibles pour remplacer sur une affectation (libres sur le créneau).
-  Future<List<dynamic>> fetchDispatchCandidates(int assignmentId) async {
+  Future<List<dynamic>> fetchDispatchCandidates(
+    int assignmentId, {
+    bool includeBusy = false,
+  }) async {
+    final params = <String, String>{"assignment_id": "$assignmentId"};
+    if (includeBusy) params["include_busy"] = "1";
     final uri = Uri.parse(
       "$apiBase/api/v1/admin/alerts/dispatch-candidates",
-    ).replace(queryParameters: {"assignment_id": "$assignmentId"});
+    ).replace(queryParameters: params);
     final resp = await _authGet(uri);
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
     if (resp.statusCode != 200) throw Exception("dispatch_candidates_failed");

@@ -101,3 +101,17 @@ class DispatchCandidatesTests(TestCase):
         ok, reason = is_guard_eligible_for_dispatch(self.assignment, self.busy)
         self.assertFalse(ok)
         self.assertTrue(reason)
+
+    def test_api_dispatch_candidates_include_busy(self):
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        resp = client.get(
+            f"/api/v1/admin/alerts/dispatch-candidates"
+            f"?assignment_id={self.assignment.pk}&include_busy=1"
+        )
+        self.assertEqual(resp.status_code, 200)
+        by_user = {row["username"]: row for row in resp.data}
+        self.assertIn("VIR-BUSY", by_user)
+        self.assertFalse(by_user["VIR-BUSY"]["dispatch_available"])
+        self.assertTrue(by_user["VIR-BUSY"]["busy_reason"])
+        self.assertTrue(by_user["VIR-FREE"]["dispatch_available"])

@@ -30,6 +30,7 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
   List<dynamic> _vigiles = [];
   bool _loading = true;
   bool _loadingCandidates = false;
+  bool _includeBusy = false;
   int? _assignmentId;
   int? _vigileId;
   bool _sending = false;
@@ -109,7 +110,10 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
   Future<void> _loadCandidates(int assignmentId) async {
     setState(() => _loadingCandidates = true);
     try {
-      final v = await widget.api.fetchDispatchCandidates(assignmentId);
+      final v = await widget.api.fetchDispatchCandidates(
+        assignmentId,
+        includeBusy: _includeBusy,
+      );
       if (!mounted) return;
       setState(() {
         _vigiles = v;
@@ -129,6 +133,19 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
     } finally {
       if (mounted) setState(() => _loadingCandidates = false);
     }
+  }
+
+  void _onIncludeBusyChanged(bool value) {
+    setState(() => _includeBusy = value);
+    if (_assignmentId != null) _loadCandidates(_assignmentId!);
+  }
+
+  String _vigileLabel(Map<String, dynamic> m) {
+    final name = (m['display_name'] ?? m['username'] ?? m['id']).toString();
+    final available = m['dispatch_available'] == true;
+    if (available) return name;
+    final reason = (m['busy_reason'] ?? 'occupé').toString();
+    return '$name ($reason)';
   }
 
   void _onAssignmentChanged(int? id) {
@@ -329,10 +346,32 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
                       ),
                     )
                   else ...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Afficher aussi les vigiles occupés',
+                        style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Cas exceptionnel — le conflit sera refusé à la validation.',
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                      value: _includeBusy,
+                      activeThumbColor: CobraAdminColors.indigo,
+                      onChanged: _loadingCandidates ? null : _onIncludeBusyChanged,
+                    ),
                     Padding(
-                      padding: const EdgeInsets.only(top: 4, bottom: 6),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
-                        '${_vigiles.length} vigile(s) disponible(s)',
+                        _includeBusy
+                            ? '${_vigiles.where((v) => (v as Map)['dispatch_available'] == true).length} libre(s) · ${_vigiles.length} affiché(s)'
+                            : '${_vigiles.length} vigile(s) disponible(s)',
                         style: GoogleFonts.outfit(
                           fontSize: 12,
                           color: const Color(0xFF64748B),
@@ -356,11 +395,18 @@ class _DispatchTabState extends State<DispatchTab> with SingleTickerProviderStat
                           items: _vigiles.map((raw) {
                             final m = raw as Map<String, dynamic>;
                             final id = (m['id'] as num).toInt();
-                            final name =
-                                (m['display_name'] ?? m['username'] ?? id).toString();
+                            final available = m['dispatch_available'] == true;
                             return DropdownMenuItem<int>(
                               value: id,
-                              child: Text(name, overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                _vigileLabel(m),
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  color: available
+                                      ? CobraAdminColors.ink
+                                      : const Color(0xFFB45309),
+                                ),
+                              ),
                             );
                           }).toList(),
                           onChanged: (v) => setState(() => _vigileId = v),

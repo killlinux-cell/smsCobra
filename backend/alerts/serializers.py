@@ -6,6 +6,7 @@ from rest_framework import serializers
 from shifts.models import ShiftAssignment
 
 from .models import LateAlert
+from shifts.dispatch_candidates import candidate_availability
 
 User = get_user_model()
 
@@ -106,3 +107,30 @@ class VigileBriefSerializer(serializers.ModelSerializer):
 
     def get_face_enrollment_ok(self, obj: User) -> bool:
         return bool(obj.profile_photo and obj.face_embedding)
+
+
+class DispatchCandidateSerializer(VigileBriefSerializer):
+    dispatch_available = serializers.SerializerMethodField()
+    busy_reason = serializers.SerializerMethodField()
+
+    class Meta(VigileBriefSerializer.Meta):
+        fields = VigileBriefSerializer.Meta.fields + [
+            "dispatch_available",
+            "busy_reason",
+        ]
+
+    def get_dispatch_available(self, obj: User) -> bool:
+        assignment = self.context.get("dispatch_assignment")
+        if assignment is None:
+            busy_today = self.context.get("busy_today_ids") or set()
+            return obj.pk not in busy_today
+        available, _ = candidate_availability(assignment, obj)
+        return available
+
+    def get_busy_reason(self, obj: User) -> str:
+        assignment = self.context.get("dispatch_assignment")
+        if assignment is None:
+            labels = self.context.get("busy_today_labels") or {}
+            return labels.get(obj.pk, "")
+        available, reason = candidate_availability(assignment, obj)
+        return "" if available else reason
