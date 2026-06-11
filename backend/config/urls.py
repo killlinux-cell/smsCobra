@@ -33,6 +33,7 @@ urlpatterns = [
     path("api/v1/admin/reports/", include("reports.urls")),
     path("api/v1/admin/sites/", include("sites.urls")),
     path("api/v1/admin/vigiles/", include("accounts.urls_admin")),
+    path("api/v1/admin/assignments/", include("shifts.urls_admin")),
 ]
 
 # Fichiers uploadés (photos vigiles, pièces d'identité). En dev, static() suffit ;

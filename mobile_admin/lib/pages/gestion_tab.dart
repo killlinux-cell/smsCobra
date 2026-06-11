@@ -8,6 +8,7 @@ import '../widgets/cobra_stagger.dart';
 import '../widgets/glass_panel.dart';
 import 'add_edit_site_page.dart';
 import 'add_vigile_page.dart';
+import 'assignment_form_page.dart';
 import 'vigile_detail_page.dart';
 
 /// Onglet Gestion : vigiles + sites (liste et création, édition site), aligné sur le dashboard web.
@@ -25,17 +26,22 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
   late final TabController _tabController;
   List<Map<String, dynamic>> _vigiles = [];
   List<Map<String, dynamic>> _sites = [];
+  List<Map<String, dynamic>> _assignments = [];
   bool _loadingV = true;
   bool _loadingS = true;
+  bool _loadingA = true;
   String _queryV = '';
   String _queryS = '';
+  String _queryA = '';
+  String? _statusFilterA;
   late final AnimationController _staggerV;
   late final AnimationController _staggerS;
+  late final AnimationController _staggerA;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
     });
@@ -47,8 +53,13 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 680),
     );
+    _staggerA = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 680),
+    );
     _loadVigiles();
     _loadSites();
+    _loadAssignments();
   }
 
   @override
@@ -56,6 +67,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
     _tabController.dispose();
     _staggerV.dispose();
     _staggerS.dispose();
+    _staggerA.dispose();
     super.dispose();
   }
 
@@ -82,6 +94,95 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
         });
       }
     }
+  }
+
+  Future<void> _loadAssignments() async {
+    setState(() => _loadingA = true);
+    try {
+      final raw = await widget.api.fetchAssignments(
+        status: _statusFilterA,
+      );
+      if (!mounted) return;
+      final list = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      setState(() => _assignments = list);
+    } on AdminSessionExpiredException {
+      await widget.onSessionExpired();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de charger les affectations.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loadingA = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _staggerA.forward(from: 0);
+        });
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredA {
+    final q = _queryA.trim().toLowerCase();
+    if (q.isEmpty) return _assignments;
+    return _assignments.where((m) {
+      final site = (m['site_name'] ?? '').toString().toLowerCase();
+      final guard = (m['guard_display'] ?? '').toString().toLowerCase();
+      final date = (m['shift_date'] ?? '').toString();
+      return site.contains(q) || guard.contains(q) || date.contains(q);
+    }).toList();
+  }
+
+  String _assignmentStatusFr(String? s) {
+    switch (s) {
+      case 'scheduled':
+        return 'Planifié';
+      case 'extra':
+        return 'Extra';
+      case 'replaced':
+        return 'Remplacé';
+      case 'completed':
+        return 'Terminé';
+      case 'missed':
+        return 'Manqué';
+      default:
+        return s ?? '—';
+    }
+  }
+
+  String _shiftTypeFr(String? t) {
+    if (t == 'night') return 'Nuit';
+    return 'Jour';
+  }
+
+  Future<void> _openAddAssignment() async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => AssignmentFormPage(
+          api: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          vigiles: _vigiles,
+          sites: _sites,
+        ),
+      ),
+    );
+    if (ok == true) _loadAssignments();
+  }
+
+  Future<void> _openEditAssignment(Map<String, dynamic> assignment) async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => AssignmentFormPage(
+          api: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          existing: assignment,
+          vigiles: _vigiles,
+          sites: _sites,
+        ),
+      ),
+    );
+    if (ok == true) _loadAssignments();
   }
 
   Future<void> _loadSites() async {
@@ -202,7 +303,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text(
-                'Vigiles et sites — comme sur le tableau de bord web.',
+                'Vigiles, sites et planning — comme sur le tableau de bord web.',
                 style: GoogleFonts.outfit(
                   color: const Color(0xFF64748B),
                   fontSize: 13,
@@ -229,6 +330,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                   tabs: const [
                     Tab(text: 'Vigiles'),
                     Tab(text: 'Sites'),
+                    Tab(text: 'Planning'),
                   ],
                 ),
               ),
@@ -239,6 +341,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                 children: [
                   _buildVigilesBody(),
                   _buildSitesBody(),
+                  _buildAssignmentsBody(),
                 ],
               ),
             ),
@@ -248,11 +351,24 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
           right: 20,
           bottom: 24,
           child: FloatingActionButton.extended(
-            onPressed: _tabController.index == 0 ? _openAddVigile : _openAddSite,
+            onPressed: () {
+              switch (_tabController.index) {
+                case 0:
+                  _openAddVigile();
+                case 1:
+                  _openAddSite();
+                case 2:
+                  _openAddAssignment();
+              }
+            },
             backgroundColor: CobraAdminColors.indigo,
             icon: const Icon(Icons.add_rounded),
             label: Text(
-              _tabController.index == 0 ? 'Vigile' : 'Site',
+              switch (_tabController.index) {
+                0 => 'Vigile',
+                1 => 'Site',
+                _ => 'Affectation',
+              },
               style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
             ),
           ),
@@ -390,6 +506,181 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
               );
             }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAssignmentsBody() {
+    return RefreshIndicator(
+      color: CobraAdminColors.indigo,
+      onRefresh: _loadAssignments,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        children: [
+          TextField(
+            onChanged: (v) => setState(() => _queryA = v),
+            decoration: _searchDec('Rechercher vigile, site ou date…'),
+            style: GoogleFonts.outfit(fontSize: 15),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _statusChip(null, 'Tous'),
+                _statusChip('scheduled', 'Planifié'),
+                _statusChip('extra', 'Extra'),
+                _statusChip('replaced', 'Remplacé'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_loadingA)
+            const AdminShimmerScope(
+              child: Column(
+                children: [
+                  ListRowSkeletonCard(),
+                  ListRowSkeletonCard(),
+                  ListRowSkeletonCard(),
+                ],
+              ),
+            )
+          else if (_filteredA.isEmpty)
+            GlassPanel(
+              child: Text(
+                _assignments.isEmpty
+                    ? 'Aucune affectation sur les 31 prochains jours.'
+                    : 'Aucun résultat pour « $_queryA ».',
+                style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
+              ),
+            )
+          else
+            ..._filteredA.asMap().entries.map((e) {
+              final i = e.key;
+              final m = e.value;
+              final guard = (m['guard_display'] ?? '—').toString();
+              final site = (m['site_name'] ?? '—').toString();
+              final date = (m['shift_date'] ?? '').toString();
+              final status = m['status']?.toString();
+              final shiftType = m['shift_type']?.toString();
+              final isExtra = status == 'extra';
+              return cobraStaggerItem(
+                controller: _staggerA,
+                index: i,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: InkWell(
+                    onTap: () => _openEditAssignment(m),
+                    borderRadius: BorderRadius.circular(16),
+                    child: GlassPanel(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: (isExtra
+                                      ? CobraAdminColors.accent
+                                      : CobraAdminColors.indigo)
+                                  .withAlpha(35),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              isExtra ? Icons.bolt_rounded : Icons.event_available_rounded,
+                              color: isExtra ? CobraAdminColors.accent : CobraAdminColors.indigo,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  guard,
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    color: CobraAdminColors.ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  site,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    _miniChip(date, const Color(0xFFE2E8F0), CobraAdminColors.ink),
+                                    _miniChip(
+                                      _shiftTypeFr(shiftType),
+                                      CobraAdminColors.indigo.withAlpha(40),
+                                      CobraAdminColors.indigo,
+                                    ),
+                                    _miniChip(
+                                      _assignmentStatusFr(status),
+                                      isExtra
+                                          ? const Color(0xFFFEF3C7)
+                                          : const Color(0xFFDCFCE7),
+                                      isExtra
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF166534),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip(String? value, String label) {
+    final selected = _statusFilterA == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label, style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 12)),
+        selected: selected,
+        onSelected: (_) {
+          setState(() => _statusFilterA = value);
+          _loadAssignments();
+        },
+        selectedColor: CobraAdminColors.indigo.withAlpha(45),
+        checkmarkColor: CobraAdminColors.indigo,
+        labelStyle: TextStyle(
+          color: selected ? CobraAdminColors.indigo : const Color(0xFF64748B),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniChip(String label, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }

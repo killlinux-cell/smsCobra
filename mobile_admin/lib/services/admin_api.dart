@@ -91,6 +91,35 @@ class AdminApi {
     return resp;
   }
 
+  /// DELETE avec renouvellement automatique du JWT si 401.
+  Future<http.Response> _authDelete(Uri uri) async {
+    var headers = await _authHeaders();
+    var resp = await http.delete(uri, headers: headers);
+    if (resp.statusCode == 401 && await _tryRefreshAccessToken()) {
+      headers = await _authHeaders();
+      resp = await http.delete(uri, headers: headers);
+    }
+    return resp;
+  }
+
+  String? _extractApiErrorMessage(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map) return null;
+      final detail = decoded['detail'];
+      if (detail != null && detail.toString().isNotEmpty) {
+        return detail.toString();
+      }
+      for (final value in decoded.values) {
+        if (value is List && value.isNotEmpty) {
+          return value.first.toString();
+        }
+        if (value is String && value.isNotEmpty) return value;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> login(String username, String password) async {
     final uri = Uri.parse("$apiBase/api/v1/auth/login");
     final resp = await http.post(
@@ -232,6 +261,68 @@ class AdminApi {
     final decoded = jsonDecode(resp.body);
     if (decoded is List) return decoded;
     return [];
+  }
+
+  Future<List<dynamic>> fetchAssignments({
+    int? siteId,
+    String? status,
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final params = <String, String>{};
+    if (siteId != null) params['site'] = '$siteId';
+    if (status != null && status.isNotEmpty) params['status'] = status;
+    if (dateFrom != null && dateFrom.isNotEmpty) params['date_from'] = dateFrom;
+    if (dateTo != null && dateTo.isNotEmpty) params['date_to'] = dateTo;
+    final uri = Uri.parse("$apiBase/api/v1/admin/assignments/").replace(
+      queryParameters: params.isEmpty ? null : params,
+    );
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("assignments_list_failed");
+    final decoded = jsonDecode(resp.body);
+    if (decoded is List) return decoded;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> fetchAssignment(int assignmentId) async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/assignments/$assignmentId/");
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("assignment_failed");
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createAssignment(Map<String, dynamic> payload) async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/assignments/");
+    final resp = await _authPost(uri, body: jsonEncode(payload));
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 201) {
+      throw Exception(_extractApiErrorMessage(resp.body) ?? 'assignment_create_failed');
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateAssignment(
+    int assignmentId,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/assignments/$assignmentId/");
+    final resp = await _authPatch(uri, body: jsonEncode(payload));
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) {
+      throw Exception(_extractApiErrorMessage(resp.body) ?? 'assignment_update_failed');
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  Future<void> deleteAssignment(int assignmentId) async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/assignments/$assignmentId/");
+    final resp = await _authDelete(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 204 && resp.statusCode != 200) {
+      throw Exception(_extractApiErrorMessage(resp.body) ?? 'assignment_delete_failed');
+    }
   }
 
   Future<void> createSite(Map<String, dynamic> payload) async {
