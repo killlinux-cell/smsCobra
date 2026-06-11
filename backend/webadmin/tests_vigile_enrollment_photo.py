@@ -104,3 +104,29 @@ class VigileCreationWebViewTests(TestCase):
         self.assertTrue(
             User.objects.filter(role=User.Role.VIGILE, first_name="Kouadio").exists()
         )
+
+
+class UploadedPhotoStaysOpenTests(TestCase):
+    """Régression : la validation ne doit pas fermer le fichier avant save()."""
+
+    @patch(
+        "checkins.face_verify._load_rgb_image_with_exif",
+        return_value=np.zeros((64, 64, 3), dtype=np.uint8),
+    )
+    def test_load_rgb_keeps_upload_open(self, _exif):
+        from checkins.face_verify import _load_rgb_image_from_source
+        from webadmin.forms import _clean_enrollment_profile_photo
+
+        photo = SimpleUploadedFile("portrait.jpg", _PNG_1PX, content_type="image/jpeg")
+        _img, fail = _load_rgb_image_from_source(photo)
+        self.assertEqual(fail, "")
+        photo.seek(0)
+
+        with patch(
+            "webadmin.forms.validate_profile_photo_upload",
+            return_value=(True, ""),
+        ):
+            photo2 = SimpleUploadedFile("portrait2.jpg", _PNG_1PX, content_type="image/jpeg")
+            cleaned = _clean_enrollment_profile_photo(photo2)
+            self.assertIs(cleaned, photo2)
+            cleaned.seek(0)

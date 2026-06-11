@@ -205,9 +205,18 @@ def _image_with_rotation_face_fallback(image, model: str):
 
 def _load_rgb_image_from_source(source):
     """Charge une image uploadée ou un champ fichier en RGB (EXIF + redimensionnement)."""
+    from django.db.models.fields.files import FieldFile
+
     ref_path = _temp_path("cobra_ref", ".jpg")
     try:
-        if hasattr(source, "open"):
+        # UploadedFile : ne pas utiliser ``with source.open()`` — le context manager
+        # fermerait le fichier avant que Django ne l'enregistre (erreur 500 webadmin).
+        if isinstance(source, UploadedFile):
+            _write_source_to_path(source, ref_path)
+        elif isinstance(source, FieldFile):
+            with source.open("rb") as ref_stream:
+                _write_source_to_path(ref_stream, ref_path)
+        elif hasattr(source, "open"):
             with source.open("rb") as ref_stream:
                 _write_source_to_path(ref_stream, ref_path)
         else:

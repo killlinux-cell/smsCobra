@@ -47,12 +47,16 @@ def _clean_enrollment_profile_photo(photo):
         return photo
     if not isinstance(photo, UploadedFile):
         return photo
+    try:
+        photo.seek(0)
+    except (AttributeError, OSError, ValueError):
+        pass
     ok, fail_code = validate_profile_photo_upload(photo)
     if not ok:
         raise forms.ValidationError(enrollment_photo_error_message(fail_code))
     try:
         photo.seek(0)
-    except (AttributeError, OSError):
+    except (AttributeError, OSError, ValueError):
         pass
     return photo
 
