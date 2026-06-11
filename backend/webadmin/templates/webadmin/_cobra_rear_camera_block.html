@@ -1,7 +1,8 @@
 {# Bloc caméra arrière : data-cobra-input = id du champ fichier cible #}
 <div class="cobra-rear-cam mb-3 p-3 rounded border border-secondary border-opacity-25 bg-body-secondary bg-opacity-10"
      data-cobra-input="{{ input_id }}"
-     data-cobra-filename="{{ capture_filename|default:'capture.jpg' }}">
+     data-cobra-filename="{{ capture_filename|default:'capture.jpg' }}"
+     data-cobra-mode="{{ capture_mode|default:'document' }}">
   {% if title %}
   <div class="form-label fw-semibold mb-2"><i class="bi bi-camera me-1"></i>{{ title }}</div>
   {% endif %}

@@ -74,7 +74,7 @@
         <form id="vigile-create-form" method="post" action="{% url 'webadmin-vigiles' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}" enctype="multipart/form-data" novalidate>
           {% csrf_token %}
 
-          {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.profile_photo.id_for_label title="Photo portrait — caméra" hint="Sur téléphone, la caméra arrière photographie le vigile. Sur ordinateur, la webcam s’ouvre si besoin." capture_filename="portrait.jpg" %}
+          {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.profile_photo.id_for_label title="Photo portrait — caméra" hint="Visage seul, de face, bien éclairé. La photo est vérifiée à l'enregistrement." capture_filename="portrait.jpg" capture_mode="portrait" %}
 
           <div class="mb-3">
             <label class="form-label" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>

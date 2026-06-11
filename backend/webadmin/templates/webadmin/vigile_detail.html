@@ -32,6 +32,7 @@
             <i class="bi bi-person-badge" style="font-size:4rem;"></i>
           </div>
           {% endif %}
+          {% include "webadmin/_cobra_rear_camera_block.html" with input_id=form.profile_photo.id_for_label title="Nouveau portrait — caméra" hint="Visage seul, de face, bien éclairé. La photo est vérifiée à l'enregistrement." capture_filename="portrait.jpg" capture_mode="portrait" %}
           <div class="mb-0 text-start">
             <label class="form-label small" for="{{ form.profile_photo.id_for_label }}">{{ form.profile_photo.label }}</label>
             {{ form.profile_photo }}

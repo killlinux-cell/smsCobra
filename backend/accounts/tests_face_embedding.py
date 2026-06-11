@@ -6,9 +6,14 @@ import numpy as np
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from accounts.face_profile import refresh_face_embedding_for_user
+from accounts.face_profile import enrollment_photo_error_message, refresh_face_embedding_for_user
 from accounts.models import User
-from checkins.face_verify import embedding_to_list, encoding_from_list, verify_selfie_against_profile
+from checkins.face_verify import (
+    embedding_to_list,
+    encoding_from_list,
+    validate_profile_photo_upload,
+    verify_selfie_against_profile,
+)
 
 _PNG_1PX = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -59,3 +64,56 @@ class FaceEmbeddingTests(TestCase):
     def test_encoding_from_list_invalid(self):
         self.assertIsNone(encoding_from_list([]))
         self.assertIsNone(encoding_from_list(None))
+
+
+class ValidateEnrollmentPhotoTests(TestCase):
+    def setUp(self):
+        self._fr_patch = patch.dict(sys.modules, {"face_recognition": MagicMock()})
+        self._fr_patch.start()
+
+    def tearDown(self):
+        self._fr_patch.stop()
+
+    @patch("checkins.face_verify._encoding_for_largest_face", return_value=_FAKE_ENC)
+    @patch(
+        "checkins.face_verify._image_with_rotation_face_fallback",
+        return_value=(np.zeros((100, 100, 3), dtype=np.uint8), 1),
+    )
+    @patch(
+        "checkins.face_verify._load_rgb_image_from_source",
+        return_value=(np.zeros((100, 100, 3), dtype=np.uint8), ""),
+    )
+    def test_validate_accepts_single_face(self, *_mocks):
+        photo = SimpleUploadedFile("p.png", _PNG_1PX, content_type="image/png")
+        ok, code = validate_profile_photo_upload(photo)
+        self.assertTrue(ok)
+        self.assertEqual(code, "")
+
+    @patch(
+        "checkins.face_verify._image_with_rotation_face_fallback",
+        return_value=(np.zeros((100, 100, 3), dtype=np.uint8), 0),
+    )
+    @patch(
+        "checkins.face_verify._load_rgb_image_from_source",
+        return_value=(np.zeros((100, 100, 3), dtype=np.uint8), ""),
+    )
+    def test_validate_rejects_no_face(self, *_mocks):
+        photo = SimpleUploadedFile("p.png", _PNG_1PX, content_type="image/png")
+        ok, code = validate_profile_photo_upload(photo)
+        self.assertFalse(ok)
+        self.assertEqual(code, "no_face_in_reference")
+        self.assertIn("Aucun visage", enrollment_photo_error_message(code))
+
+    @patch(
+        "checkins.face_verify._image_with_rotation_face_fallback",
+        return_value=(np.zeros((100, 100, 3), dtype=np.uint8), 2),
+    )
+    @patch(
+        "checkins.face_verify._load_rgb_image_from_source",
+        return_value=(np.zeros((100, 100, 3), dtype=np.uint8), ""),
+    )
+    def test_validate_rejects_multiple_faces(self, *_mocks):
+        photo = SimpleUploadedFile("p.png", _PNG_1PX, content_type="image/png")
+        ok, code = validate_profile_photo_upload(photo)
+        self.assertFalse(ok)
+        self.assertEqual(code, "multiple_faces_in_reference")

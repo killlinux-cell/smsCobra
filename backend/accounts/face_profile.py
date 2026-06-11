@@ -3,7 +3,16 @@
 from __future__ import annotations
 
 from accounts.models import User
-from checkins.face_verify import encode_profile_photo_field, embedding_to_list
+from checkins.face_verify import (
+    ENROLLMENT_PHOTO_MESSAGES,
+    encode_profile_photo_field,
+    embedding_to_list,
+    validate_profile_photo_upload,
+)
+
+
+def enrollment_photo_error_message(code: str) -> str:
+    return ENROLLMENT_PHOTO_MESSAGES.get(code, "Photo portrait invalide.")
 
 
 def refresh_face_embedding_for_user(user: User, *, save: bool = True) -> tuple[bool, str]:

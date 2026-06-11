@@ -5,6 +5,12 @@ import secrets
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from accounts.face_profile import (
+    enrollment_photo_error_message,
+    refresh_face_embedding_if_vigile,
+    validate_profile_photo_upload,
+)
+
 User = get_user_model()
 
 
@@ -116,6 +122,16 @@ class VigileCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Cet identifiant est deja utilise.")
         return v
 
+    def validate_profile_photo(self, value):
+        ok, fail_code = validate_profile_photo_upload(value)
+        if not ok:
+            raise serializers.ValidationError(enrollment_photo_error_message(fail_code))
+        try:
+            value.seek(0)
+        except (AttributeError, OSError):
+            pass
+        return value
+
     def create(self, validated_data):
         vd = validated_data.copy()
         vd.pop("password_confirm", None)
@@ -153,7 +169,5 @@ class VigileCreateSerializer(serializers.Serializer):
         # Si absent, on en crée un aléatoire robuste pour garder le compte sécurisé.
         user.set_password(pwd or secrets.token_urlsafe(24))
         user.save()
-        from accounts.face_profile import refresh_face_embedding_if_vigile
-
         refresh_face_embedding_if_vigile(user, photo_updated=True)
         return user

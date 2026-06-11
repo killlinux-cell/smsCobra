@@ -39,6 +39,8 @@
     var btnStop = block.querySelector(".cobra-rc-stop");
     var previewWrap = block.querySelector(".cobra-rc-preview");
     var previewImg = block.querySelector(".cobra-rc-preview-img");
+    var captureMode = block.getAttribute("data-cobra-mode") || "document";
+    var isPortrait = captureMode === "portrait";
     if (!photoInput || !video || !canvas || !btnStart) return;
 
     var stream = null;
@@ -73,8 +75,12 @@
           btnStop.disabled = false;
           setStatus(
             result.rear
-              ? "Caméra arrière active. Cadrez le document puis « Prendre la photo »."
-              : "Caméra active. Cadrez le document puis « Prendre la photo »."
+              ? (isPortrait
+                  ? "Caméra arrière active. Cadrez le visage (une seule personne, de face, bien éclairé), puis « Prendre la photo »."
+                  : "Caméra arrière active. Cadrez le document puis « Prendre la photo ».")
+              : (isPortrait
+                  ? "Caméra active. Cadrez le visage (une seule personne, de face, bien éclairé), puis « Prendre la photo »."
+                  : "Caméra active. Cadrez le document puis « Prendre la photo ».")
           );
         })
         .catch(function (err) {

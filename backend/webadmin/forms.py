@@ -2,8 +2,10 @@ import secrets
 from datetime import datetime, timedelta, time
 
 from django import forms
+from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
 
+from accounts.face_profile import enrollment_photo_error_message, validate_profile_photo_upload
 from accounts.models import ControllerSiteAssignment, User
 from shifts.guard_conflicts import (
     conflict_error_message,
@@ -30,6 +32,26 @@ def _apply_html5_date_field(field: forms.DateField) -> None:
     field.input_formats = _DATE_HTML5_FORMATS
 
 _EDUCATION_LEVEL_CHOICES = [("", "— Non renseigné —")] + list(User.EducationLevel.choices)
+
+_PROFILE_PHOTO_HELP = (
+    "Portrait obligatoire pour la connexion faciale : une seule personne, visage de face, "
+    "bien éclairé, sans chapeau ni masque. La photo est vérifiée à l'enregistrement."
+)
+
+
+def _clean_enrollment_profile_photo(photo):
+    if photo is None or photo is False:
+        return photo
+    if not isinstance(photo, UploadedFile):
+        return photo
+    ok, fail_code = validate_profile_photo_upload(photo)
+    if not ok:
+        raise forms.ValidationError(enrollment_photo_error_message(fail_code))
+    try:
+        photo.seek(0)
+    except (AttributeError, OSError):
+        pass
+    return photo
 
 class SiteCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     """Liste de sites en cases à cocher (template dédié, lisible sur la fiche contrôleur)."""
@@ -304,7 +326,7 @@ class VigileCreationForm(forms.ModelForm):
     profile_photo = forms.ImageField(
         label="Photo portrait (obligatoire)",
         required=True,
-        help_text="Utilisez la caméra ci-dessus (arrière sur mobile) ou choisissez un fichier image.",
+        help_text=_PROFILE_PHOTO_HELP,
     )
 
     class Meta:
@@ -358,6 +380,9 @@ class VigileCreationForm(forms.ModelForm):
             cleaned["username"] = self._generate_username()
         return cleaned
 
+    def clean_profile_photo(self):
+        return _clean_enrollment_profile_photo(self.cleaned_data.get("profile_photo"))
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.role = User.Role.VIGILE
@@ -393,7 +418,7 @@ class ControllerCreationForm(forms.ModelForm):
     profile_photo = forms.ImageField(
         label="Photo portrait (obligatoire)",
         required=True,
-        help_text="Photo de référence pour la reconnaissance faciale.",
+        help_text=_PROFILE_PHOTO_HELP,
     )
     sites = forms.ModelMultipleChoiceField(
         label="Sites autorisés",
@@ -433,6 +458,9 @@ class ControllerCreationForm(forms.ModelForm):
         if not cleaned.get("username"):
             cleaned["username"] = self._generate_username()
         return cleaned
+
+    def clean_profile_photo(self):
+        return _clean_enrollment_profile_photo(self.cleaned_data.get("profile_photo"))
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -603,6 +631,7 @@ class VigileUpdateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["profile_photo"].required = False
+        self.fields["profile_photo"].help_text = _PROFILE_PHOTO_HELP
         self.fields["id_document"].required = False
         self.fields["id_document_verso"].required = False
         self.fields["education_level"].choices = _EDUCATION_LEVEL_CHOICES
@@ -624,6 +653,9 @@ class VigileUpdateForm(forms.ModelForm):
         if User.objects.filter(username=u).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError("Cet identifiant est déjà utilisé.")
         return u
+
+    def clean_profile_photo(self):
+        return _clean_enrollment_profile_photo(self.cleaned_data.get("profile_photo"))
 
     def save(self, commit=True):
         user = super().save(commit=False)

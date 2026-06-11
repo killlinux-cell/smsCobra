@@ -51,10 +51,14 @@ def _write_source_to_path(source, path: str) -> None:
                 out.write(chunk)
 
 
-def _largest_face_location(image, model: str):
+def _face_locations(image, model: str):
     import face_recognition
 
-    locs = face_recognition.face_locations(image, model=model)
+    return face_recognition.face_locations(image, model=model)
+
+
+def _largest_face_location(image, model: str):
+    locs = _face_locations(image, model=model)
     if not locs:
         return None
 
@@ -168,16 +172,96 @@ def encoding_from_list(stored) -> np.ndarray | None:
         return None
 
 
-def encode_profile_photo_field(profile_image_field) -> Tuple[np.ndarray | None, str]:
-    """Encode la photo portrait (enrôlement) une fois."""
+ENROLLMENT_PHOTO_MESSAGES = {
+    "no_face_in_reference": (
+        "Aucun visage détecté. Reprenez le portrait : visage centré, de face, "
+        "bien éclairé, sans lunettes de soleil ni masque."
+    ),
+    "multiple_faces_in_reference": (
+        "Plusieurs visages détectés. Une seule personne doit être visible sur la photo."
+    ),
+    "face_engine_unavailable": (
+        "Moteur de reconnaissance faciale indisponible. "
+        "Réessayez plus tard ou contactez l'administrateur."
+    ),
+    "face_verify_error": (
+        "Impossible d'analyser la photo. Réessayez avec une autre image."
+    ),
+}
+
+
+def _image_with_rotation_face_fallback(image, model: str):
+    """Retourne (image_orientée, nombre_de_visages) avec rotations si besoin."""
+    count = len(_face_locations(image, model=model))
+    if count > 0:
+        return image, count
+    for k in (1, 2, 3):
+        rotated = np.rot90(image, k)
+        count = len(_face_locations(rotated, model=model))
+        if count > 0:
+            return rotated, count
+    return image, 0
+
+
+def _load_rgb_image_from_source(source):
+    """Charge une image uploadée ou un champ fichier en RGB (EXIF + redimensionnement)."""
+    ref_path = _temp_path("cobra_ref", ".jpg")
+    try:
+        if hasattr(source, "open"):
+            with source.open("rb") as ref_stream:
+                _write_source_to_path(ref_stream, ref_path)
+        else:
+            _write_source_to_path(source, ref_path)
+        return _load_rgb_image_with_exif(ref_path), ""
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Erreur chargement photo profil: %s", exc)
+        return None, "face_verify_error"
+    finally:
+        try:
+            if os.path.isfile(ref_path):
+                os.unlink(ref_path)
+        except OSError:
+            pass
+
+
+def validate_profile_photo_upload(source) -> Tuple[bool, str]:
+    """
+    Valide une photo portrait à l'enrôlement (création / mise à jour vigile).
+    Retourne (succès, code_raison_vide_si_ok).
+    """
     try:
         import face_recognition  # noqa: F401
     except ImportError:
         logger.error("face_recognition non installé : pip install face-recognition")
-        return None, "face_engine_unavailable"
+        return False, "face_engine_unavailable"
 
-    if not profile_image_field:
-        return None, "no_face_in_reference"
+    if not source:
+        return False, "no_face_in_reference"
+
+    model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
+    num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
+
+    ref_img, load_fail = _load_rgb_image_from_source(source)
+    if load_fail or ref_img is None:
+        return False, load_fail or "face_verify_error"
+
+    ref_img, face_count = _image_with_rotation_face_fallback(ref_img, model=model)
+    if face_count == 0:
+        return False, "no_face_in_reference"
+    if face_count > 1:
+        return False, "multiple_faces_in_reference"
+
+    ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
+    if ref_enc is None:
+        return False, "no_face_in_reference"
+    return True, ""
+
+
+def encode_profile_photo_field(profile_image_field) -> Tuple[np.ndarray | None, str]:
+    """Encode la photo portrait (enrôlement) une fois."""
+    ok, fail = validate_profile_photo_upload(profile_image_field)
+    if not ok:
+        return None, fail
 
     model = getattr(settings, "FACE_VERIFICATION_MODEL", "hog")
     num_jitters = int(getattr(settings, "FACE_VERIFICATION_NUM_JITTERS", 1))
@@ -186,6 +270,7 @@ def encode_profile_photo_field(profile_image_field) -> Tuple[np.ndarray | None, 
         with profile_image_field.open("rb") as ref_stream:
             _write_source_to_path(ref_stream, ref_path)
         ref_img = _load_rgb_image_with_exif(ref_path)
+        ref_img, _face_count = _image_with_rotation_face_fallback(ref_img, model=model)
         ref_enc = _encoding_for_largest_face(ref_img, model=model, num_jitters=num_jitters)
         if ref_enc is None:
             return None, "no_face_in_reference"
