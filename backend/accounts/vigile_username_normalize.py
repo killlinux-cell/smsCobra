@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 STANDARD_VIGILE_USERNAME = re.compile(r"^VIR-\d{3}$", re.IGNORECASE)
 NUMERIC_USERNAME = re.compile(r"^\d+$")
+TEMP_USERNAME_PREFIX = "__vig_norm_"
 
 
 def is_standard_vigile_username(username: str) -> bool:
@@ -26,6 +27,17 @@ def preferred_vigile_username(username: str) -> str | None:
     return None
 
 
+def _max_vir_number(usernames: set[str]) -> int:
+    max_num = 0
+    for username in usernames:
+        if not username:
+            continue
+        match = STANDARD_VIGILE_USERNAME.match(username.strip())
+        if match:
+            max_num = max(max_num, int(username.split("-", 1)[1]))
+    return max_num
+
+
 def next_free_vigile_username(taken: set[str], start: int = 1) -> str:
     num = max(0, start - 1)
     while True:
@@ -33,6 +45,10 @@ def next_free_vigile_username(taken: set[str], start: int = 1) -> str:
         candidate = f"VIR-{num:03d}"
         if candidate.lower() not in taken:
             return candidate
+
+
+def temp_vigile_username(user_id: int) -> str:
+    return f"{TEMP_USERNAME_PREFIX}{user_id}__"
 
 
 @dataclass(frozen=True)
@@ -45,19 +61,19 @@ class VigileUsernameChange:
 
 def plan_vigile_username_normalizations(
     vigiles: list[tuple[int, str]],
+    *,
+    reserved_usernames: set[str] | None = None,
 ) -> tuple[list[VigileUsernameChange], list[str]]:
     """
-    vigiles: liste (id, username) triée comme souhaité par l'appelant.
-    Retourne (changements prévus, avertissements).
+    vigiles: vigiles hors format VIR-XXX a normaliser (id, username).
+    reserved_usernames: tous les identifiants deja en base (minuscules).
     """
-    taken = {username.lower() for _, username in vigiles if username}
+    taken: set[str] = set(reserved_usernames or [])
+    taken.update((username or "").lower() for _, username in vigiles)
     changes: list[VigileUsernameChange] = []
     warnings: list[str] = []
 
-    max_vir_num = 0
-    for _, username in vigiles:
-        if is_standard_vigile_username(username):
-            max_vir_num = max(max_vir_num, int(username.split("-", 1)[1]))
+    max_vir_num = _max_vir_number(taken)
 
     pending: list[tuple[int, str, str | None]] = []
     for user_id, username in vigiles:
@@ -89,7 +105,7 @@ def plan_vigile_username_normalizations(
                 f"#{user_id} {old_username!r} : {target} deja pris — "
                 f"attribution du prochain numero libre."
             )
-            target = next_free_vigile_username(taken, start=max_vir_num + 1)
+            target = next_free_vigile_username(taken, start=1)
             reason = "conflit -> prochain VIR-XXX disponible"
             max_vir_num = max(max_vir_num, int(target[4:]))
 
