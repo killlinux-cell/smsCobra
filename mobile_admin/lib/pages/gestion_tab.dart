@@ -6,6 +6,7 @@ import '../theme/cobra_admin_theme.dart';
 import '../widgets/admin_shimmer.dart';
 import '../widgets/cobra_stagger.dart';
 import '../widgets/glass_panel.dart';
+import 'add_controller_page.dart';
 import 'add_edit_site_page.dart';
 import 'add_vigile_page.dart';
 import 'assignment_form_page.dart';
@@ -28,21 +29,25 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _vigiles = [];
   List<Map<String, dynamic>> _sites = [];
   List<Map<String, dynamic>> _assignments = [];
+  List<Map<String, dynamic>> _controllers = [];
   bool _loadingV = true;
   bool _loadingS = true;
+  bool _loadingC = true;
   bool _loadingA = true;
   String _queryV = '';
   String _queryS = '';
+  String _queryC = '';
   String _queryA = '';
   String? _statusFilterA;
   late final AnimationController _staggerV;
   late final AnimationController _staggerS;
+  late final AnimationController _staggerC;
   late final AnimationController _staggerA;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
     });
@@ -54,12 +59,17 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 680),
     );
+    _staggerC = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 680),
+    );
     _staggerA = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 680),
     );
     _loadVigiles();
     _loadSites();
+    _loadControllers();
     _loadAssignments();
   }
 
@@ -68,6 +78,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
     _tabController.dispose();
     _staggerV.dispose();
     _staggerS.dispose();
+    _staggerC.dispose();
     _staggerA.dispose();
     super.dispose();
   }
@@ -92,6 +103,31 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
         setState(() => _loadingV = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _staggerV.forward(from: 0);
+        });
+      }
+    }
+  }
+
+  Future<void> _loadControllers() async {
+    setState(() => _loadingC = true);
+    try {
+      final raw = await widget.api.fetchControllers();
+      if (!mounted) return;
+      final list = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      setState(() => _controllers = list);
+    } on AdminSessionExpiredException {
+      await widget.onSessionExpired();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de charger les contrôleurs.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loadingC = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _staggerC.forward(from: 0);
         });
       }
     }
@@ -211,6 +247,16 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
     }
   }
 
+  List<Map<String, dynamic>> get _filteredC {
+    final q = _queryC.trim().toLowerCase();
+    if (q.isEmpty) return _controllers;
+    return _controllers.where((m) {
+      final name = (m['display_name'] ?? '').toString().toLowerCase();
+      final user = (m['username'] ?? '').toString().toLowerCase();
+      return name.contains(q) || user.contains(q);
+    }).toList();
+  }
+
   List<Map<String, dynamic>> get _filteredV {
     final q = _queryV.trim().toLowerCase();
     if (q.isEmpty) return _vigiles;
@@ -244,6 +290,19 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
       ),
     );
     if (ok == true) _loadVigiles();
+  }
+
+  Future<void> _openAddController() async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => AddControllerPage(
+          api: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          sites: _sites,
+        ),
+      ),
+    );
+    if (ok == true) _loadControllers();
   }
 
   Future<void> _openAddVigile() async {
@@ -310,7 +369,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text(
-                'Vigiles, sites et planning — comme sur le tableau de bord web.',
+                'Vigiles, sites, contrôleurs et planning — comme sur le tableau de bord web.',
                 style: GoogleFonts.outfit(
                   color: const Color(0xFF64748B),
                   fontSize: 13,
@@ -325,6 +384,8 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(14),
                 child: TabBar(
                   controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
                   indicator: BoxDecoration(
                     color: CobraAdminColors.indigo.withAlpha(45),
                     borderRadius: BorderRadius.circular(12),
@@ -332,11 +393,12 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                   indicatorSize: TabBarIndicatorSize.tab,
                   labelColor: CobraAdminColors.indigo,
                   unselectedLabelColor: const Color(0xFF64748B),
-                  labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 14),
-                  unselectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 14),
+                  labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 13),
+                  unselectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13),
                   tabs: const [
                     Tab(text: 'Vigiles'),
                     Tab(text: 'Sites'),
+                    Tab(text: 'Contrôleurs'),
                     Tab(text: 'Planning'),
                   ],
                 ),
@@ -348,6 +410,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                 children: [
                   _buildVigilesBody(),
                   _buildSitesBody(),
+                  _buildControllersBody(),
                   _buildAssignmentsBody(),
                 ],
               ),
@@ -365,6 +428,8 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
                 case 1:
                   _openAddSite();
                 case 2:
+                  _openAddController();
+                case 3:
                   _openAddAssignment();
               }
             },
@@ -374,6 +439,7 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
               switch (_tabController.index) {
                 0 => 'Vigile',
                 1 => 'Site',
+                2 => 'Contrôleur',
                 _ => 'Affectation',
               },
               style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
@@ -513,6 +579,160 @@ class _GestionTabState extends State<GestionTab> with TickerProviderStateMixin {
               );
             }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildControllersBody() {
+    return RefreshIndicator(
+      color: CobraAdminColors.indigo,
+      onRefresh: _loadControllers,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        children: [
+          TextField(
+            onChanged: (v) => setState(() => _queryC = v),
+            decoration: _searchDec('Rechercher un contrôleur…'),
+            style: GoogleFonts.outfit(fontSize: 15),
+          ),
+          const SizedBox(height: 16),
+          if (_loadingC)
+            const AdminShimmerScope(
+              child: Column(
+                children: [
+                  ListRowSkeletonCard(),
+                  ListRowSkeletonCard(),
+                  ListRowSkeletonCard(),
+                ],
+              ),
+            )
+          else if (_filteredC.isEmpty)
+            GlassPanel(
+              child: Text(
+                _controllers.isEmpty
+                    ? 'Aucun contrôleur. Appuyez sur le bouton pour en créer un.'
+                    : 'Aucun résultat pour « $_queryC ».',
+                style: GoogleFonts.outfit(color: const Color(0xFF64748B)),
+              ),
+            )
+          else
+            ..._filteredC.asMap().entries.map((e) {
+              final i = e.key;
+              final m = e.value;
+              final name = (m['display_name'] ?? m['username'] ?? '—').toString();
+              final user = (m['username'] ?? '').toString();
+              final phone = (m['phone_number'] ?? '').toString().trim();
+              final photoUrl = widget.api.resolveMediaUrl(m['profile_photo']?.toString());
+              final portraitOk = m['portrait_ok'] == true;
+              final sites = m['authorized_sites'];
+              final siteNames = sites is List
+                  ? sites
+                      .map((s) => (s as Map)['name']?.toString() ?? '')
+                      .where((n) => n.isNotEmpty)
+                      .join(' · ')
+                  : '';
+              return cobraStaggerItem(
+                controller: _staggerC,
+                index: i,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: GlassPanel(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 26,
+                          backgroundColor: CobraAdminColors.indigo.withAlpha(40),
+                          foregroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                          child: photoUrl == null
+                              ? Text(
+                                  name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
+                                  style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  color: CobraAdminColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '@$user',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                              if (phone.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  phone,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                              if (siteNames.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  siteNames,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11,
+                                    color: CobraAdminColors.indigo,
+                                    height: 1.25,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                              _portraitChip(portraitOk),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          portraitOk ? Icons.verified_rounded : Icons.warning_amber_rounded,
+                          color: portraitOk
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFF94A3B8),
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _portraitChip(bool ok) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: ok ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        ok ? 'Portrait OK' : 'Sans portrait',
+        style: GoogleFonts.outfit(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: ok ? const Color(0xFF166534) : const Color(0xFF64748B),
+        ),
       ),
     );
   }

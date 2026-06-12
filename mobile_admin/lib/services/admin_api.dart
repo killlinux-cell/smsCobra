@@ -271,6 +271,66 @@ class AdminApi {
     return [];
   }
 
+  Future<List<dynamic>> fetchControllers() async {
+    final uri = Uri.parse("$apiBase/api/v1/admin/controllers/");
+    final resp = await _authGet(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("controllers_failed");
+    final decoded = jsonDecode(resp.body);
+    if (decoded is List) return decoded;
+    return [];
+  }
+
+  Future<void> createControllerMultipart({
+    required String photoPath,
+    String? username,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? phoneNumber,
+    List<int> siteIds = const [],
+  }) async {
+    Future<http.StreamedResponse> sendRequest() async {
+      final headers = await _authHeaders();
+      final req = http.MultipartRequest(
+        "POST",
+        Uri.parse("$apiBase/api/v1/admin/controllers/"),
+      );
+      final auth = headers["Authorization"];
+      if (auth != null && auth.isNotEmpty) req.headers["Authorization"] = auth;
+
+      void field(String key, String? value) {
+        if (value != null && value.trim().isNotEmpty) {
+          req.fields[key] = value.trim();
+        }
+      }
+
+      field("username", username);
+      field("first_name", firstName);
+      field("last_name", lastName);
+      field("email", email);
+      field("phone_number", phoneNumber);
+      if (siteIds.isNotEmpty) {
+        req.fields["site_ids"] = siteIds.join(",");
+      }
+
+      req.files.add(
+        await http.MultipartFile.fromPath("profile_photo", photoPath),
+      );
+      return req.send();
+    }
+
+    var streamed = await sendRequest();
+    if (streamed.statusCode == 401 && await _tryRefreshAccessToken()) {
+      streamed = await sendRequest();
+    }
+    if (streamed.statusCode == 401) throw AdminSessionExpiredException();
+    if (streamed.statusCode != 201) {
+      final body = await streamed.stream.bytesToString();
+      throw Exception(_extractApiErrorMessage(body) ?? 'controller_create_failed');
+    }
+  }
+
   Future<List<dynamic>> fetchSites() async {
     final uri = Uri.parse("$apiBase/api/v1/admin/sites/");
     final resp = await _authGet(uri);
