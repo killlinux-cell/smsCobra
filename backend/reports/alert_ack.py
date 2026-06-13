@@ -16,6 +16,8 @@ _GUARD_ALERT_PREFIXES = (
     "FinSansPointage:",
 )
 
+_RETARD_PREFIX = "Retard prise de service"
+
 
 def alert_kind_label(message: str) -> str:
     m = (message or "").strip()
@@ -105,3 +107,53 @@ def log_alert_acknowledged_to_report(alert, admin_user) -> None:
         return
     report.notes = f"{existing}\n{line}".strip() if existing else line
     report.save(update_fields=["notes"])
+
+
+def acknowledge_late_alert(alert, admin_user):
+    """Passe une alerte en acquittée et trace dans les rapports."""
+    from alerts.models import LateAlert
+
+    alert.status = LateAlert.Status.ACKNOWLEDGED
+    alert.acknowledged_at = timezone.now()
+    alert.admin_recipient = admin_user
+    alert.save(update_fields=["status", "acknowledged_at", "admin_recipient"])
+    log_alert_acknowledged_to_report(alert, admin_user)
+    return alert
+
+
+def acknowledge_assignment_late(assignment: ShiftAssignment, admin_user):
+    """
+    Acquitte le retard d'une affectation depuis « Remplacement à prévoir » :
+    alerte ouverte existante, sinon création à la volée (scan Celery pas encore passé).
+    """
+    from alerts.models import LateAlert
+
+    alert = (
+        LateAlert.objects.filter(
+            assignment=assignment,
+            status=LateAlert.Status.OPEN,
+        )
+        .order_by("-triggered_at")
+        .first()
+    )
+    if alert is None:
+        alert = (
+            LateAlert.objects.filter(
+                assignment=assignment,
+                status=LateAlert.Status.ACKNOWLEDGED,
+                message__startswith=_RETARD_PREFIX,
+            )
+            .order_by("-triggered_at")
+            .first()
+        )
+        if alert:
+            mark_justified_presence_from_alert(alert)
+            return alert
+
+    if alert is None:
+        guard = assignment.guard
+        site = assignment.site
+        msg = f"{_RETARD_PREFIX} : {guard.username} sur {site.name}"
+        alert = LateAlert.objects.create(assignment=assignment, message=msg[:300])
+
+    return acknowledge_late_alert(alert, admin_user)

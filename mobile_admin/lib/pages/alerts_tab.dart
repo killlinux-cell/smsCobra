@@ -118,12 +118,31 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _ackReplacement(int assignmentId) async {
+    try {
+      await widget.api.ackReplacementAssignment(assignmentId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Retard acquitté (enregistré dans les rapports).')),
+        );
+        await _load();
+      }
+    } on AdminSessionExpiredException {
+      await widget.onSessionExpired();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible d'acquitter pour l'instant.")),
+        );
+      }
+    }
+  }
+
   Widget _replacementCard(Map<String, dynamic> m) {
     final site = (m['site_name'] ?? 'Site').toString();
     final guard = (m['guard_display'] ?? 'Vigile').toString();
     final overdue = (m['minutes_overdue'] as num?)?.toInt() ?? 0;
     final assignmentId = (m['assignment_id'] as num?)?.toInt();
-    final openAlertId = (m['open_alert_id'] as num?)?.toInt();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -163,12 +182,11 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
             const SizedBox(height: 10),
             Text(site, style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 16)),
             Text(guard, style: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 14)),
-            if (assignmentId != null &&
-                (widget.onDispatchAssignment != null || openAlertId != null)) ...[
+            if (assignmentId != null) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
-                  if (assignmentId != null && widget.onDispatchAssignment != null)
+                  if (widget.onDispatchAssignment != null)
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => widget.onDispatchAssignment!(assignmentId),
@@ -179,21 +197,18 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
-                  if (openAlertId != null) ...[
-                    if (assignmentId != null && widget.onDispatchAssignment != null)
-                      const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _ack({'id': openAlertId}),
-                        icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
-                        label: const Text('Acquitter'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: CobraAdminColors.success,
-                          side: BorderSide(color: CobraAdminColors.success.withAlpha(180)),
-                        ),
+                  if (widget.onDispatchAssignment != null) const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _ackReplacement(assignmentId),
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+                      label: const Text('Acquitter'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CobraAdminColors.success,
+                        side: BorderSide(color: CobraAdminColors.success.withAlpha(180)),
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ],

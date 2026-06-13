@@ -51,13 +51,31 @@ class AckAlertView(APIView):
         alert = LateAlert.objects.filter(id=alert_id).first()
         if not alert:
             return Response({"detail": "Alerte introuvable."}, status=status.HTTP_404_NOT_FOUND)
-        alert.status = LateAlert.Status.ACKNOWLEDGED
-        alert.acknowledged_at = timezone.now()
-        alert.admin_recipient = request.user
-        alert.save(update_fields=["status", "acknowledged_at", "admin_recipient"])
-        from reports.alert_ack import log_alert_acknowledged_to_report
+        from reports.alert_ack import acknowledge_late_alert
 
-        log_alert_acknowledged_to_report(alert, request.user)
+        acknowledge_late_alert(alert, request.user)
+        return Response(LateAlertSerializer(alert).data)
+
+
+class AckReplacementAssignmentView(APIView):
+    """Acquitter un retard depuis « Remplacement à prévoir » (par affectation)."""
+
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def post(self, request, assignment_id):
+        assignment = (
+            ShiftAssignment.objects.select_related("site", "guard")
+            .filter(pk=assignment_id)
+            .first()
+        )
+        if not assignment:
+            return Response(
+                {"detail": "Affectation introuvable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        from reports.alert_ack import acknowledge_assignment_late
+
+        alert = acknowledge_assignment_late(assignment, request.user)
         return Response(LateAlertSerializer(alert).data)
 
 

@@ -1703,17 +1703,33 @@ def ack_alert_view(request, alert_id: int):
     if request.method != "POST":
         return redirect("webadmin-alertes")
     alert = get_object_or_404(LateAlert, id=alert_id)
-    alert.status = LateAlert.Status.ACKNOWLEDGED
-    alert.acknowledged_at = timezone.now()
-    alert.admin_recipient = request.user
-    alert.save(update_fields=["status", "acknowledged_at", "admin_recipient"])
-    from reports.alert_ack import log_alert_acknowledged_to_report
+    from reports.alert_ack import acknowledge_late_alert
 
-    log_alert_acknowledged_to_report(alert, request.user)
+    acknowledge_late_alert(alert, request.user)
     messages.success(
         request,
         f"Alerte n°{alert.id} acquittée par {request.user.get_full_name() or request.user.username} "
         f"(enregistré dans les rapports).",
+    )
+    return redirect(request.POST.get("next") or "webadmin-alertes")
+
+
+@admin_web_required
+def ack_replacement_assignment_view(request, pk: int):
+    """Acquitter depuis « Remplacement à prévoir » (avec ou sans alerte ouverte)."""
+    if request.method != "POST":
+        return redirect("webadmin-alertes")
+    assignment = get_object_or_404(
+        ShiftAssignment.objects.select_related("site", "guard"),
+        pk=pk,
+    )
+    from reports.alert_ack import acknowledge_assignment_late
+
+    alert = acknowledge_assignment_late(assignment, request.user)
+    messages.success(
+        request,
+        f"Retard acquitté pour {assignment.guard.display_name} @ {assignment.site.name} "
+        f"(alerte n°{alert.id}, enregistré dans les rapports).",
     )
     return redirect(request.POST.get("next") or "webadmin-alertes")
 

@@ -60,3 +60,21 @@ class AlertAckReportTests(TestCase):
         self.assertFalse(report.was_absent)
         self.assertIsNotNone(report.started_at)
         self.assertIsNotNone(report.ended_at)
+
+    def test_ack_assignment_late_creates_alert_when_missing(self):
+        from reports.alert_ack import acknowledge_assignment_late
+
+        alert = acknowledge_assignment_late(self.assignment, self.admin)
+        self.assertEqual(alert.status, LateAlert.Status.ACKNOWLEDGED)
+        self.assertTrue(
+            LateAlert.objects.filter(
+                assignment=self.assignment,
+                status=LateAlert.Status.ACKNOWLEDGED,
+            ).exists()
+        )
+        report = AttendanceReport.objects.get(
+            site=self.site,
+            guard=self.guard,
+            report_date=self.assignment.shift_date,
+        )
+        self.assertFalse(report.was_absent)

@@ -63,5 +63,10 @@ urlpatterns = [
     path("pointages/export/csv/", views.export_pointages_csv_view, name="webadmin-pointages-export-csv"),
     path("notifications-push/", views.notifications_push_view, name="webadmin-notifications-push"),
     path("alerts/<int:alert_id>/acquitter/", views.ack_alert_view, name="webadmin-ack-alert"),
+    path(
+        "affectations/<int:pk>/acquitter-retard/",
+        views.ack_replacement_assignment_view,
+        name="webadmin-ack-replacement",
+    ),
     path("dispatch/", views.dispatch_view, name="webadmin-dispatch"),
 ]

@@ -233,6 +233,15 @@ class AdminApi {
     if (resp.statusCode != 200) throw Exception("ack_failed");
   }
 
+  Future<void> ackReplacementAssignment(int assignmentId) async {
+    final uri = Uri.parse(
+      "$apiBase/api/v1/admin/alerts/replacement-needed/$assignmentId/ack",
+    );
+    final resp = await _authPost(uri);
+    if (resp.statusCode == 401) throw AdminSessionExpiredException();
+    if (resp.statusCode != 200) throw Exception("ack_replacement_failed");
+  }
+
   Future<List<dynamic>> fetchTodayAssignments() async {
     final uri = Uri.parse("$apiBase/api/v1/admin/alerts/today-assignments");
     final resp = await _authGet(uri);
