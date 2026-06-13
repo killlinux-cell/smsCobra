@@ -78,3 +78,14 @@ class NightReplacementNeededTests(TestCase):
             rows = compute_replacement_needed(self.shift_day)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["open_alert_id"], alert.id)
+
+    def test_acknowledged_retard_excluded_from_replacement_needed(self):
+        after_start = datetime(2026, 6, 2, 19, 0, tzinfo=self.tz)
+        LateAlert.objects.create(
+            assignment=self.assignment,
+            message="Retard prise de service : night_g sur Site Nuit",
+            status=LateAlert.Status.ACKNOWLEDGED,
+        )
+        with patch("webadmin.alert_state.timezone.now", return_value=after_start):
+            rows = compute_replacement_needed(self.shift_day)
+        self.assertEqual(rows, [])

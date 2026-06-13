@@ -19,6 +19,8 @@ _logger = logging.getLogger(__name__)
 _ALERT_SCAN_CACHE_KEY = "cobra:webadmin_alert_scan"
 _ALERT_SCAN_INTERVAL_SEC = 180
 
+_RETARD_PREFIX = "Retard prise de service"
+
 _ADMIN_ROLES = {
     User.Role.SUPER_ADMIN,
     User.Role.ADMIN_SOCIETE,
@@ -99,6 +101,26 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
         ).order_by("-triggered_at"):
             if alert.assignment_id not in open_alert_by_assignment:
                 open_alert_by_assignment[alert.assignment_id] = alert.id
+        acked_retard_ids = set(
+            LateAlert.objects.filter(
+                assignment_id__in=assignment_ids,
+                status=LateAlert.Status.ACKNOWLEDGED,
+                message__startswith=_RETARD_PREFIX,
+            ).values_list("assignment_id", flat=True)
+        )
+        open_retard_ids = set(
+            LateAlert.objects.filter(
+                assignment_id__in=assignment_ids,
+                status=LateAlert.Status.OPEN,
+                message__startswith=_RETARD_PREFIX,
+            ).values_list("assignment_id", flat=True)
+        )
+        hidden_ids = acked_retard_ids - open_retard_ids
+        replacement_needed = [
+            row
+            for row in replacement_needed
+            if row["assignment"].id not in hidden_ids
+        ]
         for row in replacement_needed:
             row["open_alert_id"] = open_alert_by_assignment.get(row["assignment"].id)
 
