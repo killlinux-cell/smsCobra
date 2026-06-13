@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from shifts.models import ShiftAssignment
 from sites.models import Site
+from alerts.models import LateAlert
 from webadmin.alert_state import compute_replacement_needed
 
 User = get_user_model()
@@ -66,3 +67,14 @@ class NightReplacementNeededTests(TestCase):
             rows = compute_replacement_needed(date(2026, 6, 3))
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["assignment"].id, self.assignment.id)
+
+    def test_open_alert_id_attached_when_retard_alert_exists(self):
+        after_start = datetime(2026, 6, 2, 19, 0, tzinfo=self.tz)
+        alert = LateAlert.objects.create(
+            assignment=self.assignment,
+            message="Retard prise de service : night_g sur Site Nuit",
+        )
+        with patch("webadmin.alert_state.timezone.now", return_value=after_start):
+            rows = compute_replacement_needed(self.shift_day)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["open_alert_id"], alert.id)

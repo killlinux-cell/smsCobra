@@ -76,6 +76,7 @@ class ReplacementNeededRowSerializer(serializers.Serializer):
     start_time = serializers.TimeField(source="assignment.start_time")
     end_time = serializers.TimeField(source="assignment.end_time")
     status = serializers.CharField(source="assignment.status")
+    open_alert_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class VigileBriefSerializer(serializers.ModelSerializer):

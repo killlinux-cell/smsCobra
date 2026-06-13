@@ -103,6 +103,13 @@
               </td>
               <td class="text-nowrap">
                 <a href="{% url 'webadmin-affectations' %}?dispatch_assignment={{ row.assignment.id }}&amp;next={% url 'webadmin-alertes' %}#depecher" class="btn btn-sm btn-outline-warning">Dépêcher</a>
+                {% if row.open_alert_id %}
+                <form method="post" action="{% url 'webadmin-ack-alert' row.open_alert_id %}" class="d-inline ms-1">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'webadmin-alertes' %}">
+                  <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
+                </form>
+                {% endif %}
               </td>
             </tr>
             {% empty %}

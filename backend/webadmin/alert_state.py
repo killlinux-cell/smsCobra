@@ -90,6 +90,18 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
                 "minutes_overdue": max(minutes_overdue, 0),
             }
         )
+    if replacement_needed:
+        assignment_ids = [row["assignment"].id for row in replacement_needed]
+        open_alert_by_assignment: dict[int, int] = {}
+        for alert in LateAlert.objects.filter(
+            assignment_id__in=assignment_ids,
+            status=LateAlert.Status.OPEN,
+        ).order_by("-triggered_at"):
+            if alert.assignment_id not in open_alert_by_assignment:
+                open_alert_by_assignment[alert.assignment_id] = alert.id
+        for row in replacement_needed:
+            row["open_alert_id"] = open_alert_by_assignment.get(row["assignment"].id)
+
     replacement_needed.sort(
         key=lambda row: (
             row["assignment"].site.name,
