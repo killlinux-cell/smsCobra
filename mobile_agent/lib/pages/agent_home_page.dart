@@ -62,8 +62,7 @@ class _AgentHomePageState extends State<AgentHomePage>
     if (widget.initialAssignment != null) {
       selected = widget.initialAssignment;
       assignments = [widget.initialAssignment!];
-      serviceStarted =
-          selected!.hasStart && !selected!.hasEnd;
+      serviceStarted = selected!.hasStart && !selected!.hasEnd;
       nextPresenceDue = parseIsoOrNull(selected?.presenceDueAtIso);
       if (serviceStarted) {
         _startPresenceCountdown();
@@ -367,6 +366,7 @@ class _AgentHomePageState extends State<AgentHomePage>
           assignmentId: assignmentId,
           latitude: gps.lat,
           longitude: gps.lon,
+          photoPath: widget.api.sessionLoginSelfiePath,
         );
       }
       if (!mounted) return;

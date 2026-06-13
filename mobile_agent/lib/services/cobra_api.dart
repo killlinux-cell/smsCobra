@@ -23,6 +23,29 @@ class CobraApi {
     defaultValue: "https://smsapp24.com",
   );
   final _storage = const FlutterSecureStorage();
+  String? _sessionLoginSelfiePath;
+
+  /// Selfie enregistré à la connexion faciale (réutilisable pour prise/fin de service).
+  String? get sessionLoginSelfiePath {
+    final path = _sessionLoginSelfiePath;
+    if (path == null || path.isEmpty) return null;
+    if (!File(path).existsSync()) return null;
+    return path;
+  }
+
+  /// Copie le selfie de connexion dans un fichier de session stable.
+  Future<String?> persistSessionLoginSelfie(String sourcePath) async {
+    final src = File(sourcePath);
+    if (!await src.exists()) return null;
+    final dir = Directory('${Directory.systemTemp.path}/cobra_session');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    final dest = File('${dir.path}/login_selfie.jpg');
+    await src.copy(dest.path);
+    _sessionLoginSelfiePath = dest.path;
+    return dest.path;
+  }
 
   Future<String?> getAccessToken() => _storage.read(key: "access_token");
 
@@ -164,6 +187,7 @@ class CobraApi {
           final scoreRaw = decoded["face_match_score"];
           final faceScore = scoreRaw is num ? scoreRaw.toDouble() : null;
           await _storeJwtFromBody(resp.body);
+          await persistSessionLoginSelfie(selfiePath);
           return FaceIdentifyResult(
             guardUsername: username,
             guardName: guardName,
@@ -331,6 +355,13 @@ class CobraApi {
   }
 
   Future<void> logout() async {
+    _sessionLoginSelfiePath = null;
+    try {
+      final dir = Directory('${Directory.systemTemp.path}/cobra_session');
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    } catch (_) {}
     await _storage.delete(key: "access_token");
     await _storage.delete(key: "refresh_token");
   }
