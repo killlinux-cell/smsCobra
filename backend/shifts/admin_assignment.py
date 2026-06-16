@@ -14,6 +14,11 @@ from shifts.guard_conflicts import (
     titular_conflict_error_message,
 )
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.slot_occupancy import (
+    count_occupying_assignments,
+    has_blocking_assignment_for_new_titular,
+    purge_orphaned_scheduled_for_slot,
+)
 from sites.models import Site
 
 MODE_PLANIFIER = "planifier"
@@ -186,15 +191,38 @@ def validate_create_assignment(
         shift_date=shift_date,
         start_time=start_time,
     )
-    non_extra_count = same_slot.exclude(status=ShiftAssignment.Status.EXTRA).count()
+    fp_shift = fixed_post_shift_type(shift_type)
     required = site.staff_required_for_shift(shift_type)
-    if non_extra_count >= required:
+    active_posts = FixedPost.objects.filter(
+        site=site,
+        shift_type=fp_shift,
+        is_active=True,
+    ).count()
+    if active_posts < required:
+        purge_orphaned_scheduled_for_slot(
+            site_id=site.pk,
+            shift_type=fp_shift,
+            from_date=shift_date,
+        )
+    occupying = count_occupying_assignments(
+        site_id=site.pk,
+        shift_date=shift_date,
+        start_time=start_time,
+        shift_type=fp_shift,
+    )
+    if occupying >= required:
         raise ValidationError(
             f"Effectif cible atteint pour ce site ({required} poste(s) "
             f"{'jour' if shift_type == SHIFT_DAY else 'nuit'}). "
             "Utilisez le mode Extra pour un renfort temporaire."
         )
-    if same_slot.exists():
+    if has_blocking_assignment_for_new_titular(
+        site_id=site.pk,
+        shift_date=shift_date,
+        start_time=start_time,
+        shift_type=fp_shift,
+        guard_id=guard.pk,
+    ):
         raise ValidationError(
             "Ce poste (jour/nuit) est déjà attribué pour ce site et cette date."
         )

@@ -179,7 +179,7 @@
   </div>
 </div>
 
-{% if fixed_posts %}
+{% if fixed_post_rows %}
 <div class="card cobra-panel mb-4">
   <div class="card-header">Postes fixes</div>
   <div class="table-responsive">
@@ -194,9 +194,11 @@
         </tr>
       </thead>
       <tbody>
-        {% for fp in fixed_posts %}
+        {% for row in fixed_post_rows %}
+        {% if row.kind == "filled" %}
+        {% with fp=row.fp %}
         <tr>
-          <td>{{ fp.get_shift_type_display }}</td>
+          <td>{{ row.label }}</td>
           <td><a href="{% url 'webadmin-vigile-detail' fp.titular_guard.pk %}">{{ fp.titular_guard.display_name }}</a></td>
           <td>
             {% if fp.suspended_titular_guard %}
@@ -213,6 +215,19 @@
             {% include "webadmin/_titular_retire_form.html" with fixed=fp retire_next=request.path %}
           </td>
         </tr>
+        {% endwith %}
+        {% else %}
+        <tr class="table-warning-subtle">
+          <td>{{ row.label }}</td>
+          <td colspan="3">
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Poste libre</span>
+            <span class="small text-muted ms-2">Aucun titulaire actif — les anciennes planifications orphelines ne bloquent plus ce créneau.</span>
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-primary" href="{% url 'webadmin-affectations' %}?site={{ site.pk }}&amp;shift_type={{ row.shift_type }}">Affecter un titulaire</a>
+          </td>
+        </tr>
+        {% endif %}
         {% endfor %}
       </tbody>
     </table>

@@ -520,11 +520,47 @@ def site_detail_view(request, pk):
     date_from = today - timedelta(days=30)
     date_to = today + timedelta(days=90)
 
-    fixed_posts = (
+    fixed_posts = list(
         FixedPost.objects.filter(site=site, is_active=True)
         .select_related("titular_guard", "replacement_guard", "suspended_titular_guard")
         .order_by("shift_type")
     )
+
+    from shifts.slot_occupancy import purge_orphaned_scheduled_for_slot
+
+    for shift_type, required_attr in (
+        (FixedPost.ShiftType.DAY, "day_staff_required"),
+        (FixedPost.ShiftType.NIGHT, "night_staff_required"),
+    ):
+        active_count = sum(1 for fp in fixed_posts if fp.shift_type == shift_type)
+        required = getattr(site, required_attr, 1) or 1
+        if active_count < required:
+            purge_orphaned_scheduled_for_slot(
+                site_id=site.pk,
+                shift_type=shift_type,
+                from_date=today,
+            )
+
+    fixed_post_rows: list[dict] = []
+    posts_by_type: dict[str, list] = {FixedPost.ShiftType.DAY: [], FixedPost.ShiftType.NIGHT: []}
+    for fp in fixed_posts:
+        posts_by_type.setdefault(fp.shift_type, []).append(fp)
+    for shift_type, label, required_attr in (
+        (FixedPost.ShiftType.DAY, "Jour (06:00-18:00)", "day_staff_required"),
+        (FixedPost.ShiftType.NIGHT, "Nuit (18:00-06:00)", "night_staff_required"),
+    ):
+        required = max(1, int(getattr(site, required_attr, 1) or 1))
+        filled = posts_by_type.get(shift_type, [])
+        for fp in filled:
+            fixed_post_rows.append({"kind": "filled", "fp": fp, "label": label})
+        for _ in range(max(0, required - len(filled))):
+            fixed_post_rows.append(
+                {
+                    "kind": "vacant",
+                    "shift_type": shift_type,
+                    "label": label,
+                }
+            )
 
     assignments_qs = ShiftAssignment.objects.filter(
         site=site, shift_date__gte=date_from, shift_date__lte=date_to
@@ -681,6 +717,7 @@ def site_detail_view(request, pk):
             "nav_active": "sites",
             "site": site,
             "fixed_posts": fixed_posts,
+            "fixed_post_rows": fixed_post_rows,
             "assignments": assignments,
             "assignments_total": assignments_total,
             "guard_rows": guard_rows,
@@ -1117,6 +1154,14 @@ def affectations_list_view(request):
         filter_site = Site.objects.filter(pk=filter_site_pk).first()
     include_busy = (request.GET.get("include_busy") or "").strip() in ("1", "true", "yes")
     form = ShiftAssignmentForm(for_create=True)
+    shift_type_raw = (request.GET.get("shift_type") or "").strip().lower()
+    form_initial: dict = {}
+    if filter_site_pk:
+        form_initial["site"] = filter_site_pk
+    if shift_type_raw in (ShiftAssignmentForm.SHIFT_TYPE_DAY, ShiftAssignmentForm.SHIFT_TYPE_NIGHT):
+        form_initial["shift_type"] = shift_type_raw
+    if form_initial:
+        form = ShiftAssignmentForm(for_create=True, initial=form_initial)
     dispatch_form = DispatchForm(
         assignments_qs=ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(shift_date=today)
