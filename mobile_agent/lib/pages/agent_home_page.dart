@@ -282,9 +282,14 @@ class _AgentHomePageState extends State<AgentHomePage>
 
   void _startPresenceCountdown() {
     presenceCountdownTimer?.cancel();
+    var ticks = 0;
     presenceCountdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
+      ticks++;
       setState(() {});
+      if (serviceStarted && ticks % 2 == 0) {
+        _load(silent: true, preserveAssignmentId: selected?.id);
+      }
     });
   }
 
