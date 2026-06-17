@@ -47,9 +47,10 @@ class AdminShiftAssignmentSerializer(serializers.ModelSerializer):
         return obj.original_guard.display_name
 
     def get_shift_type(self, obj: ShiftAssignment) -> str:
-        if obj.start_time.strftime("%H:%M") == "06:00":
-            return SHIFT_DAY
-        if obj.start_time.strftime("%H:%M") == "18:00":
+        from shifts.site_shift_times import shift_type_for_start_time
+
+        st = shift_type_for_start_time(obj.site, obj.start_time)
+        if st == "night":
             return SHIFT_NIGHT
         return SHIFT_DAY
 

@@ -9,15 +9,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.site_shift_times import shift_type_for_start_time
 from shifts.services import _slot_for
 
 
 def shift_type_for_assignment(assignment: ShiftAssignment) -> str | None:
-    if assignment.start_time == time(6, 0):
-        return FixedPost.ShiftType.DAY
-    if assignment.start_time == time(18, 0):
-        return FixedPost.ShiftType.NIGHT
-    return None
+    return shift_type_for_start_time(assignment.site, assignment.start_time)
 
 
 def find_fixed_post_for_assignment(
@@ -60,7 +57,7 @@ def sync_scheduled_assignments_for_titular(
     previous_guard_id: int | None = None,
 ) -> int:
     """Aligne les affectations planifiées futures sur le titulaire actuel du poste fixe."""
-    start_time, end_time = _slot_for(post.shift_type)
+    start_time, end_time = _slot_for(post)
     qs = ShiftAssignment.objects.filter(
         site_id=post.site_id,
         start_time=start_time,
@@ -253,7 +250,7 @@ def _cancel_scheduled_assignments_for_retired_post(
     """Supprime les affectations planifiées à partir de from_date (sauf créneau en cours pointé)."""
     from checkins.models import Checkin
 
-    start_time, _ = _slot_for(post.shift_type)
+    start_time, _ = _slot_for(post)
     target_guard_id = guard_id or post.titular_guard_id
     qs = ShiftAssignment.objects.filter(
         site_id=post.site_id,

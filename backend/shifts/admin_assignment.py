@@ -21,16 +21,20 @@ from shifts.slot_occupancy import (
 )
 from sites.models import Site
 
+from shifts.site_shift_times import (
+    SHIFT_DAY,
+    SHIFT_NIGHT,
+    incoming_relief_lookup,
+    opposite_passation_slot,
+    slot_times_for_site,
+)
+
 MODE_PLANIFIER = "planifier"
 MODE_EXTRA = "extra"
-SHIFT_DAY = "day"
-SHIFT_NIGHT = "night"
 
 
-def slot_times(shift_type: str) -> tuple[time, time]:
-    if shift_type == SHIFT_DAY:
-        return time(6, 0), time(18, 0)
-    return time(18, 0), time(6, 0)
+def slot_times(site: Site, shift_type: str) -> tuple[time, time]:
+    return slot_times_for_site(site, shift_type)
 
 
 def fixed_post_shift_type(shift_type: str) -> str:
@@ -38,15 +42,12 @@ def fixed_post_shift_type(shift_type: str) -> str:
 
 
 def apply_times_and_relief(obj: ShiftAssignment, shift_type: str) -> None:
-    start_time, end_time = slot_times(shift_type)
+    start_time, end_time = slot_times(obj.site, shift_type)
     obj.start_time = start_time
     obj.end_time = end_time
-    if shift_type == SHIFT_DAY:
-        incoming_date = obj.shift_date
-        incoming_start = time(18, 0)
-    else:
-        incoming_date = obj.shift_date + timedelta(days=1)
-        incoming_start = time(6, 0)
+    incoming_date, incoming_start = incoming_relief_lookup(
+        obj.site, shift_type, obj.shift_date
+    )
     obj.relieved_by = ShiftAssignment.objects.filter(
         site=obj.site,
         shift_date=incoming_date,
@@ -95,14 +96,9 @@ def _validate_common_slot(
     shift_type: str,
     exclude_pk: int | None = None,
 ) -> tuple[time, time]:
-    start_time, end_time = slot_times(shift_type)
+    start_time, end_time = slot_times(site, shift_type)
 
-    if shift_type == SHIFT_DAY:
-        opposite_date = shift_date - timedelta(days=1)
-        opposite_start = time(18, 0)
-    else:
-        opposite_date = shift_date + timedelta(days=1)
-        opposite_start = time(6, 0)
+    opposite_date, opposite_start = opposite_passation_slot(site, shift_type, shift_date)
     opposite = ShiftAssignment.objects.filter(
         site=site,
         shift_date=opposite_date,
@@ -257,7 +253,7 @@ def create_assignment(
         extra_days=extra_days,
         create_fixed_post=create_fixed_post,
     )
-    start_time, end_time = slot_times(shift_type)
+    start_time, end_time = slot_times(site, shift_type)
 
     if planning_mode == MODE_EXTRA:
         created: list[ShiftAssignment] = []

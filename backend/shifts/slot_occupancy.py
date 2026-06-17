@@ -5,15 +5,12 @@ from __future__ import annotations
 from datetime import date, time
 
 from shifts.models import FixedPost, ShiftAssignment
-from shifts.services import _slot_for
+from shifts.site_shift_times import shift_type_for_start_time, slot_times_for_site
+from sites.models import Site
 
 
-def fixed_post_shift_type_for_start(start_time: time) -> str | None:
-    if start_time == time(6, 0):
-        return FixedPost.ShiftType.DAY
-    if start_time == time(18, 0):
-        return FixedPost.ShiftType.NIGHT
-    return None
+def fixed_post_shift_type_for_start(site: Site, start_time: time) -> str | None:
+    return shift_type_for_start_time(site, start_time)
 
 
 def active_titular_guard_ids(*, site_id: int, shift_type: str) -> set[int]:
@@ -94,7 +91,10 @@ def purge_orphaned_scheduled_for_slot(
     Supprime les affectations planifiées laissées par un titulaire retiré
     (poste fixe nuit/jour inactif ou vigile plus titulaire actif).
     """
-    start_time, _ = _slot_for(shift_type)
+    site = Site.objects.filter(pk=site_id).only("expected_start_time", "expected_end_time").first()
+    if not site:
+        return 0
+    start_time, _ = slot_times_for_site(site, shift_type)
     active_ids = active_titular_guard_ids(site_id=site_id, shift_type=shift_type)
     qs = ShiftAssignment.objects.filter(
         site_id=site_id,

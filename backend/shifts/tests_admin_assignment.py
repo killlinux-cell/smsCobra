@@ -52,14 +52,14 @@ class AdminAssignmentAPITests(TestCase):
             format="json",
         )
         self.assertEqual(resp.status_code, 201, resp.content)
-        self.assertTrue(
-            ShiftAssignment.objects.filter(
-                guard=self.vigile,
-                site=self.site,
-                shift_date=self.today,
-                status=ShiftAssignment.Status.SCHEDULED,
-            ).exists()
+        row = ShiftAssignment.objects.get(
+            guard=self.vigile,
+            site=self.site,
+            shift_date=self.today,
+            status=ShiftAssignment.Status.SCHEDULED,
         )
+        self.assertEqual(row.start_time, time(8, 0))
+        self.assertEqual(row.end_time, time(17, 0))
 
     def test_create_extra_requires_titular(self):
         resp = self.client.post(

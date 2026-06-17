@@ -15,6 +15,14 @@ from shifts.guard_conflicts import (
     titular_conflict_error_message,
 )
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.site_shift_times import (
+    SHIFT_DAY,
+    SHIFT_NIGHT,
+    incoming_relief_lookup,
+    opposite_passation_slot,
+    shift_type_for_start_time,
+    slot_times_for_site,
+)
 from shifts.slot_occupancy import (
     count_occupying_assignments,
     has_blocking_assignment_for_new_titular,
@@ -731,11 +739,12 @@ class ShiftAssignmentForm(forms.ModelForm):
     )
     shift_type = forms.ChoiceField(
         choices=(
-            (SHIFT_TYPE_DAY, "Jour (06:00 - 18:00)"),
-            (SHIFT_TYPE_NIGHT, "Nuit (18:00 - 06:00 lendemain)"),
+            (SHIFT_TYPE_DAY, "Jour (horaires prise/fin du site)"),
+            (SHIFT_TYPE_NIGHT, "Nuit (fin du site → prise lendemain)"),
         ),
         label="Type de poste",
         widget=forms.Select(attrs={"class": _SEL}),
+        help_text="Les horaires réels sont ceux définis sur la fiche site (prise et fin attendues).",
     )
     create_fixed_post = forms.BooleanField(
         required=False,
@@ -777,24 +786,24 @@ class ShiftAssignmentForm(forms.ModelForm):
             for name in ("planning_mode", "extra_days", "create_fixed_post"):
                 self.fields.pop(name, None)
             if self.instance and self.instance.pk:
-                if self.instance.start_time == time(6, 0):
+                st = shift_type_for_start_time(self.instance.site, self.instance.start_time)
+                if st == FixedPost.ShiftType.DAY:
                     self.fields["shift_type"].initial = self.SHIFT_TYPE_DAY
-                elif self.instance.start_time == time(18, 0):
+                elif st == FixedPost.ShiftType.NIGHT:
                     self.fields["shift_type"].initial = self.SHIFT_TYPE_NIGHT
         elif self.instance and self.instance.pk:
-            if self.instance.start_time == time(6, 0):
+            st = shift_type_for_start_time(self.instance.site, self.instance.start_time)
+            if st == FixedPost.ShiftType.DAY:
                 self.fields["shift_type"].initial = self.SHIFT_TYPE_DAY
-            elif self.instance.start_time == time(18, 0):
+            elif st == FixedPost.ShiftType.NIGHT:
                 self.fields["shift_type"].initial = self.SHIFT_TYPE_NIGHT
         else:
             self.order_fields(
                 ["planning_mode", "extra_days", "guard", "site", "shift_date", "shift_type", "create_fixed_post"]
             )
 
-    def _slot_times(self, shift_type: str) -> tuple[time, time]:
-        if shift_type == self.SHIFT_TYPE_DAY:
-            return time(6, 0), time(18, 0)
-        return time(18, 0), time(6, 0)
+    def _slot_times(self, site: Site, shift_type: str) -> tuple[time, time]:
+        return slot_times_for_site(site, shift_type)
 
     def _fixed_post_shift_type(self, shift_type: str) -> str:
         return FixedPost.ShiftType.DAY if shift_type == self.SHIFT_TYPE_DAY else FixedPost.ShiftType.NIGHT
@@ -808,7 +817,7 @@ class ShiftAssignmentForm(forms.ModelForm):
         if not (site and guard and shift_date and shift_type):
             return cleaned
 
-        start_time, end_time = self._slot_times(shift_type)
+        start_time, end_time = self._slot_times(site, shift_type)
         cleaned["start_time"] = start_time
         cleaned["end_time"] = end_time
 
@@ -895,12 +904,7 @@ class ShiftAssignmentForm(forms.ModelForm):
                     "Ce poste (jour/nuit) est déjà attribué pour ce site et cette date."
                 )
 
-        if shift_type == self.SHIFT_TYPE_DAY:
-            opposite_date = shift_date - timedelta(days=1)
-            opposite_start = time(18, 0)
-        else:
-            opposite_date = shift_date + timedelta(days=1)
-            opposite_start = time(6, 0)
+        opposite_date, opposite_start = opposite_passation_slot(site, shift_type, shift_date)
         opposite = ShiftAssignment.objects.filter(
             site=site,
             shift_date=opposite_date,
@@ -953,16 +957,12 @@ class ShiftAssignmentForm(forms.ModelForm):
 
     def _apply_times_and_relief(self, obj: ShiftAssignment) -> None:
         shift_type = self.cleaned_data["shift_type"]
-        if shift_type == self.SHIFT_TYPE_DAY:
-            obj.start_time = time(6, 0)
-            obj.end_time = time(18, 0)
-            incoming_date = obj.shift_date
-            incoming_start = time(18, 0)
-        else:
-            obj.start_time = time(18, 0)
-            obj.end_time = time(6, 0)
-            incoming_date = obj.shift_date + timedelta(days=1)
-            incoming_start = time(6, 0)
+        start_time, end_time = slot_times_for_site(obj.site, shift_type)
+        obj.start_time = start_time
+        obj.end_time = end_time
+        incoming_date, incoming_start = incoming_relief_lookup(
+            obj.site, shift_type, obj.shift_date
+        )
         obj.relieved_by = ShiftAssignment.objects.filter(
             site=obj.site,
             shift_date=incoming_date,
@@ -970,11 +970,8 @@ class ShiftAssignmentForm(forms.ModelForm):
         ).first()
 
     def _ensure_fixed_post(self, obj: ShiftAssignment) -> None:
-        shift_type = (
-            FixedPost.ShiftType.DAY
-            if obj.start_time == time(6, 0)
-            else FixedPost.ShiftType.NIGHT
-        )
+        shift_type = self.cleaned_data.get("shift_type") or self.SHIFT_TYPE_DAY
+        fp_shift = self._fixed_post_shift_type(shift_type)
         existing = FixedPost.objects.filter(
             site=obj.site,
             shift_type=shift_type,
@@ -1022,7 +1019,7 @@ class ShiftAssignmentForm(forms.ModelForm):
             shift_date = self.cleaned_data["shift_date"]
             shift_type = self.cleaned_data["shift_type"]
             extra_days = self.cleaned_data["extra_days"]
-            start_time, end_time = self._slot_times(shift_type)
+            start_time, end_time = self._slot_times(site, shift_type)
             first = None
             for offset in range(extra_days):
                 day = shift_date + timedelta(days=offset)

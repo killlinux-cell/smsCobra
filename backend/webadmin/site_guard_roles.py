@@ -5,14 +5,17 @@ from __future__ import annotations
 from datetime import date
 
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.site_shift_times import shift_type_for_start_time
 
 
-def _slot_label(start_time) -> str:
+def _slot_label(assignment) -> str:
+    start_time = assignment.start_time
     if start_time is None:
         return "créneau"
-    if start_time.hour == 6 and start_time.minute == 0:
+    st = shift_type_for_start_time(assignment.site, start_time)
+    if st == FixedPost.ShiftType.DAY:
         return "jour"
-    if start_time.hour == 18 and start_time.minute == 0:
+    if st == FixedPost.ShiftType.NIGHT:
         return "nuit"
     return start_time.strftime("%H:%M")
 
@@ -58,7 +61,7 @@ def enrich_guard_roles_from_assignments(
         guard = assignment.guard
         if guard is None:
             continue
-        lab = _slot_label(assignment.start_time)
+        lab = _slot_label(assignment)
         slot_key = (guard.id, lab)
 
         if assignment.shift_date == today:

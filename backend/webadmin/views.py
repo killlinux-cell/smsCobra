@@ -29,6 +29,7 @@ from checkins.models import Checkin
 from reports.activity_feed import build_activity_events
 from reports.models import AttendanceReport
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.site_shift_times import shift_type_for_start_time
 from shifts.services import ensure_assignments_for_dates
 from sites.models import Site
 
@@ -541,16 +542,19 @@ def site_detail_view(request, pk):
                 from_date=today,
             )
 
+    from shifts.site_shift_times import slot_label as site_slot_label
+
     fixed_post_rows: list[dict] = []
     posts_by_type: dict[str, list] = {FixedPost.ShiftType.DAY: [], FixedPost.ShiftType.NIGHT: []}
     for fp in fixed_posts:
         posts_by_type.setdefault(fp.shift_type, []).append(fp)
-    for shift_type, label, required_attr in (
-        (FixedPost.ShiftType.DAY, "Jour (06:00-18:00)", "day_staff_required"),
-        (FixedPost.ShiftType.NIGHT, "Nuit (18:00-06:00)", "night_staff_required"),
+    for shift_type, required_attr in (
+        (FixedPost.ShiftType.DAY, "day_staff_required"),
+        (FixedPost.ShiftType.NIGHT, "night_staff_required"),
     ):
         required = max(1, int(getattr(site, required_attr, 1) or 1))
         filled = posts_by_type.get(shift_type, [])
+        label = site_slot_label(site, shift_type)
         for fp in filled:
             fixed_post_rows.append({"kind": "filled", "fp": fp, "label": label})
         for _ in range(max(0, required - len(filled))):
@@ -1301,7 +1305,7 @@ def affectations_titulaires_view(request):
     )
     today_by_site_shift: dict[tuple[int, str], list[ShiftAssignment]] = defaultdict(list)
     for assignment in today_assignments:
-        shift_type = "day" if assignment.start_time.strftime("%H:%M") == "06:00" else "night"
+        shift_type = shift_type_for_start_time(assignment.site, assignment.start_time) or "day"
         today_by_site_shift[(assignment.site_id, shift_type)].append(assignment)
 
     rows = []

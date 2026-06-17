@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from sites.models import Site
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.site_shift_times import day_slot_times, night_slot_times
 from shifts.services import ensure_assignments_for_dates
 
 User = get_user_model()
@@ -105,8 +106,11 @@ class FixedPostMaterializationTests(TestCase):
             is_active=True,
         )
         d = date.today()
+        day_start, _ = day_slot_times(self.site)
         ensure_assignments_for_dates([d])
-        a = ShiftAssignment.objects.filter(site=self.site, shift_date=d, start_time=time(6, 0)).first()
+        a = ShiftAssignment.objects.filter(
+            site=self.site, shift_date=d, start_time=day_start
+        ).first()
         self.assertIsNotNone(a)
         self.assertEqual(a.guard_id, self.guard_a.id)
         self.assertEqual(a.status, ShiftAssignment.Status.SCHEDULED)
@@ -126,15 +130,17 @@ class FixedPostMaterializationTests(TestCase):
             is_active=True,
         )
         d = date.today()
+        day_start, _ = day_slot_times(self.site)
+        night_start, _ = night_slot_times(self.site)
         ensure_assignments_for_dates([d, d + timedelta(days=1)])
         day_row = ShiftAssignment.objects.get(
-            site=self.site, shift_date=d, start_time=time(6, 0)
+            site=self.site, shift_date=d, start_time=day_start
         )
         night_row = ShiftAssignment.objects.get(
-            site=self.site, shift_date=d, start_time=time(18, 0)
+            site=self.site, shift_date=d, start_time=night_start
         )
         day_next = ShiftAssignment.objects.get(
-            site=self.site, shift_date=d + timedelta(days=1), start_time=time(6, 0)
+            site=self.site, shift_date=d + timedelta(days=1), start_time=day_start
         )
         self.assertEqual(day_row.relieved_by_id, night_row.id)
         self.assertEqual(night_row.relieved_by_id, day_next.id)
@@ -204,8 +210,11 @@ class FixedPostMaterializationTests(TestCase):
             is_active=True,
         )
         d = date.today()
+        night_start, _ = night_slot_times(self.site)
         ensure_assignments_for_dates([d])
-        a = ShiftAssignment.objects.filter(site=self.site, shift_date=d, start_time=time(18, 0)).first()
+        a = ShiftAssignment.objects.filter(
+            site=self.site, shift_date=d, start_time=night_start
+        ).first()
         self.assertIsNotNone(a)
         self.assertEqual(a.guard_id, self.guard_b.id)
         self.assertEqual(a.original_guard_id, self.guard_a.id)

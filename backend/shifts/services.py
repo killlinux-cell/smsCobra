@@ -1,18 +1,19 @@
 import logging
-from datetime import date, time, timedelta
+from collections import defaultdict
+from datetime import date, timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+
+from shifts.site_shift_times import shift_type_for_start_time, slot_times_for_site
 
 from .models import FixedPost, ShiftAssignment
 
 _logger = logging.getLogger(__name__)
 
 
-def _slot_for(shift_type: str):
-    if shift_type == FixedPost.ShiftType.DAY:
-        return time(6, 0), time(18, 0)
-    return time(18, 0), time(6, 0)
+def _slot_for(post: FixedPost):
+    return slot_times_for_site(post.site, post.shift_type)
 
 
 def _in_fixed_post_range(post: FixedPost, day: date) -> bool:
@@ -27,7 +28,7 @@ def _purge_assignments_before_start(post: FixedPost) -> int:
     """Supprime les affectations planifiées avant la date de début du poste fixe."""
     if not post.start_date:
         return 0
-    start_time, _ = _slot_for(post.shift_type)
+    start_time, _ = _slot_for(post)
     guard_id = post.current_guard.id
     return (
         ShiftAssignment.objects.filter(
@@ -59,7 +60,7 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
         for post in posts:
             if not _in_fixed_post_range(post, day):
                 continue
-            start_time, end_time = _slot_for(post.shift_type)
+            start_time, end_time = _slot_for(post)
             guard = post.current_guard
             defaults = {
                 "guard": guard,
@@ -87,62 +88,36 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
                     **defaults,
                 )
 
-    # (Re)lier la passation jour -> nuit par répartition (effectifs potentiellement différents).
+    # (Re)lier la passation jour -> nuit par répartition (horaires propres à chaque site).
     active_q = models.Q(status__in=ShiftAssignment.active_on_duty_statuses())
     for day in unique_days:
         next_day = day + timedelta(days=1)
-        day_rows = list(
+        rows_today = list(
             ShiftAssignment.objects.select_related("site", "guard")
-            .filter(
-                active_q,
-                shift_date=day,
-                start_time=time(6, 0),
-            )
+            .filter(active_q, shift_date=day)
             .order_by("site_id", "guard_id", "id")
         )
-        night_rows_same_day = list(
-            ShiftAssignment.objects.select_related("site", "guard")
-            .filter(
-                active_q,
-                shift_date=day,
-                start_time=time(18, 0),
-            )
-            .order_by("site_id", "guard_id", "id")
-        )
-        day_by_site: dict[int, list[ShiftAssignment]] = {}
-        night_by_site: dict[int, list[ShiftAssignment]] = {}
-        for row in day_rows:
-            day_by_site.setdefault(row.site_id, []).append(row)
-        for row in night_rows_same_day:
-            night_by_site.setdefault(row.site_id, []).append(row)
+        day_by_site: dict[int, list[ShiftAssignment]] = defaultdict(list)
+        night_by_site: dict[int, list[ShiftAssignment]] = defaultdict(list)
+        for row in rows_today:
+            st = shift_type_for_start_time(row.site, row.start_time)
+            if st == FixedPost.ShiftType.DAY:
+                day_by_site[row.site_id].append(row)
+            elif st == FixedPost.ShiftType.NIGHT:
+                night_by_site[row.site_id].append(row)
         for site_id, outgoing_rows in day_by_site.items():
             incoming_rows = night_by_site.get(site_id, [])
             _link_relieved_by_distributed(outgoing_rows, incoming_rows)
 
-        night_rows = list(
+        rows_next = list(
             ShiftAssignment.objects.select_related("site", "guard")
-            .filter(
-                active_q,
-                shift_date=day,
-                start_time=time(18, 0),
-            )
+            .filter(active_q, shift_date=next_day)
             .order_by("site_id", "guard_id", "id")
         )
-        day_rows_next = list(
-            ShiftAssignment.objects.select_related("site", "guard")
-            .filter(
-                active_q,
-                shift_date=next_day,
-                start_time=time(6, 0),
-            )
-            .order_by("site_id", "guard_id", "id")
-        )
-        night_by_site = {}
-        day_next_by_site: dict[int, list[ShiftAssignment]] = {}
-        for row in night_rows:
-            night_by_site.setdefault(row.site_id, []).append(row)
-        for row in day_rows_next:
-            day_next_by_site.setdefault(row.site_id, []).append(row)
+        day_next_by_site: dict[int, list[ShiftAssignment]] = defaultdict(list)
+        for row in rows_next:
+            if shift_type_for_start_time(row.site, row.start_time) == FixedPost.ShiftType.DAY:
+                day_next_by_site[row.site_id].append(row)
         for site_id, outgoing_rows in night_by_site.items():
             incoming_rows = day_next_by_site.get(site_id, [])
             _link_relieved_by_distributed(outgoing_rows, incoming_rows)
