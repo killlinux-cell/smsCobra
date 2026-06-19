@@ -103,15 +103,11 @@ class _AgentHomePageState extends State<AgentHomePage>
       }
       if (!mounted) return;
       final preserveId = preserveAssignmentId ?? selected?.id;
-      Assignment? resolved = pickActiveAssignment(result, DateTime.now());
-      if (preserveId != null) {
-        for (final assignment in result) {
-          if (assignment.id == preserveId) {
-            resolved = assignment;
-            break;
-          }
-        }
-      }
+      final resolved = resolveSelectedAssignment(
+        result,
+        DateTime.now(),
+        preserveAssignmentId: preserveId,
+      );
       setState(() {
         assignments = result;
         selected = resolved;

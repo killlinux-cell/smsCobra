@@ -47,3 +47,21 @@ Assignment? pickActiveAssignment(List<Assignment> list, DateTime now) {
   }
   return list.first;
 }
+
+/// Choisit le poste affiché après sync API.
+/// Ne réapplique pas [preserveAssignmentId] s'il existe déjà un poste commencé
+/// sans fin (évite d'écraser la nuit d'hier par l'affectation du jour).
+Assignment? resolveSelectedAssignment(
+  List<Assignment> list,
+  DateTime now, {
+  int? preserveAssignmentId,
+}) {
+  final resolved = pickActiveAssignment(list, now);
+  if (preserveAssignmentId == null) return resolved;
+  final hasOpenShift = list.any((a) => a.hasStart && !a.hasEnd);
+  if (hasOpenShift) return resolved;
+  for (final a in list) {
+    if (a.id == preserveAssignmentId) return a;
+  }
+  return resolved;
+}

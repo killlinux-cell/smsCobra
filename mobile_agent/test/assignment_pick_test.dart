@@ -103,6 +103,36 @@ void main() {
     },
   );
 
+  test(
+    "ne réapplique pas preserveId si un poste nuit est encore ouvert (pointé hier)",
+    () {
+      final shiftDay = DateTime(2026, 6, 18);
+      final today = DateTime(2026, 6, 19);
+      final now = DateTime(2026, 6, 19, 8, 26);
+      final nightOpen = _a(
+        id: 2200,
+        shiftDate: shiftDay,
+        start: "18:30",
+        end: "06:30",
+        hasStart: true,
+        hasEnd: false,
+        canEnd: true,
+      );
+      final todayNight = _a(
+        id: 2263,
+        shiftDate: today,
+        start: "18:30",
+        end: "06:30",
+      );
+      final picked = resolveSelectedAssignment(
+        [todayNight, nightOpen],
+        now,
+        preserveAssignmentId: 2263,
+      );
+      expect(picked?.id, 2200);
+    },
+  );
+
   test("après la fin du jour, retourne le poste du jour civil", () {
     final today = DateTime(2026, 4, 4);
     final now = DateTime(2026, 4, 4, 20, 0);
