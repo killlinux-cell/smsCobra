@@ -23,6 +23,7 @@ def supervisor_force_end_assignment(
     *,
     actor,
     reason: str = "",
+    source_label: str = "dashboard",
 ) -> Checkin:
     """
     Enregistre une fin de service côté superviseur.
@@ -63,7 +64,7 @@ def supervisor_force_end_assignment(
         longitude=lon,
         within_geofence=within,
         distance_from_site_meters=distance,
-        biometric_reason="supervisor_dashboard",
+        biometric_reason="supervisor_force_end",
     )
 
     report, _ = AttendanceReport.objects.get_or_create(
@@ -79,6 +80,7 @@ def supervisor_force_end_assignment(
         actor=actor,
         reason=reason,
         ended_at=end.timestamp,
+        source_label=source_label,
     )
     report.save(update_fields=["ended_at", "was_absent", "notes"])
 
@@ -97,6 +99,46 @@ def supervisor_force_end_assignment(
     return end
 
 
+def stale_open_assignments(*, today=None, site_id: int | None = None):
+    """Affectations avec START sans END et date de poste strictement avant aujourd'hui."""
+    from webadmin.open_shifts import _open_assignments_queryset
+
+    day = today or timezone.localdate()
+    return _open_assignments_queryset(stale_only=True, today=day, site_id=site_id)
+
+
+def bulk_force_end_stale_open_shifts(
+    *,
+    actor,
+    reason: str,
+    site_id: int | None = None,
+    today=None,
+    apply: bool = False,
+) -> dict:
+    """
+    Clôture en masse les postes ouverts datés avant [today].
+    Retourne {candidates, applied, errors}.
+    """
+    qs = stale_open_assignments(today=today, site_id=site_id)
+    candidates = list(qs)
+    result = {"candidates": candidates, "applied": 0, "errors": []}
+    if not apply:
+        return result
+
+    for assignment in candidates:
+        try:
+            supervisor_force_end_assignment(
+                assignment,
+                actor=actor,
+                reason=reason,
+                source_label="alignement bulk",
+            )
+            result["applied"] += 1
+        except ForceEndError as exc:
+            result["errors"].append((assignment.pk, str(exc)))
+    return result
+
+
 def _append_supervisor_note(
     report: AttendanceReport,
     *,
@@ -104,13 +146,16 @@ def _append_supervisor_note(
     actor,
     reason: str,
     ended_at,
+    source_label: str = "dashboard",
 ) -> None:
     admin_name = (actor.get_full_name() or "").strip() if actor else ""
     if not admin_name and actor:
         admin_name = actor.username
+    if not admin_name:
+        admin_name = "Système"
     ts_str = timezone.localtime(ended_at).strftime("%d/%m/%Y %H:%M")
     line = (
-        f"[{ts_str}] Fin de service validée par {admin_name} (dashboard) "
+        f"[{ts_str}] Fin de service validée par {admin_name} ({source_label}) "
         f"pour affectation n°{assignment.id}"
     )
     cleaned = (reason or "").strip()

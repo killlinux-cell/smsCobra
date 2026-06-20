@@ -123,3 +123,50 @@ class OpenShiftsTests(TestCase):
         row = self._assignment(self.yesterday)
         with self.assertRaises(ForceEndError):
             supervisor_force_end_assignment(row, actor=self.admin)
+
+    def test_bulk_close_stale_simulation_only(self):
+        self._assignment(self.yesterday, with_start=True)
+        self._assignment(self.today, with_start=True)
+        from webadmin.admin_force_end import bulk_force_end_stale_open_shifts
+
+        result = bulk_force_end_stale_open_shifts(
+            actor=self.admin,
+            reason="test",
+            today=self.today,
+            apply=False,
+        )
+        self.assertEqual(len(result["candidates"]), 1)
+        self.assertEqual(result["applied"], 0)
+        self.assertEqual(
+            Checkin.objects.filter(type=Checkin.Type.END).count(),
+            0,
+        )
+
+    def test_bulk_close_stale_apply(self):
+        row = self._assignment(self.yesterday, with_start=True)
+        from webadmin.admin_force_end import bulk_force_end_stale_open_shifts
+
+        result = bulk_force_end_stale_open_shifts(
+            actor=self.admin,
+            reason="alignement test",
+            today=self.today,
+            apply=True,
+        )
+        self.assertEqual(result["applied"], 1)
+        row.refresh_from_db()
+        self.assertEqual(row.status, ShiftAssignment.Status.COMPLETED)
+
+    def test_close_stale_command_dry_run(self):
+        self._assignment(self.yesterday, with_start=True)
+        client = Client()
+        client.login(username="admin_o", password="secret123")
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command("close_stale_open_shifts", stdout=out)
+        self.assertIn("SIMULATION", out.getvalue())
+        self.assertEqual(
+            Checkin.objects.filter(type=Checkin.Type.END).count(),
+            0,
+        )
