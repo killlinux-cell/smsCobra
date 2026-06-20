@@ -8,7 +8,10 @@
       Les postes dont la date planifiée est <strong>antérieure à aujourd'hui</strong> restent visibles ici
       (cas fréquent : nuit non clôturée le lendemain matin, ou jour d'hier bloqué par la passation).
     </p>
-    <form method="get" class="row g-3 align-items-end flex-wrap" role="search">
+    <p class="small text-muted mb-0">
+      <strong>Valider fin</strong> : clôture superviseur (relève absente, app bloquée) — tracé dans les rapports de pointage.
+    </p>
+    <form method="get" class="row g-3 align-items-end flex-wrap mt-3" role="search">
       <div class="col-auto" style="min-width:200px;">
         <label class="form-label fw-semibold mb-1" for="open-shifts-site">Site</label>
         <select id="open-shifts-site" name="site" class="form-select">
@@ -57,7 +60,7 @@
           <th>Prise pointée</th>
           <th>Statut</th>
           <th>Bloquant fin</th>
-          <th></th>
+          <th>Action superviseur</th>
         </tr>
       </thead>
       <tbody>
@@ -102,11 +105,23 @@
             <a class="btn btn-sm btn-outline-primary" href="{% url 'webadmin-affectation-edit' a.pk %}">n°{{ a.pk }}</a>
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'webadmin-pointages' %}?q={{ a.guard.username|urlencode }}">Pointages</a>
           </td>
+          <td style="min-width:220px;">
+            <form method="post" action="{% url 'webadmin-supervisor-force-end' a.pk %}" class="d-flex flex-column gap-1"
+                  onsubmit="return confirm('Valider la fin de service pour {{ a.guard.display_name|escapejs }} (affectation n°{{ a.pk }}) ?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <input type="text" name="reason" class="form-control form-control-sm" maxlength="240"
+                     placeholder="Motif (ex. relève nuit absente)" aria-label="Motif de clôture">
+              <button type="submit" class="btn btn-sm btn-warning text-dark">
+                <i class="bi bi-check2-circle me-1"></i>Valider fin
+              </button>
+            </form>
+          </td>
         </tr>
         {% endwith %}
         {% empty %}
         <tr>
-          <td colspan="9" class="text-center py-4 text-muted">
+          <td colspan="10" class="text-center py-4 text-muted">
             Aucun service ouvert{% if filter_stale_only %} daté avant aujourd'hui{% endif %}.
           </td>
         </tr>

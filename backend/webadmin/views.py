@@ -1730,6 +1730,34 @@ def open_shifts_view(request):
 
 
 @admin_web_required
+def supervisor_force_end_view(request, pk: int):
+    """Clôture superviseur : fin de service sans relève ni app vigile."""
+    next_url = (request.POST.get("next") or "").strip() or reverse("webadmin-open-shifts")
+    if request.method != "POST":
+        return redirect(next_url)
+
+    assignment = get_object_or_404(
+        ShiftAssignment.objects.select_related("site", "guard"),
+        pk=pk,
+    )
+    reason = (request.POST.get("reason") or "").strip()
+    from webadmin.admin_force_end import ForceEndError, supervisor_force_end_assignment
+
+    try:
+        supervisor_force_end_assignment(assignment, actor=request.user, reason=reason)
+    except ForceEndError as exc:
+        messages.error(request, str(exc))
+        return redirect(next_url)
+
+    messages.success(
+        request,
+        f"Fin de service enregistrée pour {assignment.guard.display_name} "
+        f"@ {assignment.site.name} (affectation n°{assignment.id}).",
+    )
+    return redirect(next_url)
+
+
+@admin_web_required
 def export_pointages_csv_view(request):
     raw_qs = _checkins_queryset(request)[:15000]
     qs = []

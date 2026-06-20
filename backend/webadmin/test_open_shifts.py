@@ -8,6 +8,7 @@ from accounts.models import User
 from checkins.models import Checkin
 from shifts.models import ShiftAssignment
 from sites.models import Site
+from webadmin.admin_force_end import ForceEndError, supervisor_force_end_assignment
 from webadmin.open_shifts import collect_open_shift_rows, count_stale_open_shifts
 
 
@@ -91,3 +92,34 @@ class OpenShiftsTests(TestCase):
         self.assertContains(resp, "VIR-T")
         self.assertContains(resp, "Test Site")
         self.assertContains(resp, "Hier")
+        self.assertContains(resp, "Valider fin")
+
+    def test_supervisor_force_end_closes_open_shift(self):
+        row = self._assignment(self.yesterday, with_start=True)
+        supervisor_force_end_assignment(
+            row,
+            actor=self.admin,
+            reason="Relève nuit absente",
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.status, ShiftAssignment.Status.COMPLETED)
+        self.assertTrue(
+            Checkin.objects.filter(assignment=row, type=Checkin.Type.END).exists()
+        )
+        self.assertEqual(len(collect_open_shift_rows(today=self.today)), 0)
+
+    def test_supervisor_force_end_via_post(self):
+        row = self._assignment(self.yesterday, with_start=True)
+        client = Client()
+        client.login(username="admin_o", password="secret123")
+        url = reverse("webadmin-supervisor-force-end", kwargs={"pk": row.pk})
+        resp = client.post(url, {"reason": "Relève absente", "next": reverse("webadmin-open-shifts")})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            Checkin.objects.filter(assignment=row, type=Checkin.Type.END).exists()
+        )
+
+    def test_supervisor_force_end_rejects_without_start(self):
+        row = self._assignment(self.yesterday)
+        with self.assertRaises(ForceEndError):
+            supervisor_force_end_assignment(row, actor=self.admin)

@@ -62,6 +62,11 @@ urlpatterns = [
     path("pointages/", views.pointages_view, name="webadmin-pointages"),
     path("pointages/export/csv/", views.export_pointages_csv_view, name="webadmin-pointages-export-csv"),
     path("services-ouverts/", views.open_shifts_view, name="webadmin-open-shifts"),
+    path(
+        "services-ouverts/<int:pk>/valider-fin/",
+        views.supervisor_force_end_view,
+        name="webadmin-supervisor-force-end",
+    ),
     path("notifications-push/", views.notifications_push_view, name="webadmin-notifications-push"),
     path("alerts/<int:alert_id>/acquitter/", views.ack_alert_view, name="webadmin-ack-alert"),
     path(
