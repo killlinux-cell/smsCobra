@@ -58,6 +58,10 @@
       <a class="nav-link {% if nav_active == 'pointages' %}active{% endif %}" href="{% url 'webadmin-pointages' %}">
         <i class="bi bi-pin-map-fill"></i> Pointages
       </a>
+      <a class="nav-link {% if nav_active == 'open_shifts' %}active{% endif %}" href="{% url 'webadmin-open-shifts' %}">
+        <i class="bi bi-hourglass-split"></i> Services ouverts
+        {% if cobra_stale_open_shifts_count %}<span class="badge rounded-pill bg-warning text-dark ms-1">{{ cobra_stale_open_shifts_count }}</span>{% endif %}
+      </a>
     </nav>
     <div class="p-3 border-top border-secondary border-opacity-25">
       {% include "webadmin/_pwa_install_banner.html" %}

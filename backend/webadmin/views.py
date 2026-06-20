@@ -1699,6 +1699,37 @@ def pointages_view(request):
 
 
 @admin_web_required
+def open_shifts_view(request):
+    """Postes avec prise de service pointée mais fin non clôturée (dont veille / jours précédents)."""
+    today = timezone.localdate()
+    site_raw = (request.GET.get("site") or "").strip()
+    stale_only = request.GET.get("stale") == "1"
+    site_id = int(site_raw) if site_raw.isdigit() else None
+
+    from webadmin.open_shifts import collect_open_shift_rows
+
+    rows = collect_open_shift_rows(today=today, site_id=site_id, stale_only=stale_only)
+    stale_count = sum(1 for row in rows if row.is_stale)
+    sites = Site.objects.filter(is_active=True).order_by("name")
+
+    return render(
+        request,
+        "webadmin/open_shifts.html",
+        {
+            "page_title": "Services ouverts",
+            "nav_active": "open_shifts",
+            "today": today,
+            "rows": rows,
+            "stale_count": stale_count,
+            "total_count": len(rows),
+            "sites": sites,
+            "filter_site_id": site_id,
+            "filter_stale_only": stale_only,
+        },
+    )
+
+
+@admin_web_required
 def export_pointages_csv_view(request):
     raw_qs = _checkins_queryset(request)[:15000]
     qs = []

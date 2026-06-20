@@ -1,0 +1,118 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+<div class="card cobra-panel mb-4">
+  <div class="card-body py-3">
+    <p class="mb-2">
+      Vigiles ayant <strong>pointé la prise de service</strong> sans <strong>fin de service</strong>.
+      Les postes dont la date planifiée est <strong>antérieure à aujourd'hui</strong> restent visibles ici
+      (cas fréquent : nuit non clôturée le lendemain matin, ou jour d'hier bloqué par la passation).
+    </p>
+    <form method="get" class="row g-3 align-items-end flex-wrap" role="search">
+      <div class="col-auto" style="min-width:200px;">
+        <label class="form-label fw-semibold mb-1" for="open-shifts-site">Site</label>
+        <select id="open-shifts-site" name="site" class="form-select">
+          <option value="">Tous les sites</option>
+          {% for s in sites %}
+          <option value="{{ s.pk }}" {% if filter_site_id == s.pk %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="stale" value="1" id="open-shifts-stale" {% if filter_stale_only %}checked{% endif %}>
+          <label class="form-check-label" for="open-shifts-stale">
+            Uniquement postes d'hier ou avant
+          </label>
+        </div>
+      </div>
+      <div class="col-auto d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filtrer</button>
+        <a href="{% url 'webadmin-open-shifts' %}" class="btn btn-outline-secondary">Réinitialiser</a>
+      </div>
+    </form>
+    <p class="small text-muted mb-0 mt-3">
+      <strong>{{ total_count }}</strong> poste{% if total_count != 1 %}s{% endif %} ouvert{% if total_count != 1 %}s{% endif %}
+      {% if stale_count %}
+      · <span class="text-warning-emphasis">{{ stale_count }} daté{% if stale_count != 1 %}s{% endif %} avant le {{ today|date:"d/m/Y" }}</span>
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<div class="card cobra-panel">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-hourglass-split me-2"></i>Services non clôturés</span>
+    <span class="badge bg-light text-dark border">{{ total_count }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm cobra-table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Vigile</th>
+          <th>Site</th>
+          <th>Date poste</th>
+          <th>Créneau</th>
+          <th>Horaires</th>
+          <th>Prise pointée</th>
+          <th>Statut</th>
+          <th>Bloquant fin</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% with a=row.assignment %}
+        <tr class="{% if row.is_stale %}table-warning{% endif %}">
+          <td>
+            <a href="{% url 'webadmin-vigile-detail' a.guard_id %}" class="fw-semibold text-decoration-none">{{ a.guard.display_name }}</a>
+            <div class="small text-muted">{{ a.guard.username }}</div>
+          </td>
+          <td>
+            <a href="{% url 'webadmin-site-detail' a.site_id %}" class="text-decoration-none">{{ a.site.name }}</a>
+          </td>
+          <td>
+            {{ a.shift_date|date:"d/m/Y" }}
+            {% if row.is_stale %}
+            <span class="badge bg-warning text-dark ms-1">
+              {% if row.days_behind == 1 %}Hier{% else %}J+{{ row.days_behind }}{% endif %}
+            </span>
+            {% endif %}
+          </td>
+          <td>{{ row.slot_label }}</td>
+          <td class="text-nowrap">{{ a.start_time|time:"H:i" }} – {{ a.end_time|time:"H:i" }}</td>
+          <td class="text-nowrap small">
+            {% if row.started_at %}{{ row.started_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if row.can_end %}
+            <span class="badge bg-success">Fin possible</span>
+            {% else %}
+            <span class="badge bg-secondary">Fin bloquée</span>
+            {% endif %}
+          </td>
+          <td class="small" style="max-width:280px;">
+            {% if row.end_block_reason %}
+            {{ row.end_block_reason }}
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'webadmin-affectation-edit' a.pk %}">n°{{ a.pk }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'webadmin-pointages' %}?q={{ a.guard.username|urlencode }}">Pointages</a>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center py-4 text-muted">
+            Aucun service ouvert{% if filter_stale_only %} daté avant aujourd'hui{% endif %}.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

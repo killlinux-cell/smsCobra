@@ -61,6 +61,7 @@ urlpatterns = [
     path("rapports/export/csv/", views.export_reports_csv_view, name="webadmin-rapports-export-csv"),
     path("pointages/", views.pointages_view, name="webadmin-pointages"),
     path("pointages/export/csv/", views.export_pointages_csv_view, name="webadmin-pointages-export-csv"),
+    path("services-ouverts/", views.open_shifts_view, name="webadmin-open-shifts"),
     path("notifications-push/", views.notifications_push_view, name="webadmin-notifications-push"),
     path("alerts/<int:alert_id>/acquitter/", views.ack_alert_view, name="webadmin-ack-alert"),
     path(
