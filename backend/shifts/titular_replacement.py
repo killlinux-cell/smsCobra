@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, timedelta, time
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.site_shift_times import shift_type_for_start_time
-from shifts.services import _slot_for
+from shifts.services import _slot_for, ensure_assignments_for_dates
 
 
 def shift_type_for_assignment(assignment: ShiftAssignment) -> str | None:
@@ -69,9 +69,35 @@ def sync_scheduled_assignments_for_titular(
     else:
         to_reassign = list(qs.exclude(guard_id=post.titular_guard_id))
 
+    from checkins.models import Checkin
+
     target_id = post.titular_guard_id
     moved = 0
     for row in to_reassign:
+        if Checkin.objects.filter(assignment_id=row.pk).exists():
+            # Ne pas réattribuer une ligne déjà pointée (ex. intérimaire ce matin).
+            already = (
+                ShiftAssignment.objects.filter(
+                    site_id=post.site_id,
+                    shift_date=row.shift_date,
+                    start_time=start_time,
+                    guard_id=target_id,
+                )
+                .exclude(status=ShiftAssignment.Status.EXTRA)
+                .exclude(pk=row.pk)
+                .exists()
+            )
+            if not already:
+                ShiftAssignment.objects.create(
+                    site_id=post.site_id,
+                    shift_date=row.shift_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    guard_id=target_id,
+                    status=ShiftAssignment.Status.SCHEDULED,
+                )
+                moved += 1
+            continue
         conflict = (
             ShiftAssignment.objects.filter(
                 site_id=post.site_id,
@@ -193,11 +219,13 @@ def reinstate_suspended_titular(
             "updated_at",
         ]
     )
+    today = timezone.localdate()
     sync_scheduled_assignments_for_titular(
         fixed_post,
-        timezone.localdate(),
+        today,
         previous_guard_id=former_interim.id if former_interim else None,
     )
+    ensure_assignments_for_dates([today, today + timedelta(days=1)])
 
     if reinstated_guard:
         from reports.titular_changes import log_titular_reinstatement

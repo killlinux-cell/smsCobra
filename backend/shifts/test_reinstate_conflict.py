@@ -4,7 +4,9 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
+from checkins.models import Checkin
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.site_shift_times import slot_times_for_site
 from shifts.services import ensure_assignments_for_dates
 from shifts.titular_replacement import (
     dismiss_suspended_titular,
@@ -41,12 +43,15 @@ class ReinstateConflictTests(TestCase):
             is_active=True,
         )
         ensure_assignments_for_dates([self.today, self.tomorrow])
+        self.night_start, self.night_end = slot_times_for_site(
+            self.site, FixedPost.ShiftType.NIGHT
+        )
 
     def _dispatch(self):
         assignment = ShiftAssignment.objects.get(
             site=self.site,
             shift_date=self.today,
-            start_time=time(18, 0),
+            start_time=self.night_start,
             guard=self.titular,
         )
         assignment.guard_id = self.replacement.id
@@ -65,8 +70,8 @@ class ReinstateConflictTests(TestCase):
         ShiftAssignment.objects.create(
             site=self.site,
             shift_date=self.tomorrow,
-            start_time=time(18, 0),
-            end_time=time(6, 0),
+            start_time=self.night_start,
+            end_time=self.night_end,
             guard=self.titular,
             status=ShiftAssignment.Status.SCHEDULED,
         )
@@ -81,11 +86,47 @@ class ReinstateConflictTests(TestCase):
             ShiftAssignment.objects.filter(
                 site=self.site,
                 shift_date=self.tomorrow,
-                start_time=time(18, 0),
+                start_time=self.night_start,
                 guard=self.titular,
                 status=ShiftAssignment.Status.SCHEDULED,
             ).count(),
             1,
+        )
+
+    def test_reinstate_creates_fresh_assignment_when_interim_already_checked_in(self):
+        post = self._dispatch()
+        interim_today = ShiftAssignment.objects.get(
+            site=self.site,
+            shift_date=self.today,
+            start_time=self.night_start,
+            guard=self.replacement,
+        )
+        Checkin.objects.create(
+            assignment=interim_today,
+            guard=self.replacement,
+            type=Checkin.Type.START,
+            timestamp=timezone.now(),
+            latitude=1,
+            longitude=1,
+        )
+        reinstate_suspended_titular(
+            post,
+            reason="Absence justifiee par certificat medical valide.",
+        )
+        interim_today.refresh_from_db()
+        self.assertEqual(interim_today.guard_id, self.replacement.id)
+        titular_today = ShiftAssignment.objects.get(
+            site=self.site,
+            shift_date=self.today,
+            start_time=self.night_start,
+            guard=self.titular,
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        self.assertFalse(
+            Checkin.objects.filter(
+                assignment=titular_today,
+                type=Checkin.Type.START,
+            ).exists()
         )
 
     def test_retire_with_clear_suspended_when_dispatch_pending(self):

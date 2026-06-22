@@ -8,6 +8,7 @@ from django.utils import timezone
 from sites.models import Site
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.services import ensure_assignments_for_dates
+from shifts.site_shift_times import slot_times_for_site
 from shifts.titular_replacement import (
     promote_replacement_to_titular_on_dispatch,
     reinstate_suspended_titular,
@@ -122,6 +123,7 @@ class TitularRetirementTests(TestCase):
         )
         self.today = timezone.localdate()
         ensure_assignments_for_dates([self.today, self.today + timedelta(days=1)])
+        self.night_start, _ = slot_times_for_site(self.site, FixedPost.ShiftType.NIGHT)
 
     def test_retire_deactivates_post_and_cancels_future_assignments(self):
         tomorrow = self.today + timedelta(days=1)
@@ -130,7 +132,7 @@ class TitularRetirementTests(TestCase):
                 site=self.site,
                 guard=self.guard,
                 shift_date=tomorrow,
-                start_time=time(18, 0),
+                start_time=self.night_start,
             ).exists()
         )
         post, cancelled = retire_titular_fixed_post(
@@ -145,7 +147,7 @@ class TitularRetirementTests(TestCase):
                 site=self.site,
                 guard=self.guard,
                 shift_date=tomorrow,
-                start_time=time(18, 0),
+                start_time=self.night_start,
                 status=ShiftAssignment.Status.SCHEDULED,
             ).exists()
         )
@@ -155,7 +157,7 @@ class TitularRetirementTests(TestCase):
                 site=self.site,
                 guard=self.guard,
                 shift_date=tomorrow,
-                start_time=time(18, 0),
+                start_time=self.night_start,
             ).exists()
         )
 
