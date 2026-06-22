@@ -1658,6 +1658,13 @@ def pointages_view(request):
             report = month_reports_by_guard_date.get((selected_guard.id, d))
             if d in present_days:
                 status = "present"
+            elif (
+                report
+                and report.started_at
+                and not report.ended_at
+                and d < today
+            ):
+                status = "incomplete"
             elif report and report.was_absent:
                 status = "absent"
             elif (

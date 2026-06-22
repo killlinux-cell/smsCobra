@@ -533,6 +533,13 @@ class _AgentHomePageState extends State<AgentHomePage>
                                     ),
                                   ),
                                   const SizedBox(height: 10),
+                                  if (selected != null &&
+                                      selected!.hasStart &&
+                                      !selected!.hasEnd)
+                                    _InServiceBanner(
+                                      endTime: selected!.endTime,
+                                      canEnd: selected!.canEnd,
+                                    ),
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -541,11 +548,12 @@ class _AgentHomePageState extends State<AgentHomePage>
                                         child: _ShiftActionTile(
                                           title: "Prise de service",
                                           subtitle: selected?.hasStart == true
-                                              ? "Effectuée"
+                                              ? "Montée enregistrée"
                                               : "1 clic + GPS",
                                           icon: Icons.login_rounded,
                                           accent: const Color(0xFF4F46E5),
                                           filled: selected?.hasStart == true,
+                                          successStyle: false,
                                           enabled:
                                               selected != null &&
                                               selected!.hasStart != true &&
@@ -558,13 +566,16 @@ class _AgentHomePageState extends State<AgentHomePage>
                                         child: _ShiftActionTile(
                                           title: "Fin de service",
                                           subtitle: selected?.hasEnd == true
-                                              ? "Effectuée"
+                                              ? "Descente enregistrée"
                                               : (selected?.canEnd == true
                                                     ? "1 clic + GPS"
-                                                    : "Non disponible"),
+                                                    : (selected?.hasStart == true
+                                                          ? "Descente le soir"
+                                                          : "Non disponible")),
                                           icon: Icons.logout_rounded,
                                           accent: const Color(0xFF0284C7),
                                           filled: selected?.hasEnd == true,
+                                          successStyle: true,
                                           enabled:
                                               selected != null &&
                                               selected!.canEnd == true &&
@@ -575,6 +586,8 @@ class _AgentHomePageState extends State<AgentHomePage>
                                     ],
                                   ),
                                   if (selected != null &&
+                                      selected!.hasStart &&
+                                      !selected!.hasEnd &&
                                       !selected!.canEnd &&
                                       selected!.endBlockReason != null) ...[
                                     const SizedBox(height: 10),
@@ -911,6 +924,70 @@ String _creneauDescription(String start, String end) {
   return "Créneau sur la journée planifiée.";
 }
 
+/// Rappel visible : montée OK ≠ journée terminée ; descente attendue le soir.
+class _InServiceBanner extends StatelessWidget {
+  const _InServiceBanner({
+    required this.endTime,
+    required this.canEnd,
+  });
+
+  final String endTime;
+  final bool canEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color border;
+    final IconData icon;
+    final String text;
+
+    if (canEnd) {
+      bg = const Color(0xFFECFDF5);
+      border = const Color(0xFF86EFAC);
+      icon = Icons.logout_rounded;
+      text = "En service — vous pouvez pointer la descente maintenant.";
+    } else {
+      bg = const Color(0xFFEEF2FF);
+      border = const Color(0xFF818CF8);
+      icon = Icons.schedule_rounded;
+      text =
+          "En service — la descente sera disponible à partir de $endTime "
+          "(après la prise de service du vigile de relève si applicable).";
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: const Color(0xFF3730A3)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Color(0xFF312E81),
+                  fontSize: 12,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ShiftActionTile extends StatelessWidget {
   const _ShiftActionTile({
     required this.title,
@@ -918,6 +995,7 @@ class _ShiftActionTile extends StatelessWidget {
     required this.icon,
     required this.accent,
     required this.filled,
+    required this.successStyle,
     required this.enabled,
     required this.onTap,
   });
@@ -927,17 +1005,22 @@ class _ShiftActionTile extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final bool filled;
+  final bool successStyle;
   final bool enabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final useGreen = filled && successStyle;
     final borderColor = filled
-        ? const Color(0xFF22C55E)
+        ? (useGreen ? const Color(0xFF22C55E) : accent)
         : (enabled ? accent : const Color(0xFFE2E8F0));
     final bg = filled
-        ? const Color(0xFFF0FDF4)
+        ? (useGreen ? const Color(0xFFF0FDF4) : accent.withAlpha(28))
         : (enabled ? accent.withAlpha(22) : const Color(0xFFF8FAFC));
+    final iconColor = filled
+        ? (useGreen ? const Color(0xFF15803D) : accent)
+        : (enabled ? accent : const Color(0xFF94A3B8));
 
     return Material(
       color: Colors.transparent,
@@ -959,19 +1042,15 @@ class _ShiftActionTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    icon,
-                    size: 22,
-                    color: filled
-                        ? const Color(0xFF15803D)
-                        : (enabled ? accent : const Color(0xFF94A3B8)),
-                  ),
+                  Icon(icon, size: 22, color: iconColor),
                   if (filled) ...[
                     const SizedBox(width: 6),
-                    const Icon(
+                    Icon(
                       Icons.check_circle_rounded,
                       size: 18,
-                      color: Color(0xFF16A34A),
+                      color: useGreen
+                          ? const Color(0xFF16A34A)
+                          : accent,
                     ),
                   ],
                 ],

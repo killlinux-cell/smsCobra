@@ -314,8 +314,9 @@
           <th>Vigile</th>
           <th>Début</th>
           <th>Fin</th>
+          <th>Statut</th>
           <th>Retard</th>
-          <th>Absent</th>
+          <th>Absent (calcul)</th>
           <th>Notes (acquittements, etc.)</th>
         </tr>
       </thead>
@@ -327,6 +328,10 @@
           <td>{{ report.guard.display_name }}</td>
           <td class="small">{{ report.started_at|date:"d/m/Y H:i"|default:"—" }}</td>
           <td class="small">{{ report.ended_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td>
+            {% rapport_presence_badge report as presence %}
+            <span class="badge {{ presence.css }}">{{ presence.label }}</span>
+          </td>
           <td>
             {% if report.was_late %}
             <span class="badge bg-warning text-dark">Oui</span>
@@ -344,7 +349,7 @@
           <td class="small text-muted" style="max-width:18rem;white-space:pre-wrap;">{{ report.notes|default:"—" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
+        <tr><td colspan="9" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
         {% endfor %}
       </tbody>
     </table>

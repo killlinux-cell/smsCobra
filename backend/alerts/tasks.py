@@ -86,10 +86,11 @@ def detect_missed_shift_task():
             )
 
     # Fin de service non pointée : prise enregistrée, pas de fin, après fin prévue + tolérance.
+    active_statuses = ShiftAssignment.active_on_duty_statuses()
     for assignment in (
         ShiftAssignment.objects.filter(
-            shift_date=today,
-            status__in=ShiftAssignment.active_on_duty_statuses(),
+            shift_date__lte=today,
+            status__in=active_statuses,
         )
         .select_related("site", "guard")
         .iterator()
@@ -162,7 +163,7 @@ def detect_missed_shift_task():
         refresh_attendance_report(assignment, now=now)
 
     for assignment in (
-        ShiftAssignment.objects.filter(shift_date=today)
+        ShiftAssignment.objects.filter(shift_date__lte=today)
         .select_related("site", "guard")
         .iterator()
     ):
