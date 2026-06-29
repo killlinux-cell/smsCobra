@@ -534,8 +534,8 @@ def site_detail_view(request, pk):
         (FixedPost.ShiftType.NIGHT, "night_staff_required"),
     ):
         active_count = sum(1 for fp in fixed_posts if fp.shift_type == shift_type)
-        required = getattr(site, required_attr, 1) or 1
-        if active_count < required:
+        required = site.staff_required_for_shift(shift_type)
+        if required > 0 and active_count < required:
             purge_orphaned_scheduled_for_slot(
                 site_id=site.pk,
                 shift_type=shift_type,
@@ -552,7 +552,9 @@ def site_detail_view(request, pk):
         (FixedPost.ShiftType.DAY, "day_staff_required"),
         (FixedPost.ShiftType.NIGHT, "night_staff_required"),
     ):
-        required = max(1, int(getattr(site, required_attr, 1) or 1))
+        required = site.staff_required_for_shift(shift_type)
+        if required <= 0:
+            continue
         filled = posts_by_type.get(shift_type, [])
         label = site_slot_label(site, shift_type)
         for fp in filled:

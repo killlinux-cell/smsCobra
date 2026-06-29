@@ -189,8 +189,8 @@ class SiteForm(forms.ModelForm):
             "timezone": forms.TextInput(attrs={"class": _CTRL}),
             "expected_start_time": forms.TimeInput(attrs={"class": _CTRL, "type": "time"}),
             "expected_end_time": forms.TimeInput(attrs={"class": _CTRL, "type": "time"}),
-            "day_staff_required": forms.NumberInput(attrs={"class": _CTRL, "min": "1"}),
-            "night_staff_required": forms.NumberInput(attrs={"class": _CTRL, "min": "1"}),
+            "day_staff_required": forms.NumberInput(attrs={"class": _CTRL, "min": "0"}),
+            "night_staff_required": forms.NumberInput(attrs={"class": _CTRL, "min": "0"}),
             "late_tolerance_minutes": forms.NumberInput(
                 attrs={"class": _CTRL, "id": "id_late_tolerance_minutes", "min": "0"}
             ),

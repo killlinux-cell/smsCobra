@@ -82,10 +82,11 @@ class Site(models.Model):
         return self.name
 
     def staff_required_for_shift(self, shift_type: str) -> int:
+        """Effectif cible (0 autorisé = pas de poste sur ce créneau)."""
         if shift_type == "day":
-            return max(1, int(self.day_staff_required or 1))
+            return max(0, int(self.day_staff_required))
         if shift_type == "night":
-            return max(1, int(self.night_staff_required or 1))
+            return max(0, int(self.night_staff_required))
         return 1
 
     def relief_start_in_passation_windows(self, start_time) -> bool:
