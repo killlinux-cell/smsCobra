@@ -864,6 +864,12 @@ class ShiftAssignmentForm(forms.ModelForm):
             if self.for_create and mode == self.MODE_PLANIFIER:
                 fp_shift = self._fixed_post_shift_type(shift_type)
                 required = site.staff_required_for_shift(shift_type)
+                if required <= 0:
+                    raise forms.ValidationError(
+                        f"Aucun poste {'jour' if shift_type == self.SHIFT_TYPE_DAY else 'nuit'} "
+                        f"n'est configuré sur ce site (effectif cible = 0). "
+                        "Modifiez la fiche site si vous souhaitez affecter un vigile sur ce créneau."
+                    )
                 active_posts = FixedPost.objects.filter(
                     site=site,
                     shift_type=fp_shift,

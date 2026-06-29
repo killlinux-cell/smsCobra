@@ -189,6 +189,11 @@ def validate_create_assignment(
     )
     fp_shift = fixed_post_shift_type(shift_type)
     required = site.staff_required_for_shift(shift_type)
+    if required <= 0:
+        raise ValidationError(
+            f"Aucun poste {'jour' if shift_type == SHIFT_DAY else 'nuit'} "
+            f"n'est configuré sur ce site (effectif cible = 0)."
+        )
     active_posts = FixedPost.objects.filter(
         site=site,
         shift_type=fp_shift,

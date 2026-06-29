@@ -6,6 +6,7 @@ from django.test import TestCase
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.slot_occupancy import (
     count_occupying_assignments,
+    has_blocking_assignment_for_new_titular,
     purge_orphaned_scheduled_for_slot,
 )
 from sites.models import Site
@@ -73,4 +74,31 @@ class SlotOccupancyTests(TestCase):
                 start_time=time(18, 0),
                 guard=self.guard_old,
             ).exists()
+        )
+
+    def test_second_night_titular_not_blocked_when_one_slot_taken(self):
+        self.site.night_staff_required = 2
+        self.site.save(update_fields=["night_staff_required"])
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.guard_old,
+            is_active=True,
+        )
+        ShiftAssignment.objects.create(
+            guard=self.guard_old,
+            site=self.site,
+            shift_date=self.day,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        self.assertFalse(
+            has_blocking_assignment_for_new_titular(
+                site_id=self.site.pk,
+                shift_date=self.day,
+                start_time=time(18, 0),
+                shift_type=FixedPost.ShiftType.NIGHT,
+                guard_id=self.guard_new.pk,
+            )
         )

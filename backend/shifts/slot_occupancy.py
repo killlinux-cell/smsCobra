@@ -66,19 +66,17 @@ def has_blocking_assignment_for_new_titular(
     shift_type: str,
     guard_id: int,
 ) -> bool:
-    """True si une affectation existante empêche d'affecter ce vigile sur ce créneau."""
-    active_ids = active_titular_guard_ids(site_id=site_id, shift_type=shift_type)
-    qs = ShiftAssignment.objects.filter(
-        site_id=site_id,
-        shift_date=shift_date,
-        start_time=start_time,
-    ).exclude(status=ShiftAssignment.Status.EXTRA)
-    for row in qs.only("guard_id", "status"):
-        if row.guard_id == guard_id:
-            return True
-        if assignment_occupies_titular_slot(row, active_ids):
-            return True
-    return False
+    """True si ce vigile a déjà une affectation sur ce créneau (site + date + heure)."""
+    return (
+        ShiftAssignment.objects.filter(
+            site_id=site_id,
+            shift_date=shift_date,
+            start_time=start_time,
+            guard_id=guard_id,
+        )
+        .exclude(status=ShiftAssignment.Status.EXTRA)
+        .exists()
+    )
 
 
 def purge_orphaned_scheduled_for_slot(
