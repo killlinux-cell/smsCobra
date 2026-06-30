@@ -93,13 +93,17 @@ _SITE_CHECKBOX_WIDGET = SiteCheckboxSelectMultiple()
 
 class AssignmentChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
-        slot = f"{obj.shift_date} | {obj.start_time.strftime('%H:%M')}-{obj.end_time.strftime('%H:%M')}"
-        if getattr(obj, "original_guard_id", None):
+        end = obj.end_time.strftime("%H:%M") if obj.end_time else "?"
+        start = obj.start_time.strftime("%H:%M") if obj.start_time else "?"
+        slot = f"{obj.shift_date} | {start}-{end}"
+        guard_name = obj.guard.display_name if obj.guard_id else "?"
+        if getattr(obj, "original_guard_id", None) and obj.original_guard_id:
+            orig = obj.original_guard.display_name if obj.original_guard else "?"
             return (
-                f"#{obj.id} | {obj.site.name} | {slot} | En poste : {obj.guard.display_name} "
-                f"(titulaire : {obj.original_guard.display_name})"
+                f"#{obj.id} | {obj.site.name} | {slot} | En poste : {guard_name} "
+                f"(titulaire : {orig})"
             )
-        return f"#{obj.id} | {obj.site.name} | {slot} | Titulaire : {obj.guard.display_name}"
+        return f"#{obj.id} | {obj.site.name} | {slot} | Titulaire : {guard_name}"
 
 
 class GuardChoiceField(forms.ModelChoiceField):

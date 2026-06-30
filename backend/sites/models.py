@@ -102,8 +102,13 @@ class Site(models.Model):
         st = _t(start_time)
         ms, me = _t(self.morning_passation_start), _t(self.morning_passation_end)
         es, ee = _t(self.evening_passation_start), _t(self.evening_passation_end)
-        if not all(hasattr(x, "hour") for x in (st, ms, me, es, ee)):
+        day_start = _t(self.expected_start_time)
+        night_start = _t(self.expected_end_time)
+        if not all(hasattr(x, "hour") for x in (st, ms, me, es, ee, day_start, night_start)):
             return False
         in_morning = ms <= st <= me
         in_evening = es <= st <= ee
-        return in_morning or in_evening
+        # Horaires propres au site (ex. 07:30 / 19:30) même si fenêtres génériques 06–07 / 18–19.
+        at_site_day_start = st == day_start
+        at_site_night_start = st == night_start
+        return in_morning or in_evening or at_site_day_start or at_site_night_start

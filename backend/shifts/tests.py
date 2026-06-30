@@ -84,6 +84,48 @@ class PassationWindowTests(TestCase):
                 relieved_by=incoming,
             )
 
+    def test_custom_site_hours_accepted_as_passation(self):
+        """Site 07:30–19:30 : relève à 07:30 ou 19:30 valide sans ajuster les fenêtres génériques."""
+        site = Site.objects.create(
+            name="Imperial",
+            address="A",
+            expected_start_time=time(7, 30),
+            expected_end_time=time(19, 30),
+            latitude=1,
+            longitude=1,
+        )
+        d = date.today()
+        incoming_morning = ShiftAssignment.objects.create(
+            guard=self.guard_b,
+            site=site,
+            shift_date=d + timedelta(days=1),
+            start_time=time(7, 30),
+            end_time=time(19, 30),
+        )
+        ShiftAssignment.objects.create(
+            guard=self.guard_a,
+            site=site,
+            shift_date=d,
+            start_time=time(19, 30),
+            end_time=time(7, 30),
+            relieved_by=incoming_morning,
+        )
+        incoming_evening = ShiftAssignment.objects.create(
+            guard=self.guard_b,
+            site=site,
+            shift_date=d,
+            start_time=time(19, 30),
+            end_time=time(7, 30),
+        )
+        ShiftAssignment.objects.create(
+            guard=self.guard_a,
+            site=site,
+            shift_date=d,
+            start_time=time(7, 30),
+            end_time=time(19, 30),
+            relieved_by=incoming_evening,
+        )
+
 
 class FixedPostMaterializationTests(TestCase):
     def setUp(self):

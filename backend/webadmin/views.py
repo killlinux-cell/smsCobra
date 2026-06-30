@@ -16,6 +16,7 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError
 from django.db.models import Count, Max, Q, Sum
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -281,6 +282,18 @@ def _is_admin_role(user) -> bool:
         "admin_societe",
         "superviseur",
     }
+
+
+def _add_validation_errors_to_form(form, exc: ValidationError) -> None:
+    """Ajoute une ValidationError modèle ; champs absents du formulaire → non_field_errors."""
+    if hasattr(exc, "message_dict"):
+        for field, errs in exc.message_dict.items():
+            if field == "__all__" or field not in form.fields:
+                form.add_error(None, errs)
+            else:
+                form.add_error(field, errs)
+    else:
+        form.add_error(None, exc.messages)
 
 
 def admin_web_required(view_func):
@@ -1168,6 +1181,10 @@ def affectations_list_view(request):
         form_initial["shift_type"] = shift_type_raw
     if form_initial:
         form = ShiftAssignmentForm(for_create=True, initial=form_initial)
+    if filter_site_pk:
+        form.fields["site"].queryset = Site.objects.filter(
+            Q(is_active=True) | Q(pk=filter_site_pk)
+        ).order_by("name")
     dispatch_form = DispatchForm(
         assignments_qs=ShiftAssignment.objects.select_related("site", "guard", "original_guard")
         .filter(shift_date=today)
@@ -1202,19 +1219,29 @@ def affectations_list_view(request):
             )
     if request.method == "POST":
         form = ShiftAssignmentForm(request.POST, for_create=True)
+        if filter_site_pk:
+            form.fields["site"].queryset = Site.objects.filter(
+                Q(is_active=True) | Q(pk=filter_site_pk)
+            ).order_by("name")
         if form.is_valid():
             try:
                 form.save()
                 ensure_assignments_for_dates(horizon_days)
             except ValidationError as exc:
-                if hasattr(exc, "message_dict"):
-                    for field, errs in exc.message_dict.items():
-                        form.add_error(
-                            None if field == "__all__" else field,
-                            errs,
-                        )
-                else:
-                    form.add_error(None, exc.messages)
+                _add_validation_errors_to_form(form, exc)
+            except IntegrityError:
+                _logger.exception("Affectation en doublon (site=%s)", filter_site_pk)
+                form.add_error(
+                    None,
+                    "Cette affectation existe déjà (même vigile, site, date et créneau). "
+                    "Vérifiez les titulaires déjà planifiés ou choisissez une autre date.",
+                )
+            except Exception:
+                _logger.exception("Erreur création affectation (site=%s)", filter_site_pk)
+                form.add_error(
+                    None,
+                    "Erreur technique lors de l'enregistrement. Contactez le support si le problème persiste.",
+                )
             else:
                 mode = form.cleaned_data.get("planning_mode", ShiftAssignmentForm.MODE_PLANIFIER)
                 if mode == ShiftAssignmentForm.MODE_EXTRA:
