@@ -133,6 +133,31 @@ void main() {
     },
   );
 
+  test(
+    "poste jour d'hier ouvert sans fin : le lendemain matin sélectionne le poste du jour",
+    () {
+      final yesterday = DateTime(2026, 7, 10);
+      final today = DateTime(2026, 7, 11);
+      final now = DateTime(2026, 7, 11, 7, 0);
+      final staleOpen = _a(
+        id: 1,
+        shiftDate: yesterday,
+        start: "06:30",
+        end: "18:30",
+        hasStart: true,
+        hasEnd: false,
+      );
+      final todayShift = _a(
+        id: 2,
+        shiftDate: today,
+        start: "06:30",
+        end: "18:30",
+      );
+      final picked = pickActiveAssignment([staleOpen, todayShift], now);
+      expect(picked?.id, 2);
+    },
+  );
+
   test("après la fin du jour, retourne le poste du jour civil", () {
     final today = DateTime(2026, 4, 4);
     final now = DateTime(2026, 4, 4, 20, 0);

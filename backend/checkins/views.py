@@ -225,7 +225,13 @@ class StartCheckinView(CheckinBaseView):
             resolve_passation_alerts_for_assignment,
             resolve_retard_alerts_for_assignment,
         )
+        from checkins.open_shift_cleanup import auto_close_stale_open_assignments_before_start
 
+        auto_close_stale_open_assignments_before_start(
+            assignment.guard_id,
+            assignment,
+            actor=assignment.guard,
+        )
         notify_pointage_start(assignment)
         resolve_retard_alerts_for_assignment(assignment)
         resolve_passation_alerts_for_assignment(assignment)

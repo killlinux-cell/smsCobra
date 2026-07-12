@@ -519,6 +519,83 @@ class _AgentHomePageState extends State<AgentHomePage>
                                       ),
                                     ],
                                   ),
+                                  if (assignments.length > 1) ...[
+                                    const SizedBox(height: 10),
+                                    DropdownButtonFormField<int>(
+                                      value: selected?.id,
+                                      decoration: InputDecoration(
+                                        labelText: "Changer de poste",
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        isDense: true,
+                                      ),
+                                      items: assignments
+                                          .map(
+                                            (a) => DropdownMenuItem<int>(
+                                              value: a.id,
+                                              child: Text(
+                                                "${_formatShiftDate(a.shiftDate)} · ${a.siteName} · ${a.startTime}–${a.endTime}",
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: checkinInProgress
+                                          ? null
+                                          : (id) {
+                                              if (id == null) return;
+                                              final picked = assignments
+                                                  .firstWhere((a) => a.id == id);
+                                              setState(() {
+                                                selected = picked;
+                                                serviceStarted =
+                                                    picked.hasStart &&
+                                                    !picked.hasEnd;
+                                                nextPresenceDue =
+                                                    parseIsoOrNull(
+                                                      picked.presenceDueAtIso,
+                                                    );
+                                                if (serviceStarted) {
+                                                  _startPresenceCountdown();
+                                                } else {
+                                                  presenceCountdownTimer
+                                                      ?.cancel();
+                                                }
+                                              });
+                                            },
+                                    ),
+                                  ],
+                                  if (assignments.any(
+                                    (a) =>
+                                        a.hasStart &&
+                                        !a.hasEnd &&
+                                        !assignmentIsActiveNow(
+                                          a,
+                                          DateTime.now(),
+                                        ),
+                                  )) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade50,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.amber.shade200,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        "Un ancien poste est encore ouvert sans fin. Vous pouvez pointer le poste du jour ; l'ancien sera clôturé automatiquement à la montée.",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.amber.shade900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 12),
                                   _PosteMissionHighlight(assignment: selected),
                                   const SizedBox(height: 16),

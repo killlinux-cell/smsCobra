@@ -31,19 +31,25 @@ bool assignmentIsActiveNow(Assignment a, DateTime now) {
   return false;
 }
 
-/// Poste à afficher : d'abord celui déjà commencé sans fin (clôture en cours),
-/// puis celui actif maintenant, sinon le premier du jour civil local, sinon secours.
+/// Poste à afficher : d'abord un poste ouvert encore dans sa fenêtre horaire,
+/// puis le créneau actif, sinon le poste du jour (nouvelle montée), sinon secours.
 Assignment? pickActiveAssignment(List<Assignment> list, DateTime now) {
   if (list.isEmpty) return null;
   for (final a in list) {
-    if (a.hasStart && !a.hasEnd) return a;
+    if (a.hasStart && !a.hasEnd && assignmentIsActiveNow(a, now)) return a;
   }
   for (final a in list) {
     if (assignmentIsActiveNow(a, now)) return a;
   }
   final today = DateTime(now.year, now.month, now.day);
   for (final a in list) {
+    if (_sameCalendarDate(a.shiftDate, today) && !a.hasStart) return a;
+  }
+  for (final a in list) {
     if (_sameCalendarDate(a.shiftDate, today)) return a;
+  }
+  for (final a in list) {
+    if (a.hasStart && !a.hasEnd) return a;
   }
   return list.first;
 }
@@ -58,7 +64,9 @@ Assignment? resolveSelectedAssignment(
 }) {
   final resolved = pickActiveAssignment(list, now);
   if (preserveAssignmentId == null) return resolved;
-  final hasOpenShift = list.any((a) => a.hasStart && !a.hasEnd);
+  final hasOpenShift = list.any(
+    (a) => a.hasStart && !a.hasEnd && assignmentIsActiveNow(a, now),
+  );
   if (hasOpenShift) return resolved;
   for (final a in list) {
     if (a.id == preserveAssignmentId) return a;
