@@ -117,6 +117,13 @@ class GuardChoiceField(forms.ModelChoiceField):
         return base
 
 
+def vigile_choice_queryset():
+    """Vigiles actifs triés par nom (prénom, nom), puis matricule."""
+    return User.objects.filter(role=User.Role.VIGILE).order_by(
+        "first_name", "last_name", "username"
+    )
+
+
 class SiteForm(forms.ModelForm):
     creation_date = forms.DateField(
         label="Date de création du site",
@@ -779,7 +786,7 @@ class ShiftAssignmentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if "shift_date" in self.fields:
             _apply_html5_date_field(self.fields["shift_date"])
-        self.fields["guard"].queryset = User.objects.filter(role=User.Role.VIGILE).order_by("username")
+        self.fields["guard"].queryset = vigile_choice_queryset()
         self.fields["guard"] = GuardChoiceField(
             queryset=self.fields["guard"].queryset,
             label=self.fields["guard"].label,
@@ -1083,7 +1090,7 @@ class DispatchForm(forms.Form):
         empty_label="Choisir une affectation…",
     )
     replacement_guard = GuardChoiceField(
-        queryset=User.objects.filter(role=User.Role.VIGILE).order_by("username"),
+        queryset=vigile_choice_queryset(),
         label="Vigile remplaçant",
         empty_label="Choisir un vigile…",
     )

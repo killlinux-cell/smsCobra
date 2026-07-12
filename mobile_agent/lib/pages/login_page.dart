@@ -58,6 +58,9 @@ class _LoginPageState extends State<LoginPage> {
     if (s.contains("Visage non reconnu")) {
       return "Visage non reconnu ou aucun service planifie aujourd'hui.";
     }
+    if (s.contains("Aucun vigile planifié sur ce site")) {
+      return "Aucun vigile planifie sur ce site avec photo d'enrolement.";
+    }
     if (s.contains("Aucun vigile planifié")) {
       return "Aucun vigile planifie avec photo d'enrolement disponible.";
     }
@@ -89,6 +92,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _faceLogin() async {
+    if (selectedSite == null) {
+      setState(() => error = "Sélectionnez d'abord un site.");
+      return;
+    }
     setState(() {
       loading = true;
       error = null;
@@ -106,7 +113,10 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     try {
-      final result = await widget.api.faceIdentifyLogin(imgPath);
+      final result = await widget.api.faceIdentifyLogin(
+        imgPath,
+        siteId: selectedSite!.id,
+      );
       final assignment = result.assignment;
       final label = assignment != null
           ? "${result.guardName} — ${assignment.siteName} (${assignment.startTime}–${assignment.endTime})"
@@ -208,7 +218,7 @@ class _LoginPageState extends State<LoginPage> {
                     Text(
                       controllerMode
                           ? "Sélectionnez un site puis prenez un selfie du contrôleur. Le passage est tracé sur le dashboard."
-                          : "Aucun mot de passe. Prenez un selfie: l'app identifie le vigile et verifie qu'il est planifie.",
+                          : "Sélectionnez votre site puis prenez un selfie : l'app identifie le vigile planifié sur ce site.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: cs.onSurfaceVariant,
@@ -269,45 +279,45 @@ class _LoginPageState extends State<LoginPage> {
                               });
                             },
                     ),
-                    if (controllerMode) ...[
-                      const SizedBox(height: 12),
-                      if (loadingSites)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      else if (entrySites.isEmpty)
-                        const Text(
-                          "Aucun site disponible.",
-                          style: TextStyle(color: Colors.red, fontSize: 12),
-                        )
-                      else
-                        DropdownButtonFormField<int>(
-                          initialValue: selectedSite?.id,
-                          decoration: const InputDecoration(
-                            labelText: "Site de passage",
-                            border: OutlineInputBorder(),
-                          ),
-                          items: entrySites
-                              .map(
-                                (s) => DropdownMenuItem<int>(
-                                  value: s.id,
-                                  child: Text(s.name),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: loading
-                              ? null
-                              : (id) {
-                                  if (id == null) return;
-                                  setState(() {
-                                    selectedSite = entrySites.firstWhere(
-                                      (e) => e.id == id,
-                                    );
-                                  });
-                                },
+                    const SizedBox(height: 12),
+                    if (loadingSites)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else if (entrySites.isEmpty)
+                      const Text(
+                        "Aucun site disponible.",
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      )
+                    else
+                      DropdownButtonFormField<int>(
+                        initialValue: selectedSite?.id,
+                        decoration: InputDecoration(
+                          labelText: controllerMode
+                              ? "Site de passage"
+                              : "Site de service",
+                          border: const OutlineInputBorder(),
                         ),
-                    ],
+                        items: entrySites
+                            .map(
+                              (s) => DropdownMenuItem<int>(
+                                value: s.id,
+                                child: Text(s.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: loading
+                            ? null
+                            : (id) {
+                                if (id == null) return;
+                                setState(() {
+                                  selectedSite = entrySites.firstWhere(
+                                    (e) => e.id == id,
+                                  );
+                                });
+                              },
+                      ),
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: loading

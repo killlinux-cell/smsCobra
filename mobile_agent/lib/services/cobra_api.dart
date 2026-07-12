@@ -266,7 +266,7 @@ class CobraApi {
         throw Exception("entry_sites_http_${resp.statusCode}");
       final decoded = jsonDecode(resp.body);
       if (decoded is! List) return const [];
-      return decoded
+      final sites = decoded
           .whereType<Map<String, dynamic>>()
           .map(
             (m) => EntrySite(
@@ -276,6 +276,10 @@ class CobraApi {
           )
           .where((s) => s.id > 0 && s.name.isNotEmpty)
           .toList();
+      sites.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+      return sites;
     } on SocketException {
       throw Exception("network_unreachable");
     } on TimeoutException {
