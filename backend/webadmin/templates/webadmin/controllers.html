@@ -99,11 +99,11 @@
               <td>
                 <div class="controller-activity">
                   {% if row.last_visit %}
-                  <div class="controller-last-visit" title="Dernier passage enregistré">
+                  <div class="controller-last-visit" title="Dernier passage le {{ presence_date|date:'d/m/Y' }}">
                     <span class="controller-last-visit__pin"><i class="bi bi-geo-alt-fill"></i></span>
                     <div class="min-w-0">
                       <div class="controller-last-visit__site">{{ row.last_visit.site.name }}</div>
-                      <div class="controller-last-visit__when">{{ row.last_visit.visited_at|date:"d/m/Y · H:i" }}</div>
+                      <div class="controller-last-visit__when">{{ row.last_visit.visited_at|date:"H:i" }}</div>
                     </div>
                   </div>
                   {% if row.recent_visits %}
@@ -118,13 +118,13 @@
                       {% if row.extra_recent_count %}+{{ row.extra_recent_count }}{% else %}<i class="bi bi-clock-history"></i>{% endif %}
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end controller-visit-menu">
-                      <li class="controller-visit-menu__title">Passages récents</li>
+                      <li class="controller-visit-menu__title">Passages le {{ presence_date|date:"d/m/Y" }}</li>
                       {% for v in row.recent_visits %}
                       <li>
                         <div class="controller-visit-timeline-item">
                           <span class="controller-visit-timeline-item__dot{% if not forloop.first %} controller-visit-timeline-item__dot--muted{% endif %}"></span>
                           <div>
-                            <div class="controller-visit-timeline-item__time">{{ v.visited_at|date:"d/m/Y · H:i" }}</div>
+                            <div class="controller-visit-timeline-item__time">{{ v.visited_at|date:"H:i" }}</div>
                             <div class="controller-visit-timeline-item__site">{{ v.site.name }}</div>
                           </div>
                         </div>
@@ -143,7 +143,7 @@
                   </div>
                   {% endif %}
                   {% else %}
-                  <span class="small text-muted"><i class="bi bi-dash-circle me-1"></i>Aucun passage</span>
+                  <span class="small text-muted"><i class="bi bi-dash-circle me-1"></i>Aucun passage le {{ presence_date|date:"d/m/Y" }}</span>
                   {% endif %}
                 </div>
               </td>

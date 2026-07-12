@@ -1,4 +1,5 @@
-from datetime import time
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -66,3 +67,21 @@ class ControllerVisitReportTests(TestCase):
         report = build_controller_visit_report()
         self.assertEqual(len(report["visit_history"]), 1)
         self.assertTrue(report["show_coverage"])
+
+    def test_late_evening_visit_stays_on_same_local_day(self):
+        """Un passage du 10/07 à 23h45 ne doit pas compter pour le 11/07."""
+        tz = ZoneInfo("Africa/Abidjan")
+        visit_time = datetime(2026, 7, 10, 23, 45, tzinfo=tz)
+        ControllerVisit.objects.create(
+            controller=self.controller,
+            site=self.site_a,
+            visited_at=visit_time,
+        )
+        rows_10 = build_controller_coverage_rows(date(2026, 7, 10))
+        rows_11 = build_controller_coverage_rows(date(2026, 7, 11))
+        self.assertEqual(len(rows_10), 1)
+        self.assertTrue(rows_10[0]["present_on_day"])
+        self.assertEqual(len(rows_10[0]["visits_on_day"]), 1)
+        self.assertEqual(len(rows_11), 1)
+        self.assertFalse(rows_11[0]["present_on_day"])
+        self.assertEqual(len(rows_11[0]["visits_on_day"]), 0)

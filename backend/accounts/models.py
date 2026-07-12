@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from sites.models import Site
 
@@ -132,7 +133,7 @@ class ControllerVisit(models.Model):
         on_delete=models.CASCADE,
         related_name="controller_visits",
     )
-    visited_at = models.DateTimeField(auto_now_add=True)
+    visited_at = models.DateTimeField(default=timezone.now)
     device_id = models.CharField(max_length=120, blank=True)
     face_score = models.FloatField(null=True, blank=True)
     face_provider = models.CharField(max_length=64, default="face_recognition")

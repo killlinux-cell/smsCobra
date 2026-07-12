@@ -342,6 +342,7 @@ class ControllerFaceCheckinView(APIView):
                 site=site,
                 device_id=device_id,
                 face_score=best_score if best_score >= 0 else None,
+                visited_at=now,
             )
 
         return Response(

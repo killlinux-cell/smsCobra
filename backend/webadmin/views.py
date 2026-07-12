@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
-from django.db.models import Count, Max, Q, Sum
+from django.db.models import Count, Q, Sum
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -27,7 +27,7 @@ from django.utils.text import slugify
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from alerts.models import LateAlert
 from checkins.models import Checkin
-from reports.activity_feed import build_activity_events
+from reports.controller_visits import visits_on_local_day
 from reports.models import AttendanceReport
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.site_shift_times import shift_type_for_start_time
@@ -436,8 +436,10 @@ def dashboard_view(request):
         .order_by("site__name", "guard__username")[:20]
     )
     controller_visits_today = (
-        ControllerVisit.objects.select_related("controller", "site")
-        .filter(visited_at__date=today)
+        visits_on_local_day(
+            ControllerVisit.objects.select_related("controller", "site"),
+            today,
+        )
         .order_by("-visited_at")[:25]
     )
     recent_checkins = collect_recent_checkins(limit=10)
@@ -846,21 +848,6 @@ def _parse_presence_date(raw: str):
         return today
 
 
-def _latest_controller_visits_by_id() -> dict[int, ControllerVisit]:
-    """Dernier passage par contrôleur (objet avec site), en une requête ciblée."""
-    pairs = list(
-        ControllerVisit.objects.values("controller_id").annotate(last_at=Max("visited_at"))
-    )
-    if not pairs:
-        return {}
-    q = Q()
-    for row in pairs:
-        q |= Q(controller_id=row["controller_id"], visited_at=row["last_at"])
-    return {
-        v.controller_id: v
-        for v in ControllerVisit.objects.filter(q).select_related("site")
-    }
-
 
 @admin_web_required
 def controllers_list_view(request):
@@ -888,19 +875,22 @@ def controllers_list_view(request):
             messages.success(request, "Contrôleur enregistré avec ses sites autorisés.")
             return redirect("webadmin-controllers")
 
+    day_visits_qs = visits_on_local_day(
+        ControllerVisit.objects.select_related("site"),
+        presence_date,
+    )
     visits_on_day = {
         row["controller_id"]: row["n"]
-        for row in ControllerVisit.objects.filter(visited_at__date=presence_date)
-        .values("controller_id")
-        .annotate(n=Count("id"))
+        for row in day_visits_qs.values("controller_id").annotate(n=Count("id"))
     }
-    last_visit_by_controller = _latest_controller_visits_by_id()
+
+    last_visit_on_day: dict[int, ControllerVisit] = {}
+    for visit in day_visits_qs.order_by("controller_id", "-visited_at"):
+        if visit.controller_id not in last_visit_on_day:
+            last_visit_on_day[visit.controller_id] = visit
 
     visits_by_controller = defaultdict(list)
-    for visit in (
-        ControllerVisit.objects.select_related("site")
-        .order_by("-visited_at")[:400]
-    ):
+    for visit in day_visits_qs.order_by("-visited_at")[:400]:
         bucket = visits_by_controller[visit.controller_id]
         if len(bucket) < 4:
             bucket.append(visit)
@@ -908,8 +898,7 @@ def controllers_list_view(request):
     controller_rows = []
     present_count = 0
     for c in controllers:
-        last_visit = last_visit_by_controller.get(c.id)
-        last_at = last_visit.visited_at if last_visit else None
+        last_visit = last_visit_on_day.get(c.id)
         visits_day = visits_on_day.get(c.id, 0)
         if visits_day > 0:
             present_count += 1
@@ -923,7 +912,7 @@ def controllers_list_view(request):
                 "extra_recent_count": extra_recent_count,
                 "visits_on_presence_date": visits_day,
                 "present_on_date": visits_day > 0,
-                "last_visit_at": last_at,
+                "last_visit_at": last_visit.visited_at if last_visit else None,
             }
         )
 
@@ -962,12 +951,10 @@ def controller_detail_view(request, pk):
 
     presence_date = _parse_presence_date(request.GET.get("jour", ""))
     visits_on_day = list(
-        ControllerVisit.objects.filter(
-            controller=controller,
-            visited_at__date=presence_date,
-        )
-        .select_related("site")
-        .order_by("-visited_at")
+        visits_on_local_day(
+            ControllerVisit.objects.filter(controller=controller).select_related("site"),
+            presence_date,
+        ).order_by("-visited_at")
     )
     visit_history = (
         ControllerVisit.objects.filter(controller=controller)

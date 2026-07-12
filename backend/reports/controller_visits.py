@@ -3,12 +3,36 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
-from django.db.models import Prefetch
+from django.conf import settings
+from django.db.models import Prefetch, QuerySet
 from django.utils import timezone
 
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
+
+
+def business_tz() -> ZoneInfo:
+    return ZoneInfo(settings.TIME_ZONE)
+
+
+def local_day_bounds(day: date) -> tuple[datetime, datetime]:
+    """Bornes [début, fin) du jour civil en fuseau métier (Africa/Abidjan)."""
+    tz = business_tz()
+    start = datetime.combine(day, time.min, tzinfo=tz)
+    return start, start + timedelta(days=1)
+
+
+def visits_on_local_day(qs: QuerySet, day: date) -> QuerySet:
+    """
+    Filtre fiable par jour civil local.
+
+    Préféré à ``visited_at__date`` qui peut décaler d'un jour selon le moteur SQL /
+    le fuseau de la connexion (ex. passages du soir comptés le lendemain).
+    """
+    start, end = local_day_bounds(day)
+    return qs.filter(visited_at__gte=start, visited_at__lt=end)
 
 
 def _controller_queryset(site_id: int | None = None, controller_id: int | None = None):
@@ -36,7 +60,7 @@ def build_controller_coverage_rows(
     controller_id: int | None = None,
 ) -> list[dict]:
     """Par contrôleur : sites autorisés, visités ce jour, manquants."""
-    visits_qs = ControllerVisit.objects.filter(visited_at__date=presence_date)
+    visits_qs = visits_on_local_day(ControllerVisit.objects.all(), presence_date)
     if site_id:
         visits_qs = visits_qs.filter(site_id=site_id)
     if controller_id:
@@ -82,7 +106,7 @@ def query_controller_visit_history(
         "-visited_at"
     )
     if filter_day is not None:
-        qs = qs.filter(visited_at__date=filter_day)
+        qs = visits_on_local_day(qs, filter_day)
     elif filter_month is not None:
         y, m = filter_month
         qs = qs.filter(visited_at__year=y, visited_at__month=m)
