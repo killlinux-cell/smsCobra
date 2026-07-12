@@ -10,7 +10,7 @@ from shifts.models import ShiftAssignment
 from shifts.services import ensure_assignments_for_dates
 
 from .models import LateAlert
-from .services import send_push_to_admins
+from .services import send_push_to_admins, resolve_stale_fin_sans_pointage_alerts
 
 
 @shared_task
@@ -86,6 +86,7 @@ def detect_missed_shift_task():
             )
 
     # Fin de service non pointée : prise enregistrée, pas de fin, après fin prévue + tolérance.
+    resolve_stale_fin_sans_pointage_alerts()
     active_statuses = ShiftAssignment.active_on_duty_statuses()
     for assignment in (
         ShiftAssignment.objects.filter(

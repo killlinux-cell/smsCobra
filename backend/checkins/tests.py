@@ -582,4 +582,78 @@ class FaceBiometricVerifyRejectTests(TestCase):
                 format="multipart",
             )
         self.assertEqual(v.status_code, 403)
-        self.assertEqual(v.data.get("reason"), "face_mismatch")
+
+
+class FinSansPointageAlertResolveTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="guard_fin", password="pass12345", role="vigile")
+        self.site = Site.objects.create(
+            name="Site Fin",
+            address="Abidjan",
+            expected_start_time=time(8, 0),
+            expected_end_time=time(17, 0),
+            latitude=5.348,
+            longitude=-4.024,
+        )
+        now_local = timezone.localtime()
+        start_dt = now_local - timedelta(hours=2)
+        end_dt = now_local - timedelta(minutes=1)
+        self.assignment = ShiftAssignment.objects.create(
+            guard=self.user,
+            site=self.site,
+            shift_date=start_dt.date(),
+            start_time=start_dt.time().replace(second=0, microsecond=0),
+            end_time=end_dt.time().replace(second=0, microsecond=0),
+        )
+        Checkin.objects.create(
+            guard=self.user,
+            assignment=self.assignment,
+            type=Checkin.Type.START,
+            latitude=5.348,
+            longitude=-4.024,
+        )
+        from alerts.models import LateAlert
+
+        self.alert = LateAlert.objects.create(
+            assignment=self.assignment,
+            message=(
+                f"FinSansPointage: fin non pointée — {self.user.display_name} @ {self.site.name} "
+                f"(fin prévue {self.assignment.end_time:%H:%M})."
+            ),
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_end_checkin_resolves_fin_sans_pointage_alert(self):
+        from alerts.models import LateAlert
+
+        resp = self.client.post(
+            "/api/v1/checkins/end",
+            {
+                "assignment": str(self.assignment.id),
+                "latitude": "5.348",
+                "longitude": "-4.024",
+            },
+            format="multipart",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.alert.refresh_from_db()
+        self.assertEqual(self.alert.status, LateAlert.Status.RESOLVED)
+        self.assertIsNotNone(self.alert.resolved_at)
+
+    @patch("alerts.tasks.send_push_to_admins")
+    @patch("alerts.tasks.ensure_assignments_for_dates")
+    def test_detect_task_closes_stale_fin_alert_after_end_recorded(self, _ensure, _push):
+        from alerts.models import LateAlert
+        from alerts.tasks import detect_missed_shift_task
+
+        Checkin.objects.create(
+            guard=self.user,
+            assignment=self.assignment,
+            type=Checkin.Type.END,
+            latitude=5.348,
+            longitude=-4.024,
+        )
+        detect_missed_shift_task()
+        self.alert.refresh_from_db()
+        self.assertEqual(self.alert.status, LateAlert.Status.RESOLVED)

@@ -125,3 +125,20 @@ def resolve_fin_sans_pointage_alerts(assignment: ShiftAssignment) -> int:
         status__in=[LateAlert.Status.OPEN, LateAlert.Status.ACKNOWLEDGED],
         message__startswith="FinSansPointage:",
     ).update(status=LateAlert.Status.RESOLVED, resolved_at=timezone.now())
+
+
+def resolve_stale_fin_sans_pointage_alerts() -> int:
+    """
+    Ferme les alertes « fin non pointée » dont la fin a été enregistrée
+    (filet de sécurité si la clôture au pointage n'a pas abouti).
+    """
+    from checkins.models import Checkin
+
+    ended_assignment_ids = Checkin.objects.filter(
+        type=Checkin.Type.END,
+    ).values_list("assignment_id", flat=True)
+    return LateAlert.objects.filter(
+        assignment_id__in=ended_assignment_ids,
+        status__in=[LateAlert.Status.OPEN, LateAlert.Status.ACKNOWLEDGED],
+        message__startswith="FinSansPointage:",
+    ).update(status=LateAlert.Status.RESOLVED, resolved_at=timezone.now())

@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
+import logging
 import secrets
 from django.conf import settings
 from rest_framework import status
@@ -18,6 +19,8 @@ from . import face_verify
 from .models import BiometricVerification, Checkin
 from .window import validate_end_window, validate_start_window
 from .serializers import CheckinSerializer
+
+logger = logging.getLogger(__name__)
 
 
 # Quelques mètres de tolérance : arrondis flottants + imprécision Haversine / WGS84.
@@ -237,8 +240,14 @@ class EndCheckinView(CheckinBaseView):
             resolve_fin_sans_pointage_alerts,
         )
 
-        notify_pointage_end(assignment)
         resolve_fin_sans_pointage_alerts(assignment)
+        try:
+            notify_pointage_end(assignment)
+        except Exception:
+            logger.exception(
+                "Notification fin de service non envoyée (affectation %s).",
+                assignment.pk,
+            )
         if assignment.status in ShiftAssignment.active_on_duty_statuses():
             ShiftAssignment.objects.filter(pk=assignment.pk).update(
                 status=ShiftAssignment.Status.COMPLETED
@@ -270,12 +279,16 @@ class EndCheckinView(CheckinBaseView):
                 )
 
         resp = super().post(request)
-        # Cloture les alertes de presence ouvertes une fois la fin de service enregistree.
-        LateAlert.objects.filter(
-            assignment=assignment,
-            status__in=[LateAlert.Status.OPEN, LateAlert.Status.ACKNOWLEDGED],
-            message__startswith="Presence:",
-        ).update(status=LateAlert.Status.RESOLVED, resolved_at=timezone.now())
+        if resp.status_code == status.HTTP_201_CREATED:
+            from alerts.services import resolve_fin_sans_pointage_alerts
+
+            resolve_fin_sans_pointage_alerts(assignment)
+            # Cloture les alertes de presence ouvertes une fois la fin de service enregistree.
+            LateAlert.objects.filter(
+                assignment=assignment,
+                status__in=[LateAlert.Status.OPEN, LateAlert.Status.ACKNOWLEDGED],
+                message__startswith="Presence:",
+            ).update(status=LateAlert.Status.RESOLVED, resolved_at=timezone.now())
         return resp
 
 
