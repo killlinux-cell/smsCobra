@@ -268,21 +268,14 @@ class EndCheckinView(CheckinBaseView):
         if not assignment:
             return Response({"detail": "Affectation invalide."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if assignment.relieved_by_id:
-            incoming = assignment.relieved_by
-            if not Checkin.objects.filter(
-                assignment=incoming,
-                type=Checkin.Type.START,
-            ).exists():
-                return Response(
-                    {
-                        "detail": (
-                            "Le vigile de releve doit d'abord pointer la prise de service sur son affectation "
-                            f"(n°{incoming.id}) avant que vous puissiez terminer votre journee."
-                        )
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        from checkins.handover import outgoing_end_blocked_by_incoming_relief
+
+        blocked, block_reason = outgoing_end_blocked_by_incoming_relief(assignment)
+        if blocked:
+            return Response(
+                {"detail": block_reason},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         resp = super().post(request)
         if resp.status_code == status.HTTP_201_CREATED:

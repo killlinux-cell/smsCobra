@@ -4,6 +4,7 @@ from typing import Optional
 from rest_framework import serializers
 
 from checkins.models import Checkin
+from checkins.handover import outgoing_end_blocked_by_incoming_relief
 from checkins.window import validate_end_window
 from .models import ShiftAssignment
 
@@ -41,10 +42,9 @@ class ShiftAssignmentSerializer(serializers.ModelSerializer):
             return False
 
         # Si le créneau a une relève (relais), on autorise la fin seulement après prise de service du relève.
-        if obj.relieved_by_id:
-            incoming = obj.relieved_by
-            if not Checkin.objects.filter(assignment=incoming, type=Checkin.Type.START).exists():
-                return False
+        blocked, _ = outgoing_end_blocked_by_incoming_relief(obj)
+        if blocked:
+            return False
 
         ok, _ = validate_end_window(obj)
         return ok
@@ -54,16 +54,9 @@ class ShiftAssignmentSerializer(serializers.ModelSerializer):
             return "La prise de service doit être effectuée avant la fin de service."
         if obj.checkins.filter(type=Checkin.Type.END).exists():
             return "La fin de service a déjà été effectuée."
-        if obj.relieved_by_id:
-            incoming = obj.relieved_by
-            incoming_has_start = Checkin.objects.filter(
-                assignment=incoming, type=Checkin.Type.START
-            ).exists()
-            if not incoming_has_start:
-                return (
-                    "Fin bloquée : le vigile de relève doit d'abord pointer la prise de service "
-                    f"(n°{incoming.id})."
-                )
+        blocked, reason = outgoing_end_blocked_by_incoming_relief(obj)
+        if blocked:
+            return reason
         ok, message = validate_end_window(obj)
         if not ok:
             return message
