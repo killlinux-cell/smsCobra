@@ -27,7 +27,8 @@ from django.utils.text import slugify
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from alerts.models import LateAlert
 from checkins.models import Checkin
-from reports.controller_visits import visits_on_local_day
+from reports.activity_feed import build_activity_events
+from reports.controller_visits import build_controller_visit_report, visits_on_local_day
 from reports.models import AttendanceReport
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.site_shift_times import shift_type_for_start_time
@@ -1523,8 +1524,6 @@ def rapports_view(request):
             and row["occurred_dt"].year == y
             and row["occurred_dt"].month == m
         ]
-
-    from reports.controller_visits import build_controller_visit_report
 
     controller_visits = build_controller_visit_report(
         filter_day=filter_day,
