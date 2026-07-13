@@ -12,6 +12,13 @@ from shifts.services import ensure_assignments_for_dates
 from .models import LateAlert
 from .services import send_push_to_admins, resolve_stale_fin_sans_pointage_alerts
 
+# Fenêtre glissante : ne pas rescanner tout l'historique à chaque passage Celery.
+_RECENT_ASSIGNMENT_LOOKBACK_DAYS = 7
+
+
+def _recent_assignment_dates(today: date) -> list[date]:
+    return [today - timedelta(days=offset) for offset in range(_RECENT_ASSIGNMENT_LOOKBACK_DAYS + 1)]
+
 
 @shared_task
 def detect_missed_shift_task():
@@ -88,9 +95,10 @@ def detect_missed_shift_task():
     # Fin de service non pointée : prise enregistrée, pas de fin, après fin prévue + tolérance.
     resolve_stale_fin_sans_pointage_alerts()
     active_statuses = ShiftAssignment.active_on_duty_statuses()
+    recent_dates = _recent_assignment_dates(today)
     for assignment in (
         ShiftAssignment.objects.filter(
-            shift_date__lte=today,
+            shift_date__in=recent_dates,
             status__in=active_statuses,
         )
         .select_related("site", "guard")
@@ -164,7 +172,9 @@ def detect_missed_shift_task():
         refresh_attendance_report(assignment, now=now)
 
     for assignment in (
-        ShiftAssignment.objects.filter(shift_date__lte=today)
+        ShiftAssignment.objects.filter(
+            shift_date__in=recent_dates,
+        )
         .select_related("site", "guard")
         .iterator()
     ):

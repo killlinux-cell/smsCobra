@@ -18,6 +18,10 @@ _logger = logging.getLogger(__name__)
 
 _ALERT_SCAN_CACHE_KEY = "cobra:webadmin_alert_scan"
 _ALERT_SCAN_INTERVAL_SEC = 180
+_SUMMARY_CACHE_KEY = "cobra:webadmin_alert_summary"
+_SUMMARY_CACHE_SEC = 45
+_STALE_OPEN_CACHE_KEY = "cobra:webadmin_stale_open_count"
+_STALE_OPEN_CACHE_SEC = 60
 
 _RETARD_PREFIX = "Retard prise de service"
 
@@ -33,17 +37,21 @@ def user_can_see_admin_alerts(user) -> bool:
 
 
 def refresh_late_alerts_if_due() -> None:
-    """Lance la détection retards / passation / présence (au plus toutes les 3 min)."""
+    """
+    Déclenche le scan d'alertes en arrière-plan (Celery), sans bloquer la requête HTTP.
+    Celery Beat exécute déjà la même tâche toutes les 5 minutes.
+    """
     if not cache.add(_ALERT_SCAN_CACHE_KEY, 1, timeout=_ALERT_SCAN_INTERVAL_SEC):
         return
     try:
         from alerts.tasks import detect_missed_shift_task
 
-        detect_missed_shift_task()
+        detect_missed_shift_task.delay()
     except Exception:
         cache.delete(_ALERT_SCAN_CACHE_KEY)
-        _logger.exception(
-            "Echec du scan d'alertes depuis le tableau de bord (la page reste accessible)."
+        _logger.debug(
+            "Scan alertes non dispatché (worker Celery indisponible) ; Celery Beat reprendra.",
+            exc_info=True,
         )
 
 
@@ -137,16 +145,35 @@ def get_live_critical_alert_summary(for_day: date | None = None) -> dict:
     """Compteurs alertes ouvertes + remplacements à prévoir (jour courant par défaut)."""
     refresh_late_alerts_if_due()
     filter_day = for_day or timezone.localdate()
+    cache_key = f"{_SUMMARY_CACHE_KEY}:{filter_day.isoformat()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     open_count = LateAlert.objects.filter(
         triggered_at__date=filter_day,
         status=LateAlert.Status.OPEN,
     ).count()
     replacement_needed = compute_replacement_needed(filter_day)
     replacement_count = len(replacement_needed)
-    return {
+    result = {
         "filter_day": filter_day,
         "alerts_open_count": open_count,
         "replacement_needed": replacement_needed,
         "replacement_needed_count": replacement_count,
         "critical_count": open_count + replacement_count,
     }
+    cache.set(cache_key, result, timeout=_SUMMARY_CACHE_SEC)
+    return result
+
+
+def get_stale_open_shifts_count() -> int:
+    """Compteur postes ouverts périmés (mis en cache pour alléger chaque page)."""
+    cached = cache.get(_STALE_OPEN_CACHE_KEY)
+    if cached is not None:
+        return int(cached)
+    from webadmin.open_shifts import count_stale_open_shifts
+
+    count = count_stale_open_shifts()
+    cache.set(_STALE_OPEN_CACHE_KEY, count, timeout=_STALE_OPEN_CACHE_SEC)
+    return count

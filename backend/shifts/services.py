@@ -43,6 +43,36 @@ def _purge_assignments_before_start(post: FixedPost) -> int:
     )
 
 
+_logger = logging.getLogger(__name__)
+
+_ENSURE_ASSIGNMENTS_CACHE_PREFIX = "cobra:ensure_assignments"
+_ENSURE_ASSIGNMENTS_INTERVAL_SEC = 300
+
+
+def ensure_assignments_for_horizon(
+    *,
+    from_day: date | None = None,
+    days_ahead: int = 31,
+    force: bool = False,
+) -> None:
+    """
+    Génère les affectations titulaires sur l'horizon demandé.
+    Sur les pages web (GET), limité à une exécution toutes les 5 min pour éviter
+    de ralentir chaque navigation.
+    """
+    from django.core.cache import cache
+    from django.utils import timezone
+
+    today = from_day or timezone.localdate()
+    horizon = [today + timedelta(days=i) for i in range(max(1, days_ahead))]
+    if force:
+        ensure_assignments_for_dates(horizon)
+        return
+    cache_key = f"{_ENSURE_ASSIGNMENTS_CACHE_PREFIX}:{today.isoformat()}:{days_ahead}"
+    if cache.add(cache_key, 1, timeout=_ENSURE_ASSIGNMENTS_INTERVAL_SEC):
+        ensure_assignments_for_dates(horizon)
+
+
 @transaction.atomic
 def ensure_assignments_for_dates(days: list[date]) -> None:
     if not days:

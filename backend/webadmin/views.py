@@ -31,7 +31,7 @@ from reports.controller_visits import visits_on_local_day
 from reports.models import AttendanceReport
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.site_shift_times import shift_type_for_start_time
-from shifts.services import ensure_assignments_for_dates
+from shifts.services import ensure_assignments_for_horizon
 from sites.models import Site
 
 from alerts.firebase_init import is_firebase_initialized
@@ -47,7 +47,7 @@ from .forms import (
     VigileUpdateForm,
 )
 from .templatetags.cobra_tags import ASSIGNMENT_STATUS_FR
-from .alert_state import get_live_critical_alert_summary, refresh_late_alerts_if_due
+from .alert_state import get_live_critical_alert_summary
 
 _logger = logging.getLogger(__name__)
 
@@ -421,10 +421,17 @@ def notifications_push_view(request):
 
 @admin_web_required
 def dashboard_view(request):
-    refresh_late_alerts_if_due()
     # Date « métier » = fuseau Django (Africa/Abidjan), pas la date OS du serveur.
     today = timezone.localdate()
     assignments = ShiftAssignment.objects.filter(shift_date=today)
+    kpi_counts = assignments.aggregate(
+        total=Count("id"),
+        extra=Count("id", filter=Q(status=ShiftAssignment.Status.EXTRA)),
+        scheduled=Count("id", filter=Q(status=ShiftAssignment.Status.SCHEDULED)),
+        replaced=Count("id", filter=Q(status=ShiftAssignment.Status.REPLACED)),
+        completed=Count("id", filter=Q(status=ShiftAssignment.Status.COMPLETED)),
+        missed=Count("id", filter=Q(status=ShiftAssignment.Status.MISSED)),
+    )
     open_alerts_today = LateAlert.objects.filter(
         status=LateAlert.Status.OPEN,
         triggered_at__date=today,
@@ -468,12 +475,12 @@ def dashboard_view(request):
         "dashboard_map_data": dashboard_map_data,
         "map_tile_url": map_tile_url,
         "kpi": {
-            "total": assignments.count(),
-            "extra": assignments.filter(status=ShiftAssignment.Status.EXTRA).count(),
-            "scheduled": assignments.filter(status=ShiftAssignment.Status.SCHEDULED).count(),
-            "replaced": assignments.filter(status=ShiftAssignment.Status.REPLACED).count(),
-            "completed": assignments.filter(status=ShiftAssignment.Status.COMPLETED).count(),
-            "missed": assignments.filter(status=ShiftAssignment.Status.MISSED).count(),
+            "total": kpi_counts["total"],
+            "extra": kpi_counts["extra"],
+            "scheduled": kpi_counts["scheduled"],
+            "replaced": kpi_counts["replaced"],
+            "completed": kpi_counts["completed"],
+            "missed": kpi_counts["missed"],
             "open_alerts": open_alerts_today.count(),
             "open_alerts_all": open_alerts_all_count,
             "sites": active_sites.count(),
@@ -1145,8 +1152,8 @@ def vigile_delete_view(request, pk):
 @admin_web_required
 def affectations_list_view(request):
     today = timezone.localdate()
-    horizon_days = [today + timedelta(days=i) for i in range(31)]
-    ensure_assignments_for_dates(horizon_days)
+    horizon_days = 31
+    ensure_assignments_for_horizon(days_ahead=horizon_days)
 
     site_raw = (request.GET.get("site") or "").strip()
     filter_site_pk = int(site_raw) if site_raw.isdigit() else None
@@ -1213,7 +1220,7 @@ def affectations_list_view(request):
         if form.is_valid():
             try:
                 form.save()
-                ensure_assignments_for_dates(horizon_days)
+                ensure_assignments_for_horizon(days_ahead=horizon_days, force=True)
             except ValidationError as exc:
                 _add_validation_errors_to_form(form, exc)
             except IntegrityError:
@@ -1298,8 +1305,8 @@ def affectations_list_view(request):
 @admin_web_required
 def affectations_titulaires_view(request):
     today = timezone.localdate()
-    horizon_days = [today + timedelta(days=i) for i in range(31)]
-    ensure_assignments_for_dates(horizon_days)
+    horizon_days = 31
+    ensure_assignments_for_horizon(days_ahead=horizon_days)
     sites = list(Site.objects.filter(is_active=True).order_by("name"))
     fixed_posts = (
         FixedPost.objects.select_related(
