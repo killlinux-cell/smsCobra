@@ -23,6 +23,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
+from django.views.decorators.http import require_POST
 
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from alerts.models import LateAlert
@@ -31,6 +32,7 @@ from reports.activity_feed import build_activity_events
 from reports.controller_visits import build_controller_visit_report, visits_on_local_day
 from reports.models import AttendanceReport
 from shifts.models import FixedPost, ShiftAssignment
+from shifts.extra_cancel import ExtraCancelError, cancel_extra_reinforcement
 from shifts.site_shift_times import shift_type_for_start_time
 from shifts.services import ensure_assignments_for_horizon
 from sites.models import Site
@@ -1387,6 +1389,12 @@ def affectation_edit_view(request, pk):
 def affectation_delete_view(request, pk):
     obj = get_object_or_404(ShiftAssignment, pk=pk)
     if request.method == "POST":
+        if Checkin.objects.filter(assignment=obj).exists():
+            messages.error(
+                request,
+                "Impossible de supprimer cette affectation : des pointages y sont déjà enregistrés.",
+            )
+            return redirect("webadmin-affectations")
         obj.delete()
         messages.success(request, "Affectation supprimée.")
         return redirect("webadmin-affectations")
@@ -1399,6 +1407,74 @@ def affectation_delete_view(request, pk):
             "assignment": obj,
         },
     )
+
+
+@admin_web_required
+@require_POST
+def cancel_extra_reinforcement_view(request):
+    """Retire les jours Extra restants (sans prise de service) pour un vigile sur un créneau."""
+    site_raw = (request.POST.get("site_id") or "").strip()
+    guard_raw = (request.POST.get("guard_id") or "").strip()
+    start_raw = (request.POST.get("start_time") or "").strip()
+    next_url = (request.POST.get("next") or "").strip()
+    redirect_to = reverse("webadmin-affectations")
+    if next_url.startswith("/dashboard/") and "://" not in next_url:
+        redirect_to = next_url
+
+    if not site_raw.isdigit() or not guard_raw.isdigit() or not start_raw:
+        messages.error(request, "Paramètres invalides pour retirer le renfort Extra.")
+        return redirect(redirect_to)
+
+    try:
+        start_time = datetime.strptime(start_raw, "%H:%M:%S").time()
+    except ValueError:
+        try:
+            start_time = datetime.strptime(start_raw, "%H:%M").time()
+        except ValueError:
+            messages.error(request, "Heure de créneau invalide.")
+            return redirect(redirect_to)
+
+    site_id = int(site_raw)
+    guard_id = int(guard_raw)
+    site = Site.objects.filter(pk=site_id).first()
+    guard = User.objects.filter(pk=guard_id, role=User.Role.VIGILE).first()
+    if not site or not guard:
+        messages.error(request, "Site ou vigile introuvable.")
+        return redirect(redirect_to)
+
+    from_date = None
+    from_raw = (request.POST.get("from_date") or "").strip()
+    if from_raw:
+        try:
+            from_date = datetime.strptime(from_raw, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Date de début invalide.")
+            return redirect(redirect_to)
+
+    try:
+        result = cancel_extra_reinforcement(
+            site_id=site_id,
+            guard_id=guard_id,
+            start_time=start_time,
+            from_date=from_date,
+        )
+    except ExtraCancelError as exc:
+        messages.error(request, str(exc))
+        return redirect(redirect_to)
+
+    msg = (
+        f"Renfort Extra retiré pour {guard.display_name} sur « {site.name} » : "
+        f"{result['deleted']} jour(s) supprimé(s)."
+    )
+    if result["skipped_in_service"]:
+        msg += (
+            f" {result['skipped_in_service']} jour(s) conservé(s) "
+            f"(prise de service déjà enregistrée)."
+        )
+    messages.success(request, msg)
+    if redirect_to == reverse("webadmin-affectations"):
+        return redirect(f"{redirect_to}?site={site_id}")
+    return redirect(redirect_to)
 
 
 @admin_web_required

@@ -102,6 +102,7 @@
                 <th>Du</th>
                 <th>Au</th>
                 <th>Jours</th>
+                <th class="text-end">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -112,6 +113,19 @@
                 <td>{{ row.first_date|date:"d/m/Y" }}</td>
                 <td>{{ row.last_date|date:"d/m/Y" }}</td>
                 <td><span class="badge text-bg-warning">{{ row.count }}</span></td>
+                <td class="text-end">
+                  <form method="post" action="{% url 'webadmin-cancel-extra' %}" class="d-inline"
+                    onsubmit="return confirm('Retirer les jours Extra restants pour {{ row.guard.display_name }} ?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="site_id" value="{{ site.pk }}">
+                    <input type="hidden" name="guard_id" value="{{ row.guard.pk }}">
+                    <input type="hidden" name="start_time" value="{{ row.start_time|time:'H:i:s' }}">
+                    <input type="hidden" name="next" value="{% url 'webadmin-site-detail' site.pk %}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-x-circle me-1"></i>Retirer
+                    </button>
+                  </form>
+                </td>
               </tr>
               {% endfor %}
             </tbody>

@@ -162,6 +162,7 @@
             <th>Créneau</th>
             <th>Période</th>
             <th>Jours restants</th>
+            <th class="text-end">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -172,6 +173,19 @@
             <td class="text-nowrap">{{ row.start_time|time:"H:i" }} – {{ row.end_time|time:"H:i" }}</td>
             <td class="text-nowrap">{{ row.first_date|date:"d/m" }} → {{ row.last_date|date:"d/m/Y" }}</td>
             <td><span class="badge text-bg-warning">{{ row.count }} jour{{ row.count|pluralize:"s" }}</span></td>
+            <td class="text-end">
+              <form method="post" action="{% url 'webadmin-cancel-extra' %}" class="d-inline"
+                onsubmit="return confirm('Retirer les jours Extra restants (sans pointage) pour {{ row.guard.display_name }} sur {{ row.site.name }} ?');">
+                {% csrf_token %}
+                <input type="hidden" name="site_id" value="{{ row.site.pk }}">
+                <input type="hidden" name="guard_id" value="{{ row.guard.pk }}">
+                <input type="hidden" name="start_time" value="{{ row.start_time|time:'H:i:s' }}">
+                <input type="hidden" name="next" value="{% url 'webadmin-affectations' %}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-x-circle me-1"></i>Retirer
+                </button>
+              </form>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
