@@ -51,9 +51,12 @@ class AckAlertView(APIView):
         alert = LateAlert.objects.filter(id=alert_id).first()
         if not alert:
             return Response({"detail": "Alerte introuvable."}, status=status.HTTP_404_NOT_FOUND)
-        from reports.alert_ack import acknowledge_late_alert
+        from reports.alert_ack import acknowledge_late_alert, normalize_presence_decision
 
-        acknowledge_late_alert(alert, request.user)
+        decision = normalize_presence_decision(
+            request.data.get("presence_decision") if hasattr(request, "data") else None
+        )
+        acknowledge_late_alert(alert, request.user, presence_decision=decision)
         return Response(LateAlertSerializer(alert).data)
 
 
@@ -73,9 +76,16 @@ class AckReplacementAssignmentView(APIView):
                 {"detail": "Affectation introuvable."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        from reports.alert_ack import acknowledge_assignment_late
+        from reports.alert_ack import acknowledge_assignment_late, normalize_presence_decision
 
-        alert = acknowledge_assignment_late(assignment, request.user)
+        decision = normalize_presence_decision(
+            request.data.get("presence_decision") if hasattr(request, "data") else None
+        )
+        alert = acknowledge_assignment_late(
+            assignment,
+            request.user,
+            presence_decision=decision,
+        )
         return Response(LateAlertSerializer(alert).data)
 
 

@@ -14,9 +14,29 @@ from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from accounts.permissions import IsAdminRole
 from alerts.models import LateAlert
 from reports.alert_ack import alert_kind_label
-from reports.models import TitularChangeLog
+from reports.models import AttendanceReport, TitularChangeLog
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
+
+
+def _ack_decision_suffix(assignment: ShiftAssignment) -> str:
+    report = (
+        AttendanceReport.objects.filter(
+            site_id=assignment.site_id,
+            guard_id=assignment.guard_id,
+            report_date=assignment.shift_date,
+        )
+        .only("notes")
+        .first()
+    )
+    if not report or not report.notes:
+        return ""
+    notes = report.notes.lower()
+    if "absence confirmée" in notes:
+        return " — absence confirmée"
+    if "présence justifiée" in notes:
+        return " — présence justifiée"
+    return ""
 
 
 def _fmt_time(t) -> str:
@@ -361,7 +381,8 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "title": "Alerte acquittée",
                     "body": (
                         f"{admin_name} a acquitté l'alerte n°{alert.id} ({kind_short}) "
-                        f"— {guard_name} sur « {site_name} »."
+                        f"— {guard_name} sur « {site_name} »"
+                        f"{_ack_decision_suffix(assignment)}."
                     ),
                     "site_id": assignment.site_id,
                     "site_name": site_name,

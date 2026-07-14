@@ -5,7 +5,13 @@ from django.test import TestCase
 from django.utils import timezone
 
 from alerts.models import LateAlert
-from reports.alert_ack import log_alert_acknowledged_to_report
+from reports.alert_ack import (
+    PRESENCE_DECISION_ABSENT,
+    PRESENCE_DECISION_PRESENT,
+    acknowledge_assignment_late,
+    acknowledge_late_alert,
+    log_alert_acknowledged_to_report,
+)
 from reports.models import AttendanceReport
 from shifts.models import ShiftAssignment
 from sites.models import Site
@@ -41,7 +47,7 @@ class AlertAckReportTests(TestCase):
             end_time=time(18, 0),
         )
 
-    def test_log_ack_appends_notes_on_attendance_report(self):
+    def test_log_ack_present_marks_justified_presence(self):
         alert = LateAlert.objects.create(
             assignment=self.assignment,
             message="Retard prise de service : test",
@@ -49,29 +55,65 @@ class AlertAckReportTests(TestCase):
             admin_recipient=self.admin,
             acknowledged_at=timezone.now(),
         )
-        log_alert_acknowledged_to_report(alert, self.admin)
+        log_alert_acknowledged_to_report(
+            alert,
+            self.admin,
+            presence_decision=PRESENCE_DECISION_PRESENT,
+        )
         report = AttendanceReport.objects.get(
             site=self.site,
             guard=self.guard,
             report_date=self.assignment.shift_date,
         )
-        self.assertIn("Paul", report.notes)
-        self.assertIn("acquittée", report.notes.lower())
+        self.assertIn("présence justifiée", report.notes.lower())
         self.assertFalse(report.was_absent)
         self.assertIsNotNone(report.started_at)
         self.assertIsNotNone(report.ended_at)
 
-    def test_ack_assignment_late_creates_alert_when_missing(self):
-        from reports.alert_ack import acknowledge_assignment_late
-
-        alert = acknowledge_assignment_late(self.assignment, self.admin)
-        self.assertEqual(alert.status, LateAlert.Status.ACKNOWLEDGED)
-        self.assertTrue(
-            LateAlert.objects.filter(
-                assignment=self.assignment,
-                status=LateAlert.Status.ACKNOWLEDGED,
-            ).exists()
+    def test_log_ack_absent_marks_confirmed_absence(self):
+        alert = LateAlert.objects.create(
+            assignment=self.assignment,
+            message="Absence: créneau terminé sans prise de service — test",
+            status=LateAlert.Status.ACKNOWLEDGED,
+            admin_recipient=self.admin,
+            acknowledged_at=timezone.now(),
         )
+        log_alert_acknowledged_to_report(
+            alert,
+            self.admin,
+            presence_decision=PRESENCE_DECISION_ABSENT,
+        )
+        report = AttendanceReport.objects.get(
+            site=self.site,
+            guard=self.guard,
+            report_date=self.assignment.shift_date,
+        )
+        self.assertIn("absence confirmée", report.notes.lower())
+        self.assertTrue(report.was_absent)
+        self.assertIsNone(report.started_at)
+        self.assignment.refresh_from_db()
+        self.assertEqual(self.assignment.status, ShiftAssignment.Status.MISSED)
+
+    def test_ack_assignment_late_absent(self):
+        alert = acknowledge_assignment_late(
+            self.assignment,
+            self.admin,
+            presence_decision=PRESENCE_DECISION_ABSENT,
+        )
+        self.assertEqual(alert.status, LateAlert.Status.ACKNOWLEDGED)
+        report = AttendanceReport.objects.get(
+            site=self.site,
+            guard=self.guard,
+            report_date=self.assignment.shift_date,
+        )
+        self.assertTrue(report.was_absent)
+
+    def test_acknowledge_late_alert_present_default(self):
+        alert = LateAlert.objects.create(
+            assignment=self.assignment,
+            message="Passation: relève absent",
+        )
+        acknowledge_late_alert(alert, self.admin)
         report = AttendanceReport.objects.get(
             site=self.site,
             guard=self.guard,

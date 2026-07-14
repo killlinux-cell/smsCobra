@@ -1,0 +1,16 @@
+<div class="d-inline-flex flex-wrap gap-1 align-items-center ms-1" role="group" aria-label="Décision de présence">
+  <form method="post" action="{% url 'webadmin-ack-replacement' assignment_id %}" class="d-inline"
+    onsubmit="return confirm('Marquer {{ guard_name|escapejs }} comme PRÉSENT (justifié) ?');">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ ack_next }}">
+    <input type="hidden" name="presence_decision" value="present">
+    <button type="submit" class="btn btn-sm btn-success">Présent</button>
+  </form>
+  <form method="post" action="{% url 'webadmin-ack-replacement' assignment_id %}" class="d-inline"
+    onsubmit="return confirm('Confirmer l\'ABSENCE de {{ guard_name|escapejs }} ?');">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ ack_next }}">
+    <input type="hidden" name="presence_decision" value="absent">
+    <button type="submit" class="btn btn-sm btn-outline-danger">Absent</button>
+  </form>
+</div>

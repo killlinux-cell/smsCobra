@@ -211,11 +211,9 @@
               <td>{{ alert.assignment.site.name }}</td>
               <td class="small text-muted">{{ alert.message }}</td>
               <td>
-                <form method="post" action="{% url 'webadmin-ack-alert' alert.id %}" class="d-inline">
-                  {% csrf_token %}
-                  <input type="hidden" name="next" value="{% url 'webadmin-dashboard' %}">
-                  <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
-                </form>
+                {% with ack_next=dashboard_ack_next %}
+                {% include "webadmin/_alert_ack_buttons.html" with alert=alert ack_next=ack_next only %}
+                {% endwith %}
               </td>
             </tr>
             {% empty %}

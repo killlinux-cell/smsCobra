@@ -40,6 +40,9 @@
       Pour <strong>dépêcher un remplaçant</strong>, utilisez la section dédiée sous <a href="{% url 'webadmin-affectations' %}">Affectations</a>
       (titulaire d’origine conservé après dépêche).
     </p>
+    <p class="small text-muted mb-0 mt-2">
+      À l’acquittement, choisissez <strong>Présent</strong> (justifié, badge vert) ou <strong>Absent</strong> (confirmé, badge rouge).
+    </p>
   </div>
 </div>
 
@@ -103,11 +106,7 @@
               </td>
               <td class="text-nowrap">
                 <a href="{% url 'webadmin-affectations' %}?dispatch_assignment={{ row.assignment.id }}&amp;next={% url 'webadmin-alertes' %}#depecher" class="btn btn-sm btn-outline-warning">Dépêcher</a>
-                <form method="post" action="{% url 'webadmin-ack-replacement' row.assignment.id %}" class="d-inline ms-1">
-                  {% csrf_token %}
-                  <input type="hidden" name="next" value="{% url 'webadmin-alertes' %}">
-                  <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
-                </form>
+                {% include "webadmin/_replacement_ack_buttons.html" with assignment_id=row.assignment.id guard_name=row.assignment.guard.display_name ack_next=alertes_ack_next only %}
               </td>
             </tr>
             {% empty %}
@@ -151,11 +150,9 @@
           <td class="small">{{ alert.message }}</td>
           <td class="text-nowrap">
             {% if alert.status == 'open' %}
-            <form method="post" action="{% url 'webadmin-ack-alert' alert.id %}" class="d-inline">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'webadmin-alertes' %}?date={{ filter_day|date:'Y-m-d' }}">
-              <button type="submit" class="btn btn-sm btn-success">Acquitter</button>
-            </form>
+            {% with ack_next=alertes_page_next %}
+            {% include "webadmin/_alert_ack_buttons.html" with alert=alert ack_next=ack_next only %}
+            {% endwith %}
             {% elif alert.admin_recipient %}
             <span class="small text-success" title="{{ alert.acknowledged_at|date:'d/m/Y H:i' }}">
               <i class="bi bi-check2-circle"></i>

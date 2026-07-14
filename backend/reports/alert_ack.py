@@ -18,6 +18,22 @@ _GUARD_ALERT_PREFIXES = (
 
 _RETARD_PREFIX = "Retard prise de service"
 
+PRESENCE_DECISION_PRESENT = "present"
+PRESENCE_DECISION_ABSENT = "absent"
+
+
+def normalize_presence_decision(raw: str | None) -> str:
+    value = (raw or "").strip().lower()
+    if value in ("absent", "absence", "confirm_absent", "confirmed_absent"):
+        return PRESENCE_DECISION_ABSENT
+    return PRESENCE_DECISION_PRESENT
+
+
+def presence_decision_label(decision: str) -> str:
+    if decision == PRESENCE_DECISION_ABSENT:
+        return "absence confirmée"
+    return "présence justifiée"
+
 
 def alert_kind_label(message: str) -> str:
     m = (message or "").strip()
@@ -41,7 +57,7 @@ def _is_guard_presence_alert(message: str) -> bool:
 
 def mark_justified_presence_from_alert(alert) -> None:
     """
-    Acquittement = absence justifiée : compte comme présent au calendrier
+    Présence justifiée : compte comme présent au calendrier
     (was_absent=False + horaires du créneau si aucun pointage réel).
     """
     assignment = alert.assignment
@@ -78,22 +94,75 @@ def mark_justified_presence_from_alert(alert) -> None:
             )
 
 
-def log_alert_acknowledged_to_report(alert, admin_user) -> None:
+def mark_confirmed_absence_from_alert(alert) -> None:
+    """Absence confirmée par le superviseur à l'acquittement."""
+    assignment = alert.assignment
+    if not assignment or not _is_guard_presence_alert(alert.message):
+        return
+
+    has_start = Checkin.objects.filter(
+        assignment=assignment,
+        type=Checkin.Type.START,
+    ).exists()
+
+    report, _ = AttendanceReport.objects.get_or_create(
+        site_id=assignment.site_id,
+        guard_id=assignment.guard_id,
+        report_date=assignment.shift_date,
+    )
+    update_fields: list[str] = []
+
+    if not has_start:
+        if report.started_at is not None:
+            report.started_at = None
+            update_fields.append("started_at")
+        if report.ended_at is not None:
+            report.ended_at = None
+            update_fields.append("ended_at")
+        ShiftAssignment.objects.filter(pk=assignment.pk).update(
+            status=ShiftAssignment.Status.MISSED
+        )
+
+    if not report.was_absent:
+        report.was_absent = True
+        update_fields.append("was_absent")
+
+    if update_fields:
+        report.save(update_fields=update_fields)
+
+
+def apply_presence_decision_from_alert(alert, *, presence_decision: str) -> None:
+    decision = normalize_presence_decision(presence_decision)
+    if decision == PRESENCE_DECISION_ABSENT:
+        mark_confirmed_absence_from_alert(alert)
+    else:
+        mark_justified_presence_from_alert(alert)
+
+
+def log_alert_acknowledged_to_report(
+    alert,
+    admin_user,
+    *,
+    presence_decision: str = PRESENCE_DECISION_PRESENT,
+) -> None:
     """Ajoute une ligne dans AttendanceReport.notes (synthèse + export CSV)."""
     assignment = alert.assignment
     if not assignment or not admin_user or not admin_user.pk:
         return
 
-    mark_justified_presence_from_alert(alert)
+    decision = normalize_presence_decision(presence_decision)
+    apply_presence_decision_from_alert(alert, presence_decision=decision)
 
     admin_name = (admin_user.get_full_name() or "").strip() or admin_user.username
     ts = alert.acknowledged_at or timezone.now()
     ts_str = timezone.localtime(ts).strftime("%d/%m/%Y %H:%M")
     kind = alert_kind_label(alert.message)
     msg = (alert.message or "").strip()[:240]
+    decision_txt = presence_decision_label(decision)
 
     line = (
-        f"[{ts_str}] Alerte n°{alert.id} acquittée par {admin_name} ({kind})"
+        f"[{ts_str}] Alerte n°{alert.id} acquittée par {admin_name} ({kind}) "
+        f"— {decision_txt}"
         f"{f' : {msg}' if msg else ''}"
     )
 
@@ -109,7 +178,12 @@ def log_alert_acknowledged_to_report(alert, admin_user) -> None:
     report.save(update_fields=["notes"])
 
 
-def acknowledge_late_alert(alert, admin_user):
+def acknowledge_late_alert(
+    alert,
+    admin_user,
+    *,
+    presence_decision: str = PRESENCE_DECISION_PRESENT,
+):
     """Passe une alerte en acquittée et trace dans les rapports."""
     from alerts.models import LateAlert
 
@@ -117,11 +191,20 @@ def acknowledge_late_alert(alert, admin_user):
     alert.acknowledged_at = timezone.now()
     alert.admin_recipient = admin_user
     alert.save(update_fields=["status", "acknowledged_at", "admin_recipient"])
-    log_alert_acknowledged_to_report(alert, admin_user)
+    log_alert_acknowledged_to_report(
+        alert,
+        admin_user,
+        presence_decision=presence_decision,
+    )
     return alert
 
 
-def acknowledge_assignment_late(assignment: ShiftAssignment, admin_user):
+def acknowledge_assignment_late(
+    assignment: ShiftAssignment,
+    admin_user,
+    *,
+    presence_decision: str = PRESENCE_DECISION_PRESENT,
+):
     """
     Acquitte le retard d'une affectation depuis « Remplacement à prévoir » :
     alerte ouverte existante, sinon création à la volée (scan Celery pas encore passé).
@@ -147,7 +230,10 @@ def acknowledge_assignment_late(assignment: ShiftAssignment, admin_user):
             .first()
         )
         if alert:
-            mark_justified_presence_from_alert(alert)
+            apply_presence_decision_from_alert(
+                alert,
+                presence_decision=presence_decision,
+            )
             return alert
 
     if alert is None:
@@ -156,4 +242,8 @@ def acknowledge_assignment_late(assignment: ShiftAssignment, admin_user):
         msg = f"{_RETARD_PREFIX} : {guard.username} sur {site.name}"
         alert = LateAlert.objects.create(assignment=assignment, message=msg[:300])
 
-    return acknowledge_late_alert(alert, admin_user)
+    return acknowledge_late_alert(
+        alert,
+        admin_user,
+        presence_decision=presence_decision,
+    )

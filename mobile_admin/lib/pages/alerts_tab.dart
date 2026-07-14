@@ -97,13 +97,58 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
     }
   }
 
+  Future<String?> _pickPresenceDecision() async {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Décision de présence',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Comment enregistrer ce vigile dans les rapports ?',
+          style: GoogleFonts.outfit(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'absent'),
+            child: Text(
+              'Absent',
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                color: CobraAdminColors.danger,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'present'),
+            style: FilledButton.styleFrom(backgroundColor: CobraAdminColors.success),
+            child: const Text('Présent (justifié)'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _ack(Map<String, dynamic> row) async {
+    final decision = await _pickPresenceDecision();
+    if (decision == null || !mounted) return;
     final id = (row['id'] as num).toInt();
     try {
-      await widget.api.ackAlert(id);
+      await widget.api.ackAlert(id, presenceDecision: decision);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Alerte n°$id acquittée.')),
+          SnackBar(
+            content: Text(
+              decision == 'absent'
+                  ? 'Alerte n°$id — absence confirmée.'
+                  : 'Alerte n°$id — présence justifiée.',
+            ),
+          ),
         );
         await _load();
       }
@@ -119,11 +164,22 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
   }
 
   Future<void> _ackReplacement(int assignmentId) async {
+    final decision = await _pickPresenceDecision();
+    if (decision == null || !mounted) return;
     try {
-      await widget.api.ackReplacementAssignment(assignmentId);
+      await widget.api.ackReplacementAssignment(
+        assignmentId,
+        presenceDecision: decision,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Retard acquitté (enregistré dans les rapports).')),
+          SnackBar(
+            content: Text(
+              decision == 'absent'
+                  ? 'Retard — absence confirmée.'
+                  : 'Retard — présence justifiée.',
+            ),
+          ),
         );
         await _load();
       }
@@ -202,7 +258,7 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
                     child: OutlinedButton.icon(
                       onPressed: () => _ackReplacement(assignmentId),
                       icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
-                      label: const Text('Acquitter'),
+                      label: const Text('Décider'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: CobraAdminColors.success,
                         side: BorderSide(color: CobraAdminColors.success.withAlpha(180)),
@@ -292,7 +348,7 @@ class _AlertsTabState extends State<AlertsTab> with TickerProviderStateMixin {
                   onPressed: () => _ack(m),
                   icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
                   label: Text(
-                    'Acquitter (vu / pris en charge)',
+                    'Décider présence / absence',
                     style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
                   ),
                   style: OutlinedButton.styleFrom(

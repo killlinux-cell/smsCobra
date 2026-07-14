@@ -226,18 +226,27 @@ class AdminApi {
     return [];
   }
 
-  Future<void> ackAlert(int alertId) async {
+  Future<void> ackAlert(int alertId, {String presenceDecision = 'present'}) async {
     final uri = Uri.parse("$apiBase/api/v1/admin/alerts/$alertId/ack");
-    final resp = await _authPost(uri);
+    final resp = await _authPost(
+      uri,
+      body: jsonEncode({"presence_decision": presenceDecision}),
+    );
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
     if (resp.statusCode != 200) throw Exception("ack_failed");
   }
 
-  Future<void> ackReplacementAssignment(int assignmentId) async {
+  Future<void> ackReplacementAssignment(
+    int assignmentId, {
+    String presenceDecision = 'present',
+  }) async {
     final uri = Uri.parse(
       "$apiBase/api/v1/admin/alerts/replacement-needed/$assignmentId/ack",
     );
-    final resp = await _authPost(uri);
+    final resp = await _authPost(
+      uri,
+      body: jsonEncode({"presence_decision": presenceDecision}),
+    );
     if (resp.statusCode == 401) throw AdminSessionExpiredException();
     if (resp.statusCode != 200) throw Exception("ack_replacement_failed");
   }

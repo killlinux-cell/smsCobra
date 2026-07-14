@@ -500,6 +500,7 @@ def dashboard_view(request):
         "today_assignments": assignments.select_related("site", "guard").order_by("start_time")[:12],
         "recent_checkins": recent_checkins,
         "controller_visits_today": controller_visits_today,
+        "dashboard_ack_next": reverse("webadmin-dashboard"),
     }
     return render(request, "webadmin/dashboard.html", context)
 
@@ -1531,6 +1532,8 @@ def alertes_view(request):
         )
         .order_by("site__name", "start_time")
     )
+    alertes_page_qs = urlencode({"date": filter_day.isoformat(), "status": status_filter})
+    alertes_page_next = f"{reverse('webadmin-alertes')}?{alertes_page_qs}"
 
     return render(
         request,
@@ -1548,6 +1551,8 @@ def alertes_view(request):
             ).count(),
             "replacement_done": replacement_done,
             "replacement_needed": summary["replacement_needed"],
+            "alertes_ack_next": reverse("webadmin-alertes"),
+            "alertes_page_next": alertes_page_next,
         },
     )
 
@@ -1916,13 +1921,14 @@ def ack_alert_view(request, alert_id: int):
     if request.method != "POST":
         return redirect("webadmin-alertes")
     alert = get_object_or_404(LateAlert, id=alert_id)
-    from reports.alert_ack import acknowledge_late_alert
+    from reports.alert_ack import acknowledge_late_alert, normalize_presence_decision, presence_decision_label
 
-    acknowledge_late_alert(alert, request.user)
+    decision = normalize_presence_decision(request.POST.get("presence_decision"))
+    acknowledge_late_alert(alert, request.user, presence_decision=decision)
     messages.success(
         request,
-        f"Alerte n°{alert.id} acquittée par {request.user.get_full_name() or request.user.username} "
-        f"(enregistré dans les rapports).",
+        f"Alerte n°{alert.id} acquittée ({presence_decision_label(decision)}) "
+        f"par {request.user.get_full_name() or request.user.username}.",
     )
     return redirect(request.POST.get("next") or "webadmin-alertes")
 
@@ -1936,13 +1942,22 @@ def ack_replacement_assignment_view(request, pk: int):
         ShiftAssignment.objects.select_related("site", "guard"),
         pk=pk,
     )
-    from reports.alert_ack import acknowledge_assignment_late
+    from reports.alert_ack import (
+        acknowledge_assignment_late,
+        normalize_presence_decision,
+        presence_decision_label,
+    )
 
-    alert = acknowledge_assignment_late(assignment, request.user)
+    decision = normalize_presence_decision(request.POST.get("presence_decision"))
+    alert = acknowledge_assignment_late(
+        assignment,
+        request.user,
+        presence_decision=decision,
+    )
     messages.success(
         request,
         f"Retard acquitté pour {assignment.guard.display_name} @ {assignment.site.name} "
-        f"(alerte n°{alert.id}, enregistré dans les rapports).",
+        f"({presence_decision_label(decision)}, alerte n°{alert.id}).",
     )
     return redirect(request.POST.get("next") or "webadmin-alertes")
 
