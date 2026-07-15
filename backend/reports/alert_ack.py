@@ -196,6 +196,10 @@ def acknowledge_late_alert(
         admin_user,
         presence_decision=presence_decision,
     )
+    from webadmin.alert_state import invalidate_alert_summary_cache
+
+    if alert.assignment_id:
+        invalidate_alert_summary_cache(alert.assignment.shift_date)
     return alert
 
 

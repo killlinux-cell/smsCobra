@@ -24,6 +24,12 @@ _STALE_OPEN_CACHE_KEY = "cobra:webadmin_stale_open_count"
 _STALE_OPEN_CACHE_SEC = 60
 
 _RETARD_PREFIX = "Retard prise de service"
+_GUARD_ACK_PREFIXES = (
+    _RETARD_PREFIX,
+    "Passation:",
+    "Absence:",
+    "FinSansPointage:",
+)
 
 _ADMIN_ROLES = {
     User.Role.SUPER_ADMIN,
@@ -53,6 +59,22 @@ def refresh_late_alerts_if_due() -> None:
             "Scan alertes non dispatché (worker Celery indisponible) ; Celery Beat reprendra.",
             exc_info=True,
         )
+
+
+def invalidate_alert_summary_cache(for_day: date | None = None) -> None:
+    """Après acquittement : éviter d'afficher encore l'alerte pendant 45 s (cache)."""
+    day = for_day or timezone.localdate()
+    for offset in (0, 1):
+        cache.delete(f"{_SUMMARY_CACHE_KEY}:{(day - timedelta(days=offset)).isoformat()}")
+
+
+def _guard_acknowledgment_filter():
+    from django.db.models import Q
+
+    q = Q()
+    for prefix in _GUARD_ACK_PREFIXES:
+        q |= Q(message__startswith=prefix)
+    return q
 
 
 def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
@@ -109,21 +131,24 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
         ).order_by("-triggered_at"):
             if alert.assignment_id not in open_alert_by_assignment:
                 open_alert_by_assignment[alert.assignment_id] = alert.id
-        acked_retard_ids = set(
+        ack_filter = _guard_acknowledgment_filter()
+        acked_ids = set(
             LateAlert.objects.filter(
                 assignment_id__in=assignment_ids,
                 status=LateAlert.Status.ACKNOWLEDGED,
-                message__startswith=_RETARD_PREFIX,
-            ).values_list("assignment_id", flat=True)
+            )
+            .filter(ack_filter)
+            .values_list("assignment_id", flat=True)
         )
-        open_retard_ids = set(
+        open_ids = set(
             LateAlert.objects.filter(
                 assignment_id__in=assignment_ids,
                 status=LateAlert.Status.OPEN,
-                message__startswith=_RETARD_PREFIX,
-            ).values_list("assignment_id", flat=True)
+            )
+            .filter(ack_filter)
+            .values_list("assignment_id", flat=True)
         )
-        hidden_ids = acked_retard_ids - open_retard_ids
+        hidden_ids = acked_ids - open_ids
         replacement_needed = [
             row
             for row in replacement_needed
