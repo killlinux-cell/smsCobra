@@ -13,6 +13,7 @@ urlpatterns = [
     path("login/", views.login_view, name="webadmin-login"),
     path("logout/", views.logout_view, name="webadmin-logout"),
     path("", views.dashboard_view, name="webadmin-dashboard"),
+    path("actualiser/", views.system_refresh_view, name="webadmin-system-refresh"),
     path("sites/", views.sites_list_view, name="webadmin-sites"),
     path("sites/<int:pk>/", views.site_detail_view, name="webadmin-site-detail"),
     path("sites/<int:pk>/modifier/", views.site_edit_view, name="webadmin-site-edit"),

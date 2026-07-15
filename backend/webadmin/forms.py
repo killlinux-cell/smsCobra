@@ -881,17 +881,11 @@ class ShiftAssignmentForm(forms.ModelForm):
                         f"n'est configuré sur ce site (effectif cible = 0). "
                         "Modifiez la fiche site si vous souhaitez affecter un vigile sur ce créneau."
                     )
-                active_posts = FixedPost.objects.filter(
-                    site=site,
+                purge_orphaned_scheduled_for_slot(
+                    site_id=site.pk,
                     shift_type=fp_shift,
-                    is_active=True,
-                ).count()
-                if active_posts < required:
-                    purge_orphaned_scheduled_for_slot(
-                        site_id=site.pk,
-                        shift_type=fp_shift,
-                        from_date=shift_date,
-                    )
+                    from_date=shift_date,
+                )
                 occupying = count_occupying_assignments(
                     site_id=site.pk,
                     shift_date=shift_date,

@@ -66,17 +66,40 @@ def has_blocking_assignment_for_new_titular(
     shift_type: str,
     guard_id: int,
 ) -> bool:
-    """True si ce vigile a déjà une affectation sur ce créneau (site + date + heure)."""
-    return (
-        ShiftAssignment.objects.filter(
-            site_id=site_id,
-            shift_date=shift_date,
-            start_time=start_time,
-            guard_id=guard_id,
-        )
-        .exclude(status=ShiftAssignment.Status.EXTRA)
-        .exists()
-    )
+    """
+    True si ce vigile a déjà une affectation bloquante sur ce créneau.
+    Les planifications orphelines (vigile retiré du poste fixe) ne bloquent pas.
+    """
+    active_ids = active_titular_guard_ids(site_id=site_id, shift_type=shift_type)
+    for row in ShiftAssignment.objects.filter(
+        site_id=site_id,
+        shift_date=shift_date,
+        start_time=start_time,
+        guard_id=guard_id,
+    ).exclude(status=ShiftAssignment.Status.EXTRA).only("guard_id", "status"):
+        if (
+            row.status == ShiftAssignment.Status.SCHEDULED
+            and row.guard_id not in active_ids
+        ):
+            continue
+        return True
+    return False
+
+
+def purge_all_sites_orphaned_scheduled(*, from_date: date) -> int:
+    """Purge les planifications orphelines sur tous les sites actifs."""
+    from shifts.models import FixedPost
+
+    total = 0
+    site_ids = Site.objects.filter(is_active=True).values_list("pk", flat=True)
+    for site_id in site_ids:
+        for shift_type in (FixedPost.ShiftType.DAY, FixedPost.ShiftType.NIGHT):
+            total += purge_orphaned_scheduled_for_slot(
+                site_id=site_id,
+                shift_type=shift_type,
+                from_date=from_date,
+            )
+    return total
 
 
 def purge_orphaned_scheduled_for_slot(

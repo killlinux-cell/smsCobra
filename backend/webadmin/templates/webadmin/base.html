@@ -90,9 +90,13 @@
       <h2 class="cobra-topbar__title">{{ page_title }}</h2>
       <div class="cobra-topbar__actions d-flex gap-2 align-items-center">
         <span class="text-muted small d-none d-md-inline">{{ request.user.username }} · {{ request.user.role|role_fr }}</span>
-        <a class="btn btn-sm btn-outline-secondary cobra-btn-refresh" href="{{ request.path }}" title="Actualiser" aria-label="Actualiser la page">
-          <i class="bi bi-arrow-clockwise"></i><span class="d-none d-sm-inline ms-1">Actualiser</span>
-        </a>
+        <form method="post" action="{% url 'webadmin-system-refresh' %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="btn btn-sm btn-outline-secondary cobra-btn-refresh" title="Resynchroniser les données (planning, caches)" aria-label="Actualiser et resynchroniser">
+            <i class="bi bi-arrow-clockwise"></i><span class="d-none d-sm-inline ms-1">Actualiser</span>
+          </button>
+        </form>
       </div>
     </div>
 

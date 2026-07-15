@@ -559,14 +559,11 @@ def site_detail_view(request, pk):
         (FixedPost.ShiftType.DAY, "day_staff_required"),
         (FixedPost.ShiftType.NIGHT, "night_staff_required"),
     ):
-        active_count = sum(1 for fp in fixed_posts if fp.shift_type == shift_type)
-        required = site.staff_required_for_shift(shift_type)
-        if required > 0 and active_count < required:
-            purge_orphaned_scheduled_for_slot(
-                site_id=site.pk,
-                shift_type=shift_type,
-                from_date=today,
-            )
+        purge_orphaned_scheduled_for_slot(
+            site_id=site.pk,
+            shift_type=shift_type,
+            from_date=today,
+        )
 
     from shifts.site_shift_times import slot_label as site_slot_label
 
@@ -768,7 +765,13 @@ def site_edit_view(request, pk):
         form = SiteForm(request.POST, instance=site)
         if form.is_valid():
             form.save()
-            messages.success(request, "Site mis à jour.")
+            from webadmin.system_refresh import refresh_site_planning
+
+            purged = refresh_site_planning(site_id=site.pk)
+            msg = "Site mis à jour."
+            if purged:
+                msg += f" {purged} planification(s) orpheline(s) retirée(s)."
+            messages.success(request, msg)
             return redirect("webadmin-sites")
     else:
         form = SiteForm(instance=site)
@@ -1914,6 +1917,25 @@ def export_pointages_csv_view(request):
     fname = timezone.now().strftime("pointages_%Y%m%d_%H%M.csv")
     response["Content-Disposition"] = f'attachment; filename="{fname}"'
     return response
+
+
+@admin_web_required
+@require_POST
+def system_refresh_view(request):
+    """Actualisation serveur : caches, planifications orphelines, horizon titulaires."""
+    from webadmin.system_refresh import refresh_operational_state
+
+    result = refresh_operational_state()
+    next_url = (request.POST.get("next") or "").strip()
+    if not next_url.startswith("/dashboard/") or "://" in next_url:
+        next_url = reverse("webadmin-dashboard")
+    msg = "Données resynchronisées"
+    if result["purged_assignments"]:
+        msg += f" ({result['purged_assignments']} planification(s) orpheline(s) retirée(s))"
+    if result["alerts_scan_queued"]:
+        msg += " · scan alertes lancé"
+    messages.success(request, msg + ".")
+    return redirect(next_url)
 
 
 @admin_web_required

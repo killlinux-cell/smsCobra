@@ -7,6 +7,7 @@ from shifts.models import FixedPost, ShiftAssignment
 from shifts.slot_occupancy import (
     count_occupying_assignments,
     has_blocking_assignment_for_new_titular,
+    purge_all_sites_orphaned_scheduled,
     purge_orphaned_scheduled_for_slot,
 )
 from sites.models import Site
@@ -102,3 +103,46 @@ class SlotOccupancyTests(TestCase):
                 guard_id=self.guard_new.pk,
             )
         )
+
+    def test_orphan_scheduled_does_not_block_same_guard_reassignment(self):
+        ShiftAssignment.objects.create(
+            guard=self.guard_old,
+            site=self.site,
+            shift_date=self.day,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        self.assertFalse(
+            has_blocking_assignment_for_new_titular(
+                site_id=self.site.pk,
+                shift_date=self.day,
+                start_time=time(18, 0),
+                shift_type=FixedPost.ShiftType.NIGHT,
+                guard_id=self.guard_old.pk,
+            )
+        )
+
+    def test_purge_all_sites_orphaned_scheduled(self):
+        site2 = Site.objects.create(
+            name="Other",
+            address="Abidjan",
+            day_staff_required=1,
+            night_staff_required=1,
+            expected_start_time=time(6, 0),
+            expected_end_time=time(18, 0),
+            latitude=1,
+            longitude=1,
+        )
+        for site in (self.site, site2):
+            ShiftAssignment.objects.create(
+                guard=self.guard_old,
+                site=site,
+                shift_date=self.day,
+                start_time=time(18, 0),
+                end_time=time(6, 0),
+                status=ShiftAssignment.Status.SCHEDULED,
+            )
+        deleted = purge_all_sites_orphaned_scheduled(from_date=self.day)
+        self.assertEqual(deleted, 2)
+        self.assertFalse(ShiftAssignment.objects.filter(status=ShiftAssignment.Status.SCHEDULED).exists())
