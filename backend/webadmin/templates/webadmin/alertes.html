@@ -106,7 +106,7 @@
               </td>
               <td class="text-nowrap">
                 <a href="{% url 'webadmin-affectations' %}?dispatch_assignment={{ row.assignment.id }}&amp;next={% url 'webadmin-alertes' %}#depecher" class="btn btn-sm btn-outline-warning">Dépêcher</a>
-                {% include "webadmin/_replacement_ack_buttons.html" with assignment_id=row.assignment.id guard_name=row.assignment.guard.display_name ack_next=alertes_ack_next only %}
+                {% include "webadmin/_replacement_ack_buttons.html" with assignment_id=row.assignment.id guard_name=row.assignment.guard.display_name ack_next=alertes_ack_next %}
               </td>
             </tr>
             {% empty %}
@@ -151,7 +151,7 @@
           <td class="text-nowrap">
             {% if alert.status == 'open' %}
             {% with ack_next=alertes_page_next %}
-            {% include "webadmin/_alert_ack_buttons.html" with alert=alert ack_next=ack_next only %}
+            {% include "webadmin/_alert_ack_buttons.html" with alert=alert ack_next=ack_next %}
             {% endwith %}
             {% elif alert.admin_recipient %}
             <span class="small text-success" title="{{ alert.acknowledged_at|date:'d/m/Y H:i' }}">

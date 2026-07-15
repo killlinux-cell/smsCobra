@@ -212,7 +212,7 @@
               <td class="small text-muted">{{ alert.message }}</td>
               <td>
                 {% with ack_next=dashboard_ack_next %}
-                {% include "webadmin/_alert_ack_buttons.html" with alert=alert ack_next=ack_next only %}
+                {% include "webadmin/_alert_ack_buttons.html" with alert=alert ack_next=ack_next %}
                 {% endwith %}
               </td>
             </tr>
