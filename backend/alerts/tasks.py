@@ -22,8 +22,10 @@ def _recent_assignment_dates(today: date) -> list[date]:
 
 @shared_task
 def detect_missed_shift_task():
+    from shifts.site_shift_times import assignment_is_operational
+
     now = timezone.now()
-    today = date.today()
+    today = timezone.localdate()
     ensure_assignments_for_dates([today, today + timedelta(days=1)])
 
     assignments = ShiftAssignment.objects.select_related("site", "guard").filter(
@@ -31,6 +33,8 @@ def detect_missed_shift_task():
         status__in=ShiftAssignment.active_on_duty_statuses(),
     )
     for assignment in assignments:
+        if not assignment_is_operational(assignment):
+            continue
         deadline = start_checkin_deadline(
             assignment,
             tolerance_minutes=assignment.site.late_tolerance_minutes,
@@ -67,6 +71,8 @@ def detect_missed_shift_task():
         .distinct()
     )
     for incoming in incoming_qs:
+        if not assignment_is_operational(incoming):
+            continue
         grace = incoming.site.relief_late_alert_minutes
         deadline = start_checkin_deadline(incoming, tolerance_minutes=grace)
         has_start = Checkin.objects.filter(
@@ -142,6 +148,8 @@ def detect_missed_shift_task():
         .select_related("site", "guard")
         .iterator()
     ):
+        if not assignment_is_operational(assignment):
+            continue
         has_start = Checkin.objects.filter(assignment=assignment, type=Checkin.Type.START).exists()
         if has_start:
             continue

@@ -73,6 +73,33 @@ def ensure_assignments_for_horizon(
         ensure_assignments_for_dates(horizon)
 
 
+def _purge_misaligned_scheduled_for_post(post: FixedPost, days: list[date]) -> int:
+    """Supprime les planifications à la mauvaise heure (ex. 07:00 au lieu de 19:00)."""
+    from checkins.models import Checkin
+
+    if not days:
+        return 0
+    start_time, _ = _slot_for(post)
+    guard_id = post.current_guard_id
+    if not guard_id:
+        return 0
+    qs = ShiftAssignment.objects.filter(
+        site_id=post.site_id,
+        guard_id=guard_id,
+        shift_date__in=days,
+        status=ShiftAssignment.Status.SCHEDULED,
+    ).exclude(start_time=start_time)
+    delete_ids = [
+        row.pk
+        for row in qs.only("pk")
+        if not Checkin.objects.filter(assignment_id=row.pk, type=Checkin.Type.START).exists()
+    ]
+    if not delete_ids:
+        return 0
+    deleted, _ = ShiftAssignment.objects.filter(pk__in=delete_ids).delete()
+    return deleted
+
+
 @transaction.atomic
 def ensure_assignments_for_dates(days: list[date]) -> None:
     if not days:
@@ -85,9 +112,12 @@ def ensure_assignments_for_dates(days: list[date]) -> None:
     )
     for post in posts:
         _purge_assignments_before_start(post)
+        _purge_misaligned_scheduled_for_post(post, unique_days)
 
     for day in unique_days:
         for post in posts:
+            if post.site.staff_required_for_shift(post.shift_type) <= 0:
+                continue
             if not _in_fixed_post_range(post, day):
                 continue
             start_time, end_time = _slot_for(post)

@@ -24,15 +24,47 @@ def night_slot_times(site: Site) -> tuple[time, time]:
     return site.expected_end_time, site.expected_start_time
 
 
+def _site_hours_cross_midnight(site: Site) -> bool:
+    """True si les horaires attendus traversent minuit (ex. 19:00 → 07:00)."""
+    return site.expected_start_time > site.expected_end_time
+
+
+def _night_only_inverted_site(site: Site) -> bool:
+    return (
+        site.staff_required_for_shift(SHIFT_DAY) == 0
+        and site.staff_required_for_shift(SHIFT_NIGHT) > 0
+        and _site_hours_cross_midnight(site)
+    )
+
+
+def _day_only_site(site: Site) -> bool:
+    return (
+        site.staff_required_for_shift(SHIFT_NIGHT) == 0
+        and site.staff_required_for_shift(SHIFT_DAY) > 0
+    )
+
+
 def slot_times_for_site(site: Site, shift_type: str) -> tuple[time, time]:
+    day_start, day_end = day_slot_times(site)
+    night_start, night_end = night_slot_times(site)
+    # Site nuit-seule avec horaires 19h→7h : le poste « nuit » = horaires attendus du site.
+    if _night_only_inverted_site(site) and shift_type in (
+        FixedPost.ShiftType.NIGHT,
+        SHIFT_NIGHT,
+    ):
+        return day_start, day_end
     if shift_type in (FixedPost.ShiftType.DAY, SHIFT_DAY):
-        return day_slot_times(site)
-    return night_slot_times(site)
+        return day_start, day_end
+    return night_start, night_end
 
 
 def shift_type_for_start_time(site: Site, start_time: time) -> str | None:
     day_start, _ = day_slot_times(site)
     night_start, _ = night_slot_times(site)
+    if _night_only_inverted_site(site):
+        if start_time == day_start:
+            return FixedPost.ShiftType.NIGHT
+        return None
     if start_time == day_start:
         return FixedPost.ShiftType.DAY
     if start_time == night_start:
@@ -45,10 +77,25 @@ def shift_type_for_start_time(site: Site, start_time: time) -> str | None:
     return None
 
 
+def assignment_is_operational(assignment) -> bool:
+    """
+    True si l'affectation correspond à un créneau actif du site (effectif cible > 0)
+    et à l'heure canonique de ce créneau.
+    """
+    site = assignment.site
+    shift_type = shift_type_for_start_time(site, assignment.start_time)
+    if not shift_type or site.staff_required_for_shift(shift_type) <= 0:
+        return False
+    expected_start, _ = slot_times_for_site(site, shift_type)
+    return assignment.start_time == expected_start
+
+
 def incoming_relief_lookup(
     site: Site, shift_type: str, shift_date: date
 ) -> tuple[date, time]:
     """Date + heure de début du créneau de relève lié (passation)."""
+    if _night_only_inverted_site(site):
+        return shift_date, day_slot_times(site)[0]
     if shift_type in (FixedPost.ShiftType.DAY, SHIFT_DAY):
         night_start, _ = night_slot_times(site)
         return shift_date, night_start

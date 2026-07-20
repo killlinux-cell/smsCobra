@@ -79,6 +79,8 @@ def _guard_acknowledgment_filter():
 
 def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
     """Affectations sans prise de service après la tolérance (jour + nuit en cours)."""
+    from shifts.site_shift_times import assignment_is_operational
+
     filter_day = for_day or timezone.localdate()
     candidate_days = {filter_day, filter_day - timedelta(days=1)}
     active_statuses = ShiftAssignment.active_on_duty_statuses()
@@ -101,6 +103,8 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
     now = timezone.now()
     replacement_needed = []
     for assignment in day_assignments:
+        if not assignment_is_operational(assignment):
+            continue
         if assignment.id in started_assignment_ids:
             continue
         is_active = assignment.status in active_statuses
