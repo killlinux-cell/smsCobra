@@ -80,9 +80,10 @@ def _purge_misaligned_scheduled_for_post(post: FixedPost, days: list[date]) -> i
     if not days:
         return 0
     start_time, _ = _slot_for(post)
-    guard_id = post.current_guard_id
-    if not guard_id:
+    guard = post.current_guard
+    if not guard:
         return 0
+    guard_id = guard.pk
     qs = ShiftAssignment.objects.filter(
         site_id=post.site_id,
         guard_id=guard_id,

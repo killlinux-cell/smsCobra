@@ -57,6 +57,20 @@ class SystemRefreshViewTests(TestCase):
             ).exists()
         )
 
+    def test_refresh_with_fixed_post_does_not_500(self):
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.guard,
+            is_active=True,
+        )
+        self.client.force_login(self.admin)
+        url = reverse("webadmin-system-refresh")
+        with patch("alerts.tasks.detect_missed_shift_task") as mock_task:
+            mock_task.delay.return_value = None
+            response = self.client.post(url, {"next": reverse("webadmin-dashboard")})
+        self.assertEqual(response.status_code, 302)
+
     def test_refresh_requires_post(self):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("webadmin-system-refresh"))
