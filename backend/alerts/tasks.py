@@ -22,6 +22,7 @@ def _recent_assignment_dates(today: date) -> list[date]:
 
 @shared_task
 def detect_missed_shift_task():
+    from reports.alert_ack import assignment_has_supervisor_decision
     from shifts.site_shift_times import assignment_is_operational
 
     now = timezone.now()
@@ -34,6 +35,8 @@ def detect_missed_shift_task():
     )
     for assignment in assignments:
         if not assignment_is_operational(assignment):
+            continue
+        if assignment_has_supervisor_decision(assignment):
             continue
         deadline = start_checkin_deadline(
             assignment,
@@ -72,6 +75,8 @@ def detect_missed_shift_task():
     )
     for incoming in incoming_qs:
         if not assignment_is_operational(incoming):
+            continue
+        if assignment_has_supervisor_decision(incoming):
             continue
         grace = incoming.site.relief_late_alert_minutes
         deadline = start_checkin_deadline(incoming, tolerance_minutes=grace)
@@ -149,6 +154,8 @@ def detect_missed_shift_task():
         .iterator()
     ):
         if not assignment_is_operational(assignment):
+            continue
+        if assignment_has_supervisor_decision(assignment):
             continue
         has_start = Checkin.objects.filter(assignment=assignment, type=Checkin.Type.START).exists()
         if has_start:

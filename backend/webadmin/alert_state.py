@@ -105,6 +105,10 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
     for assignment in day_assignments:
         if not assignment_is_operational(assignment):
             continue
+        from reports.alert_ack import assignment_has_supervisor_decision
+
+        if assignment_has_supervisor_decision(assignment):
+            continue
         if assignment.id in started_assignment_ids:
             continue
         is_active = assignment.status in active_statuses
@@ -135,29 +139,6 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
         ).order_by("-triggered_at"):
             if alert.assignment_id not in open_alert_by_assignment:
                 open_alert_by_assignment[alert.assignment_id] = alert.id
-        ack_filter = _guard_acknowledgment_filter()
-        acked_ids = set(
-            LateAlert.objects.filter(
-                assignment_id__in=assignment_ids,
-                status=LateAlert.Status.ACKNOWLEDGED,
-            )
-            .filter(ack_filter)
-            .values_list("assignment_id", flat=True)
-        )
-        open_ids = set(
-            LateAlert.objects.filter(
-                assignment_id__in=assignment_ids,
-                status=LateAlert.Status.OPEN,
-            )
-            .filter(ack_filter)
-            .values_list("assignment_id", flat=True)
-        )
-        hidden_ids = acked_ids - open_ids
-        replacement_needed = [
-            row
-            for row in replacement_needed
-            if row["assignment"].id not in hidden_ids
-        ]
         for row in replacement_needed:
             row["open_alert_id"] = open_alert_by_assignment.get(row["assignment"].id)
 

@@ -55,6 +55,39 @@ def _is_guard_presence_alert(message: str) -> bool:
     return any(m.startswith(prefix) for prefix in _GUARD_ALERT_PREFIXES)
 
 
+def assignment_has_supervisor_decision(assignment) -> bool:
+    """
+    True si un superviseur a déjà tranché Présent/Absent pour ce créneau.
+    Survit au remplacement d'affectation (site + vigile + date).
+    """
+    from alerts.models import LateAlert
+    from django.db.models import Q
+
+    q = Q()
+    for prefix in _GUARD_ALERT_PREFIXES:
+        q |= Q(message__startswith=prefix)
+
+    if LateAlert.objects.filter(
+        assignment__site_id=assignment.site_id,
+        assignment__guard_id=assignment.guard_id,
+        assignment__shift_date=assignment.shift_date,
+        status=LateAlert.Status.ACKNOWLEDGED,
+    ).filter(q).exists():
+        return True
+
+    report = AttendanceReport.objects.filter(
+        site_id=assignment.site_id,
+        guard_id=assignment.guard_id,
+        report_date=assignment.shift_date,
+    ).first()
+    if not report:
+        return False
+    if report.was_absent:
+        return True
+    notes = (report.notes or "").lower()
+    return "acquittée" in notes or "acquittee" in notes
+
+
 def mark_justified_presence_from_alert(alert) -> None:
     """
     Présence justifiée : compte comme présent au calendrier

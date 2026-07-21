@@ -100,3 +100,38 @@ class NightReplacementNeededTests(TestCase):
         with patch("webadmin.alert_state.timezone.now", return_value=after_start):
             rows = compute_replacement_needed(self.shift_day)
         self.assertEqual(rows, [])
+
+    def test_stays_hidden_when_open_absence_after_retard_ack(self):
+        after_start = datetime(2026, 6, 2, 19, 0, tzinfo=self.tz)
+        LateAlert.objects.create(
+            assignment=self.assignment,
+            message="Retard prise de service : night_g sur Site Nuit",
+            status=LateAlert.Status.ACKNOWLEDGED,
+        )
+        LateAlert.objects.create(
+            assignment=self.assignment,
+            message="Absence: créneau terminé sans prise de service",
+            status=LateAlert.Status.OPEN,
+        )
+        with patch("webadmin.alert_state.timezone.now", return_value=after_start):
+            rows = compute_replacement_needed(self.shift_day)
+        self.assertEqual(rows, [])
+
+    def test_hidden_after_replacement_assignment_recreated(self):
+        from reports.alert_ack import acknowledge_assignment_late
+
+        admin = User.objects.create_user(username="admin2", password="x", role=User.Role.ADMIN_SOCIETE)
+        after_start = datetime(2026, 6, 2, 19, 0, tzinfo=self.tz)
+        acknowledge_assignment_late(self.assignment, admin, presence_decision="present")
+        self.assignment.delete()
+        new_assignment = ShiftAssignment.objects.create(
+            guard=self.guard,
+            site=self.site,
+            shift_date=self.shift_day,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
+        )
+        with patch("webadmin.alert_state.timezone.now", return_value=after_start):
+            rows = compute_replacement_needed(self.shift_day)
+        assignment_ids = {row["assignment"].id for row in rows}
+        self.assertNotIn(new_assignment.id, assignment_ids)
