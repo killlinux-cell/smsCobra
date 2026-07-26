@@ -64,6 +64,12 @@ urlpatterns = [
     path("alertes/", views.alertes_view, name="webadmin-alertes"),
     path("alertes/status.json", views.critical_alerts_status_view, name="webadmin-critical-alerts-status"),
     path("rapports/", views.rapports_view, name="webadmin-rapports"),
+    path("rapports/pointage/corriger/", views.attendance_correction_view, name="webadmin-attendance-correction"),
+    path(
+        "rapports/pointage/<int:pk>/corriger/",
+        views.attendance_report_edit_view,
+        name="webadmin-attendance-edit",
+    ),
     path("rapports/export/csv/", views.export_reports_csv_view, name="webadmin-rapports-export-csv"),
     path("pointages/", views.pointages_view, name="webadmin-pointages"),
     path("pointages/export/csv/", views.export_pointages_csv_view, name="webadmin-pointages-export-csv"),

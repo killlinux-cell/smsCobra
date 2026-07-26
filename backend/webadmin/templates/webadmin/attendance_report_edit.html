@@ -1,0 +1,59 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card cobra-panel mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>Corriger présence / absence</span>
+        <a href="{{ next_url }}" class="btn btn-sm btn-outline-secondary">Retour</a>
+      </div>
+      <div class="card-body">
+        <dl class="row small mb-4">
+          <dt class="col-sm-3 text-muted">Date</dt>
+          <dd class="col-sm-9">{{ report.report_date|date:"d/m/Y" }}</dd>
+          <dt class="col-sm-3 text-muted">Site</dt>
+          <dd class="col-sm-9">{{ report.site.name }}</dd>
+          <dt class="col-sm-3 text-muted">Vigile</dt>
+          <dd class="col-sm-9">{{ report.guard.display_name }}</dd>
+          <dt class="col-sm-3 text-muted">Statut actuel</dt>
+          <dd class="col-sm-9">
+            {% rapport_presence_badge report as presence %}
+            <span class="badge {{ presence.css }}">{{ presence.label }}</span>
+          </dd>
+        </dl>
+
+        <div class="alert alert-warning small">
+          La correction est tracée dans les notes du rapport. Elle ne supprime pas les pointages réels
+          déjà enregistrés sur l'application vigile, mais met à jour la synthèse paie / rapports.
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <div class="mb-3">
+            <span class="form-label d-block">{{ form.presence_decision.label }}</span>
+            {% for radio in form.presence_decision %}
+              <div class="form-check">
+                {{ radio.tag }}
+                <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+              </div>
+            {% endfor %}
+            {% if form.presence_decision.errors %}<div class="text-danger small">{{ form.presence_decision.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
+            {{ form.reason }}
+            {% if form.reason.help_text %}<div class="form-text">{{ form.reason.help_text }}</div>{% endif %}
+            {% if form.reason.errors %}<div class="text-danger small">{{ form.reason.errors }}</div>{% endif %}
+          </div>
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <button type="submit" class="btn cobra-btn-accent">Enregistrer la correction</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

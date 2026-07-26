@@ -59,6 +59,10 @@ def refresh_attendance_report(assignment: ShiftAssignment, *, now=None) -> Atten
         guard=assignment.guard,
         report_date=assignment.shift_date,
     )
+    from reports.admin_attendance import report_presence_locked_by_supervisor
+
+    if report_presence_locked_by_supervisor(report):
+        return report
     absent = compute_was_absent(assignment, now=now)
     if report.was_absent != absent:
         report.was_absent = absent

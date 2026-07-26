@@ -1152,3 +1152,63 @@ class DispatchForm(forms.Form):
             self.fields["replacement_guard"].label_suffixes = (
                 dispatch_busy_today_labels() if include_busy else {}
             )
+
+
+class AttendanceReportAdjustForm(forms.Form):
+    PRESENCE_PRESENT = "present"
+    PRESENCE_ABSENT = "absent"
+
+    presence_decision = forms.ChoiceField(
+        label="Statut à enregistrer",
+        choices=(
+            (PRESENCE_PRESENT, "Présent (jour compté présent)"),
+            (PRESENCE_ABSENT, "Absent (jour compté absent)"),
+        ),
+        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+    )
+    reason = forms.CharField(
+        label="Motif de la correction",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Ex. : erreur d'acquittement par le superviseur, justificatif reçu…",
+            }
+        ),
+        help_text="Obligatoire — conservé dans l'historique du rapport (notes).",
+    )
+
+
+class AttendanceCorrectionLookupForm(forms.Form):
+    site = forms.ModelChoiceField(
+        label="Site",
+        queryset=Site.objects.filter(is_active=True).order_by("name"),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    guard = forms.ModelChoiceField(
+        label="Vigile",
+        queryset=User.objects.filter(role=User.Role.VIGILE, is_active=True).order_by(
+            "first_name", "last_name", "username"
+        ),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    report_date = forms.DateField(
+        label="Date",
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    presence_decision = forms.ChoiceField(
+        label="Statut",
+        choices=AttendanceReportAdjustForm.base_fields["presence_decision"].choices,
+        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+    )
+    reason = forms.CharField(
+        label="Motif",
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+    )
+
+    def clean_report_date(self):
+        day = self.cleaned_data["report_date"]
+        if day > timezone.localdate():
+            raise forms.ValidationError("Impossible de corriger une date future.")
+        return day
+

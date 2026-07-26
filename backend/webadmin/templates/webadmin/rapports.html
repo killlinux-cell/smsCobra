@@ -43,6 +43,62 @@
   </div>
 </div>
 
+{% if can_adjust_attendance %}
+<div class="card cobra-panel mb-4 border-warning">
+  <div class="card-header bg-warning-subtle">
+    <i class="bi bi-pencil-square me-2"></i>Correction manuelle (admin)
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Corrigez rétroactivement la présence ou l'absence d'un vigile (motif obligatoire, tracé dans les notes).
+      Réservé au super admin et à l'admin société — le superviseur ne peut pas modifier les jours passés ici.
+    </p>
+    <form method="post" action="{% url 'webadmin-attendance-correction' %}" class="row g-3 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label">Site</label>
+        <select name="site" class="form-select" required>
+          <option value="">— Choisir —</option>
+          {% for s in sites %}
+          <option value="{{ s.id }}" {% if filter_site == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label">Vigile</label>
+        <select name="guard" class="form-select" required>
+          <option value="">— Choisir —</option>
+          {% for v in vigiles %}
+          <option value="{{ v.id }}" {% if filter_vigile == v.id %}selected{% endif %}>{{ v.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label">Date</label>
+        <input type="date" name="report_date" class="form-control" value="{{ filter_date }}" required>
+      </div>
+      <div class="col-lg-4 col-md-12">
+        <span class="form-label d-block">Statut</span>
+        <div class="d-flex flex-wrap gap-3">
+          <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="presence_decision" value="present" checked> Présent</label>
+          <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="presence_decision" value="absent"> Absent</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Motif</label>
+        <textarea name="reason" class="form-control" rows="2" required placeholder="Motif de la correction (obligatoire)"></textarea>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-warning" onclick="return confirm('Confirmer la correction de présence/absence pour ce jour ?');">
+          <i class="bi bi-check2-circle me-1"></i>Enregistrer la correction
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 {% if bilan %}
 <div class="card cobra-panel mb-4 border-secondary">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -318,6 +374,7 @@
           <th>Retard</th>
           <th>Absent (calcul)</th>
           <th>Notes (acquittements, etc.)</th>
+          {% if can_adjust_attendance %}<th>Actions</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -347,9 +404,16 @@
             {% endif %}
           </td>
           <td class="small text-muted" style="max-width:18rem;white-space:pre-wrap;">{{ report.notes|default:"—" }}</td>
+          {% if can_adjust_attendance %}
+          <td>
+            <a class="btn btn-sm btn-outline-warning" href="{% url 'webadmin-attendance-edit' report.pk %}?next={{ request.get_full_path|urlencode }}">
+              <i class="bi bi-pencil"></i> Corriger
+            </a>
+          </td>
+          {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="9" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
+        <tr><td colspan="{% if can_adjust_attendance %}10{% else %}9{% endif %}" class="text-center py-5 text-muted">Aucun rapport ne correspond aux critères.</td></tr>
         {% endfor %}
       </tbody>
     </table>

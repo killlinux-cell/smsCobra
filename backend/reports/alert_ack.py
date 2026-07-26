@@ -85,7 +85,11 @@ def assignment_has_supervisor_decision(assignment) -> bool:
     if report.was_absent:
         return True
     notes = (report.notes or "").lower()
-    return "acquittée" in notes or "acquittee" in notes
+    return (
+        "acquittée" in notes
+        or "acquittee" in notes
+        or "correction manuelle" in notes
+    )
 
 
 def mark_justified_presence_from_alert(alert) -> None:

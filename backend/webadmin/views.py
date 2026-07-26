@@ -287,6 +287,14 @@ def _is_admin_role(user) -> bool:
     }
 
 
+def _can_adjust_attendance(user) -> bool:
+    """Correction rétroactive présence/absence : réservée au dirigeant, pas au superviseur terrain."""
+    return user.is_authenticated and getattr(user, "role", "") in {
+        User.Role.SUPER_ADMIN,
+        User.Role.ADMIN_SOCIETE,
+    }
+
+
 def _add_validation_errors_to_form(form, exc: ValidationError) -> None:
     """Ajoute une ValidationError modèle ; champs absents du formulaire → non_field_errors."""
     if hasattr(exc, "message_dict"):
@@ -1633,8 +1641,126 @@ def rapports_view(request):
             "bilan": bilan,
             "export_querystring": request.GET.urlencode(),
             "controller_visits": controller_visits,
+            "can_adjust_attendance": _can_adjust_attendance(request.user),
         },
     )
+
+
+@admin_web_required
+def attendance_report_edit_view(request, pk):
+    """Correction manuelle d'un rapport de pointage (jours passés)."""
+    if not _can_adjust_attendance(request.user):
+        return HttpResponseForbidden(
+            "Seuls le super admin et l'admin société peuvent corriger les présences passées."
+        )
+    report = get_object_or_404(
+        AttendanceReport.objects.select_related("site", "guard"),
+        pk=pk,
+    )
+    from reports.admin_attendance import admin_adjust_attendance_report
+    from webadmin.forms import AttendanceReportAdjustForm
+
+    next_url = (request.POST.get("next") or request.GET.get("next") or "").strip()
+    if not next_url.startswith("/dashboard/") or "://" in next_url:
+        next_url = reverse("webadmin-rapports")
+
+    initial_decision = (
+        AttendanceReportAdjustForm.PRESENCE_ABSENT
+        if report.was_absent
+        else AttendanceReportAdjustForm.PRESENCE_PRESENT
+    )
+
+    if request.method == "POST":
+        form = AttendanceReportAdjustForm(request.POST)
+        if form.is_valid():
+            try:
+                admin_adjust_attendance_report(
+                    report,
+                    presence_decision=form.cleaned_data["presence_decision"],
+                    actor=request.user,
+                    reason=form.cleaned_data["reason"],
+                )
+            except ValidationError as exc:
+                _add_validation_errors_to_form(form, exc)
+            else:
+                from webadmin.alert_state import invalidate_alert_summary_cache
+
+                invalidate_alert_summary_cache(report.report_date)
+                messages.success(
+                    request,
+                    f"Pointage corrigé pour {report.guard.display_name} @ {report.site.name} "
+                    f"le {report.report_date.strftime('%d/%m/%Y')}.",
+                )
+                return redirect(next_url)
+    else:
+        form = AttendanceReportAdjustForm(initial={"presence_decision": initial_decision})
+
+    return render(
+        request,
+        "webadmin/attendance_report_edit.html",
+        {
+            "page_title": "Corriger présence / absence",
+            "nav_active": "rapports",
+            "form": form,
+            "report": report,
+            "next_url": next_url,
+        },
+    )
+
+
+@admin_web_required
+def attendance_correction_view(request):
+    """Correction rapide depuis la page Rapports (site + vigile + date)."""
+    if not _can_adjust_attendance(request.user):
+        return HttpResponseForbidden(
+            "Seuls le super admin et l'admin société peuvent corriger les présences passées."
+        )
+    if request.method != "POST":
+        return redirect("webadmin-rapports")
+
+    from reports.admin_attendance import admin_adjust_attendance_report
+    from webadmin.forms import AttendanceCorrectionLookupForm
+
+    form = AttendanceCorrectionLookupForm(request.POST)
+    next_url = (request.POST.get("next") or "").strip()
+    if not next_url.startswith("/dashboard/") or "://" in next_url:
+        next_url = reverse("webadmin-rapports")
+
+    if not form.is_valid():
+        for err in form.non_field_errors():
+            messages.error(request, err)
+        for field in form:
+            for err in field.errors:
+                messages.error(request, f"{field.label} : {err}")
+        return redirect(next_url)
+
+    site = form.cleaned_data["site"]
+    guard = form.cleaned_data["guard"]
+    day = form.cleaned_data["report_date"]
+    report, _ = AttendanceReport.objects.get_or_create(
+        site=site,
+        guard=guard,
+        report_date=day,
+    )
+    try:
+        admin_adjust_attendance_report(
+            report,
+            presence_decision=form.cleaned_data["presence_decision"],
+            actor=request.user,
+            reason=form.cleaned_data["reason"],
+        )
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0] if exc.messages else str(exc))
+        return redirect(next_url)
+
+    from webadmin.alert_state import invalidate_alert_summary_cache
+
+    invalidate_alert_summary_cache(day)
+    messages.success(
+        request,
+        f"Pointage corrigé pour {guard.display_name} @ {site.name} le {day.strftime('%d/%m/%Y')}.",
+    )
+    return redirect(next_url)
 
 
 @admin_web_required
