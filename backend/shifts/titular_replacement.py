@@ -275,7 +275,7 @@ def _cancel_scheduled_assignments_for_retired_post(
     from_date: date,
     guard_id: int | None = None,
 ) -> int:
-    """Supprime les affectations planifiées à partir de from_date (sauf créneau en cours pointé)."""
+    """Supprime les affectations planifiées à partir de from_date (jamais si pointages existants)."""
     from checkins.models import Checkin
 
     start_time, _ = _slot_for(post)
@@ -288,19 +288,59 @@ def _cancel_scheduled_assignments_for_retired_post(
         status=ShiftAssignment.Status.SCHEDULED,
     )
     delete_ids: list[int] = []
-    for assignment in qs.only("id", "shift_date"):
-        if assignment.shift_date == from_date:
-            has_start = Checkin.objects.filter(
-                assignment_id=assignment.id,
-                type=Checkin.Type.START,
-            ).exists()
-            if has_start:
-                continue
+    for assignment in qs.only("id"):
+        if Checkin.objects.filter(assignment_id=assignment.id).exists():
+            continue
         delete_ids.append(assignment.id)
     if not delete_ids:
         return 0
     deleted, _ = ShiftAssignment.objects.filter(pk__in=delete_ids).delete()
     return deleted
+
+
+def _close_open_assignments_on_retire(
+    post: FixedPost,
+    *,
+    from_date: date,
+    guard_id: int,
+    actor=None,
+) -> int:
+    """Clôture les services en cours (START sans END) le jour du retrait du titulaire."""
+    from checkins.models import Checkin
+    from webadmin.admin_force_end import ForceEndError, supervisor_force_end_assignment
+
+    start_time, _ = _slot_for(post)
+    closed = 0
+    for assignment in ShiftAssignment.objects.filter(
+        site_id=post.site_id,
+        guard_id=guard_id,
+        start_time=start_time,
+        shift_date=from_date,
+    ):
+        has_start = Checkin.objects.filter(
+            assignment=assignment,
+            type=Checkin.Type.START,
+        ).exists()
+        has_end = Checkin.objects.filter(
+            assignment=assignment,
+            type=Checkin.Type.END,
+        ).exists()
+        if not has_start or has_end:
+            continue
+        try:
+            supervisor_force_end_assignment(
+                assignment,
+                actor=actor,
+                reason=(
+                    f"Clôture automatique : titulaire retiré du poste "
+                    f"({post.site.name}, {from_date.isoformat()})."
+                ),
+                source_label="retire-titular",
+            )
+            closed += 1
+        except ForceEndError:
+            continue
+    return closed
 
 
 @transaction.atomic
@@ -311,7 +351,7 @@ def retire_titular_fixed_post(
     actor=None,
     from_date: date | None = None,
     clear_suspended: bool = False,
-) -> tuple[FixedPost, int]:
+) -> tuple[FixedPost, int, int]:
     """Retire un titulaire : poste fixe inactif + plus d'affectations planifiées futures."""
     reason = (reason or "").strip()
     if not fixed_post.is_active:
@@ -329,6 +369,14 @@ def retire_titular_fixed_post(
 
     effective_from = from_date or timezone.localdate()
     retired_guard = fixed_post.titular_guard
+    closed = 0
+    if retired_guard_id := (retired_guard.pk if retired_guard else None):
+        closed = _close_open_assignments_on_retire(
+            fixed_post,
+            from_date=effective_from,
+            guard_id=retired_guard_id,
+            actor=actor,
+        )
     cancelled = _cancel_scheduled_assignments_for_retired_post(
         fixed_post,
         from_date=effective_from,
@@ -363,4 +411,4 @@ def retire_titular_fixed_post(
             reason=reason,
             actor=actor,
         )
-    return fixed_post, cancelled
+    return fixed_post, cancelled, closed

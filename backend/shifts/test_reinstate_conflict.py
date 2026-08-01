@@ -131,7 +131,7 @@ class ReinstateConflictTests(TestCase):
 
     def test_retire_with_clear_suspended_when_dispatch_pending(self):
         post = self._dispatch()
-        post, _ = retire_titular_fixed_post(
+        post, _, _closed = retire_titular_fixed_post(
             post,
             reason="Reduction effectif nuit sur ce site.",
             clear_suspended=True,

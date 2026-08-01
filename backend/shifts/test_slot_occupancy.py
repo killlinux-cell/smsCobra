@@ -146,3 +146,31 @@ class SlotOccupancyTests(TestCase):
         deleted = purge_all_sites_orphaned_scheduled(from_date=self.day)
         self.assertEqual(deleted, 2)
         self.assertFalse(ShiftAssignment.objects.filter(status=ShiftAssignment.Status.SCHEDULED).exists())
+
+    def test_purge_orphaned_keeps_assignment_with_start_checkin(self):
+        from checkins.models import Checkin
+        from django.utils import timezone
+
+        assignment = ShiftAssignment.objects.create(
+            guard=self.guard_old,
+            site=self.site,
+            shift_date=self.day,
+            start_time=time(18, 0),
+            end_time=time(6, 0),
+            status=ShiftAssignment.Status.SCHEDULED,
+        )
+        Checkin.objects.create(
+            assignment=assignment,
+            guard=self.guard_old,
+            type=Checkin.Type.START,
+            timestamp=timezone.now(),
+            latitude=1,
+            longitude=1,
+        )
+        deleted = purge_orphaned_scheduled_for_slot(
+            site_id=self.site.pk,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            from_date=self.day,
+        )
+        self.assertEqual(deleted, 0)
+        self.assertTrue(ShiftAssignment.objects.filter(pk=assignment.pk).exists())

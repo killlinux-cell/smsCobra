@@ -93,7 +93,7 @@ def _purge_misaligned_scheduled_for_post(post: FixedPost, days: list[date]) -> i
     delete_ids = [
         row.pk
         for row in qs.only("pk")
-        if not Checkin.objects.filter(assignment_id=row.pk, type=Checkin.Type.START).exists()
+        if not Checkin.objects.filter(assignment_id=row.pk).exists()
     ]
     if not delete_ids:
         return 0

@@ -9,6 +9,7 @@ from sites.models import Site
 from shifts.models import FixedPost, ShiftAssignment
 from shifts.services import ensure_assignments_for_dates
 from shifts.site_shift_times import slot_times_for_site
+from checkins.models import Checkin
 from shifts.titular_replacement import (
     promote_replacement_to_titular_on_dispatch,
     reinstate_suspended_titular,
@@ -135,7 +136,7 @@ class TitularRetirementTests(TestCase):
                 start_time=self.night_start,
             ).exists()
         )
-        post, cancelled = retire_titular_fixed_post(
+        post, cancelled, _closed = retire_titular_fixed_post(
             self.post,
             reason="Réduction d'effectif : passage à 1 vigile de nuit sur le site.",
         )
@@ -173,9 +174,37 @@ class TitularRetirementTests(TestCase):
     def test_retire_allowed_with_clear_suspended(self):
         self.post.suspended_titular_guard_id = self.other.id
         self.post.save(update_fields=["suspended_titular_guard_id"])
-        post, _ = retire_titular_fixed_post(
+        post, _, _closed = retire_titular_fixed_post(
             self.post,
             reason="Reduction effectif nuit sur ce site.",
             clear_suspended=True,
         )
         self.assertFalse(post.is_active)
+
+    def test_retire_closes_open_service_same_day(self):
+        today_assignment = ShiftAssignment.objects.get(
+            site=self.site,
+            shift_date=self.today,
+            start_time=self.night_start,
+            guard=self.guard,
+        )
+        Checkin.objects.create(
+            assignment=today_assignment,
+            guard=self.guard,
+            type=Checkin.Type.START,
+            timestamp=timezone.now(),
+            latitude=1,
+            longitude=1,
+        )
+        post, _cancelled, closed = retire_titular_fixed_post(
+            self.post,
+            reason="Réduction d'effectif : fin de titularité sur ce créneau nuit.",
+        )
+        self.assertFalse(post.is_active)
+        self.assertEqual(closed, 1)
+        self.assertTrue(
+            Checkin.objects.filter(
+                assignment=today_assignment,
+                type=Checkin.Type.END,
+            ).exists()
+        )

@@ -2171,7 +2171,7 @@ def retire_titular_view(request, fixed_post_id: int):
     from shifts.titular_replacement import retire_titular_fixed_post
 
     try:
-        _, cancelled = retire_titular_fixed_post(
+        _, cancelled, closed = retire_titular_fixed_post(
             post,
             reason=reason,
             actor=request.user,
@@ -2184,10 +2184,15 @@ def retire_titular_view(request, fixed_post_id: int):
     name = post.titular_guard.display_name
     site = post.site.name
     shift = post.get_shift_type_display()
-    detail = f"{cancelled} affectation(s) planifiée(s) annulée(s)." if cancelled else ""
+    parts = []
+    if closed:
+        parts.append(f"{closed} service(s) en cours clôturé(s)")
+    if cancelled:
+        parts.append(f"{cancelled} affectation(s) planifiée(s) annulée(s)")
+    detail = f" ({', '.join(parts)})." if parts else ""
     messages.success(
         request,
-        f"{name} a été retiré du poste {shift.lower()} sur « {site} ». {detail}".strip(),
+        f"{name} a été retiré du poste {shift.lower()} sur « {site} ».{detail}",
     )
     return redirect(next_url)
 

@@ -111,7 +111,10 @@ def purge_orphaned_scheduled_for_slot(
     """
     Supprime les affectations planifiées laissées par un titulaire retiré
     (poste fixe nuit/jour inactif ou vigile plus titulaire actif).
+    Ne supprime jamais une affectation qui a déjà des pointages (START/END).
     """
+    from checkins.models import Checkin
+
     site = Site.objects.filter(pk=site_id).only("expected_start_time", "expected_end_time").first()
     if not site:
         return 0
@@ -125,7 +128,11 @@ def purge_orphaned_scheduled_for_slot(
     )
     if active_ids:
         qs = qs.exclude(guard_id__in=active_ids)
-    delete_ids = list(qs.values_list("pk", flat=True))
+    delete_ids = [
+        pk
+        for pk in qs.values_list("pk", flat=True)
+        if not Checkin.objects.filter(assignment_id=pk).exists()
+    ]
     if not delete_ids:
         return 0
     deleted, _ = ShiftAssignment.objects.filter(pk__in=delete_ids).delete()
