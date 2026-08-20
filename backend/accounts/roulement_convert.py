@@ -16,6 +16,15 @@ def convert_vigile_to_roulement(vigile: User, *, actor=None) -> User:
     if vigile.is_roulement and is_standard_roulement_username(vigile.username):
         raise ValidationError(f"{vigile.display_name} est déjà un vigile roulement.")
 
+    from accounts.roulement_eligibility import vigile_is_active_titular
+
+    if vigile_is_active_titular(vigile):
+        raise ValidationError(
+            "Ce vigile est titulaire sur un poste fixe. "
+            "Seuls les vigiles non titulaires peuvent passer en roulement. "
+            "Retirez-le d'abord via Affectations → Titulaires si besoin."
+        )
+
     from webadmin.vigile_delete import release_vigile_from_active_posts
 
     release_vigile_from_active_posts(vigile, actor=actor)

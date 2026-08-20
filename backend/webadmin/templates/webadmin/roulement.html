@@ -2,9 +2,40 @@
 {% load cobra_tags %}
 {% block content %}
 <div class="alert alert-light border mb-4 small">
-  <strong>Roulement :</strong> vigiles <strong>RLT-XXX</strong> sans poste fixe titulaire.
-  Vous choisissez manuellement le <strong>site</strong>, la <strong>date</strong> et le créneau <strong>jour/nuit</strong>.
-  Les horaires appliqués sont ceux de la fiche site. Un RLT peut couvrir plusieurs sites sur sa semaine de service (6 jours typiques + 1 repos).
+  <strong>Roulement :</strong> vigiles <strong>RLT-XXX</strong> sans poste fixe titulaire, disponibles pour couvrir des sites (repos des titulaires).
+  <ul class="mb-0 mt-2">
+    <li><strong>Convertir</strong> un vigile VIR <strong>non titulaire</strong> → matricule RLT.</li>
+    <li><strong>Planifier</strong> où il va : site + date + jour/nuit (horaires = fiche site).</li>
+    <li>Un RLT peut couvrir <strong>plusieurs sites</strong> sur sa semaine (ex. 6 jours service + 1 repos).</li>
+  </ul>
+</div>
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header"><i class="bi bi-arrow-repeat me-2"></i>Convertir un vigile non titulaire (VIR → RLT)</div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Seuls les vigiles <strong>sans poste fixe titulaire</strong> apparaissent ici.
+      Les titulaires restent gérés via <a href="{% url 'webadmin-affectations-titulaires' %}">Titulaires</a>.
+    </p>
+    <form method="post" class="row g-3 align-items-end" onsubmit="return confirm('Convertir ce vigile en roulement (RLT) ? Ses postes titulaires seront libérés.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="convert_vigile">
+      {% if convert_form.non_field_errors %}
+      <div class="col-12 alert alert-danger">{{ convert_form.non_field_errors }}</div>
+      {% endif %}
+      <div class="col-md-8">
+        <label class="form-label" for="{{ convert_form.vigile.id_for_label }}">{{ convert_form.vigile.label }}</label>
+        {{ convert_form.vigile }}
+        {% if convert_form.vigile.help_text %}<div class="form-text">{{ convert_form.vigile.help_text }}</div>{% endif %}
+        {% if convert_form.vigile.errors %}<div class="text-danger small">{{ convert_form.vigile.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-outline-primary w-100">
+          <i class="bi bi-arrow-repeat me-1"></i>Convertir en RLT
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div class="row g-4">

@@ -1247,6 +1247,23 @@ class RoulementCreationForm(VigileCreationForm):
         return user
 
 
+class ConvertVigileToRoulementForm(forms.Form):
+    """Passe un vigile VIR non titulaire en roulement RLT."""
+
+    vigile = GuardChoiceField(
+        queryset=User.objects.none(),
+        label="Vigile non titulaire à convertir",
+        widget=forms.Select(attrs={"class": _SEL}),
+        help_text="Uniquement les vigiles sans poste fixe titulaire actif sur un site.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from accounts.roulement_eligibility import non_titular_vigile_queryset
+
+        self.fields["vigile"].queryset = non_titular_vigile_queryset()
+
+
 class RoulementAssignmentForm(forms.Form):
     SHIFT_TYPE_DAY = ShiftAssignmentForm.SHIFT_TYPE_DAY
     SHIFT_TYPE_NIGHT = ShiftAssignmentForm.SHIFT_TYPE_NIGHT

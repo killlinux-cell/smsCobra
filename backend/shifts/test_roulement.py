@@ -109,20 +109,25 @@ class ConvertToRoulementTests(TestCase):
             longitude=1,
         )
         self.vigile = User.objects.create_user(username="VIR-050", password="x", role="vigile")
+        self.titular = User.objects.create_user(username="VIR-051", password="x", role="vigile")
         self.post = FixedPost.objects.create(
             site=self.site,
             shift_type=FixedPost.ShiftType.DAY,
-            titular_guard=self.vigile,
+            titular_guard=self.titular,
             is_active=True,
         )
 
-    def test_convert_releases_fixed_post(self):
+    def test_convert_non_titular(self):
         convert_vigile_to_roulement(self.vigile)
         self.vigile.refresh_from_db()
-        self.post.refresh_from_db()
         self.assertTrue(self.vigile.is_roulement)
         self.assertTrue(self.vigile.username.startswith("RLT-"))
-        self.assertFalse(self.post.is_active)
+
+    def test_convert_titular_rejected(self):
+        with self.assertRaises(ValidationError):
+            convert_vigile_to_roulement(self.titular)
+        self.titular.refresh_from_db()
+        self.assertFalse(self.titular.is_roulement)
 
 
 class RoulementNoTitularPromotionTests(TestCase):

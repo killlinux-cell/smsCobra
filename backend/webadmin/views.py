@@ -46,6 +46,7 @@ from .forms import (
     DispatchForm,
     RoulementAssignmentForm,
     RoulementCreationForm,
+    ConvertVigileToRoulementForm,
     ShiftAssignmentForm,
     SiteForm,
     VigileCreationForm,
@@ -1061,6 +1062,7 @@ def vigile_detail_view(request, pk):
     else:
         form = VigileUpdateForm(instance=vigile)
     from webadmin.vigile_placement import build_vigile_placement
+    from accounts.roulement_eligibility import vigile_is_active_titular
 
     placement = build_vigile_placement(vigile)
     return render(
@@ -1075,7 +1077,10 @@ def vigile_detail_view(request, pk):
             "id_document_verso_kind": _uploaded_file_kind(vigile.id_document_verso),
             "vigiles_list_querystring": list_qs,
             "placement": placement,
-            "can_convert_roulement": not vigile.is_roulement,
+            "can_convert_roulement": (
+                not vigile.is_roulement and not vigile_is_active_titular(vigile)
+            ),
+            "vigile_is_titular": vigile_is_active_titular(vigile),
         },
     )
 
@@ -1123,6 +1128,7 @@ def roulement_list_view(request):
         .order_by("shift_date", "site__name", "start_time")
     )
     create_form = RoulementCreationForm()
+    convert_form = ConvertVigileToRoulementForm()
     plan_form = RoulementAssignmentForm(initial={"shift_date": today})
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
@@ -1135,6 +1141,23 @@ def roulement_list_view(request):
                     "Vigile roulement créé. Planifiez ses affectations ci-dessous.",
                 )
                 return redirect("webadmin-roulement")
+        elif action == "convert_vigile":
+            convert_form = ConvertVigileToRoulementForm(request.POST)
+            if convert_form.is_valid():
+                from accounts.roulement_convert import convert_vigile_to_roulement
+
+                vigile = convert_form.cleaned_data["vigile"]
+                try:
+                    vigile = convert_vigile_to_roulement(vigile, actor=request.user)
+                except ValidationError as exc:
+                    messages.error(request, exc.messages[0])
+                else:
+                    messages.success(
+                        request,
+                        f"{vigile.display_name} est passé en roulement ({vigile.username}). "
+                        "Planifiez ses missions ci-dessous.",
+                    )
+                    return redirect("webadmin-roulement")
         elif action == "plan_assignment":
             plan_form = RoulementAssignmentForm(request.POST)
             if plan_form.is_valid():
@@ -1156,6 +1179,7 @@ def roulement_list_view(request):
             "roulements": roulements,
             "upcoming_assignments": upcoming_assignments,
             "create_form": create_form,
+            "convert_form": convert_form,
             "plan_form": plan_form,
             "today": today,
         },

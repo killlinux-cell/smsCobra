@@ -177,29 +177,54 @@
           <button type="submit" class="btn cobra-btn-accent btn-lg w-100 mt-4">
             <i class="bi bi-check2-circle me-2"></i>Enregistrer les modifications
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
 
-          <hr class="my-4">
-          {% if can_convert_roulement %}
-          <div class="rounded-3 border border-primary border-opacity-25 p-3 bg-primary bg-opacity-10 mb-4">
-            <p class="small fw-semibold text-primary mb-2"><i class="bi bi-arrow-repeat me-1"></i>Passer en roulement</p>
-            <p class="small text-muted mb-3">
-              Retire ce vigile de ses postes fixes titulaires, attribue un matricule <strong>RLT-XXX</strong>
-              et permet une planification multi-sites depuis la section Roulement.
-            </p>
-            <form method="post" action="{% url 'webadmin-vigile-convert-roulement' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}"
-                  onsubmit="return confirm('Convertir {{ vigile.username }} en vigile roulement (RLT) ? Les postes fixes seront libérés.');">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-outline-primary">
-                <i class="bi bi-arrow-repeat me-1"></i>Convertir en roulement
-              </button>
-            </form>
-          </div>
-          {% elif vigile.is_roulement %}
-          <div class="alert alert-info py-2 small mb-4">
-            <i class="bi bi-arrow-repeat me-1"></i>Vigile roulement — planifiez ses missions depuis
-            <a href="{% url 'webadmin-roulement' %}">Roulement</a>.
-          </div>
-          {% endif %}
+{% if can_convert_roulement %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-8 offset-lg-4">
+    <div class="rounded-3 border border-primary border-opacity-25 p-3 bg-primary bg-opacity-10">
+      <p class="small fw-semibold text-primary mb-2"><i class="bi bi-arrow-repeat me-1"></i>Passer en roulement</p>
+      <p class="small text-muted mb-3">
+        Ce vigile n'est titulaire sur aucun site. Conversion en matricule <strong>RLT-XXX</strong>
+        — il apparaîtra dans la section <a href="{% url 'webadmin-roulement' %}">Roulement</a>.
+      </p>
+      <form method="post" action="{% url 'webadmin-vigile-convert-roulement' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}"
+            onsubmit="return confirm('Convertir {{ vigile.username }} en vigile roulement (RLT) ?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-primary">
+          <i class="bi bi-arrow-repeat me-1"></i>Convertir en roulement
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% elif vigile.is_roulement %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-8 offset-lg-4">
+    <div class="alert alert-info py-2 small mb-0">
+      <i class="bi bi-arrow-repeat me-1"></i>Vigile roulement (<strong>{{ vigile.username }}</strong>) —
+      planifiez ses missions dans <a href="{% url 'webadmin-roulement' %}">Roulement</a>.
+    </div>
+  </div>
+</div>
+{% elif vigile_is_titular %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-8 offset-lg-4">
+    <div class="alert alert-warning py-2 small mb-0">
+      <i class="bi bi-info-circle me-1"></i>Ce vigile est <strong>titulaire</strong> sur un poste fixe.
+      Le roulement concerne les vigiles <strong>non titulaires</strong>.
+      Retirez-le d'abord via <a href="{% url 'webadmin-affectations-titulaires' %}">Titulaires</a> si vous souhaitez le libérer.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8 offset-lg-4">
           <div class="rounded-3 border border-danger border-opacity-25 p-3 bg-danger bg-opacity-10">
             <p class="small fw-semibold text-danger mb-2"><i class="bi bi-exclamation-octagon me-1"></i>Zone sensible</p>
             <p class="small text-muted mb-3">Supprime définitivement le compte, les affectations et l'historique de pointage liés à ce vigile.</p>
@@ -207,11 +232,8 @@
               <i class="bi bi-trash3 me-1"></i>Supprimer ce vigile…
             </a>
           </div>
-        </div>
-      </div>
-    </div>
   </div>
-</form>
+</div>
 {% endblock %}
 {% block extra_scripts %}
 {% include "webadmin/_cobra_rear_camera_script.html" %}
