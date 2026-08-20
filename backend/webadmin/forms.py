@@ -118,8 +118,15 @@ class GuardChoiceField(forms.ModelChoiceField):
 
 
 def vigile_choice_queryset():
-    """Vigiles actifs triés par nom (prénom, nom), puis matricule."""
-    return User.objects.filter(role=User.Role.VIGILE).order_by(
+    """Vigiles titulaires actifs triés par nom (hors roulement RLT)."""
+    return User.objects.filter(role=User.Role.VIGILE, is_roulement=False).order_by(
+        "first_name", "last_name", "username"
+    )
+
+
+def roulement_choice_queryset():
+    """Vigiles roulement (RLT) actifs."""
+    return User.objects.filter(role=User.Role.VIGILE, is_roulement=True, is_active=True).order_by(
         "first_name", "last_name", "username"
     )
 
@@ -828,6 +835,12 @@ class ShiftAssignmentForm(forms.ModelForm):
         if not (site and guard and shift_date and shift_type):
             return cleaned
 
+        if getattr(guard, "is_roulement", False):
+            raise forms.ValidationError(
+                "Les vigiles roulement (RLT) se planifient depuis la section Roulement, "
+                "pas depuis Affectations."
+            )
+
         start_time, end_time = self._slot_times(site, shift_type)
         cleaned["start_time"] = start_time
         cleaned["end_time"] = end_time
@@ -1211,4 +1224,97 @@ class AttendanceCorrectionLookupForm(forms.Form):
         if day > timezone.localdate():
             raise forms.ValidationError("Impossible de corriger une date future.")
         return day
+
+
+class RoulementCreationForm(VigileCreationForm):
+    """Création d'un vigile roulement (matricule RLT-XXX)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].help_text = "Laissez vide pour génération automatique (RLT-XXX)."
+
+    @staticmethod
+    def _generate_username() -> str:
+        from accounts.roulement_username import generate_roulement_username
+
+        return generate_roulement_username()
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.is_roulement = True
+        if commit:
+            user.save()
+        return user
+
+
+class RoulementAssignmentForm(forms.Form):
+    SHIFT_TYPE_DAY = ShiftAssignmentForm.SHIFT_TYPE_DAY
+    SHIFT_TYPE_NIGHT = ShiftAssignmentForm.SHIFT_TYPE_NIGHT
+
+    guard = GuardChoiceField(
+        queryset=roulement_choice_queryset(),
+        label="Vigile roulement",
+        widget=forms.Select(attrs={"class": _SEL}),
+    )
+    site = forms.ModelChoiceField(
+        queryset=Site.objects.filter(is_active=True).order_by("name"),
+        label="Site",
+        widget=forms.Select(attrs={"class": _SEL}),
+    )
+    shift_date = forms.DateField(
+        label="Date de début",
+        widget=_DATE_HTML5_WIDGET,
+        input_formats=_DATE_HTML5_FORMATS,
+    )
+    shift_type = forms.ChoiceField(
+        choices=(
+            (SHIFT_TYPE_DAY, "Jour (horaires prise/fin du site)"),
+            (SHIFT_TYPE_NIGHT, "Nuit (fin du site → prise lendemain)"),
+        ),
+        label="Type de poste",
+        widget=forms.Select(attrs={"class": _SEL}),
+        help_text="Les horaires appliqués sont ceux définis sur la fiche du site choisi.",
+    )
+    roulement_days = forms.IntegerField(
+        label="Nombre de jours consécutifs",
+        min_value=1,
+        max_value=31,
+        initial=1,
+        widget=forms.NumberInput(attrs={"class": _CTRL, "min": "1", "max": "31"}),
+        help_text="Même site et même créneau sur N jours (ex. 6 jours de service).",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_html5_date_field(self.fields["shift_date"])
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.errors:
+            return cleaned
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from shifts.roulement_assignment import validate_create_roulement_assignment
+
+        try:
+            validate_create_roulement_assignment(
+                guard=cleaned["guard"],
+                site=cleaned["site"],
+                shift_date=cleaned["shift_date"],
+                shift_type=cleaned["shift_type"],
+                roulement_days=cleaned["roulement_days"],
+            )
+        except DjangoValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+        return cleaned
+
+    def save(self) -> list[ShiftAssignment]:
+        from shifts.roulement_assignment import create_roulement_assignments
+
+        return create_roulement_assignments(
+            guard=self.cleaned_data["guard"],
+            site=self.cleaned_data["site"],
+            shift_date=self.cleaned_data["shift_date"],
+            shift_type=self.cleaned_data["shift_type"],
+            roulement_days=self.cleaned_data["roulement_days"],
+        )
 

@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from accounts.models import User
+from accounts.roulement_username import is_standard_roulement_username
 from accounts.vigile_username_normalize import (
     is_standard_vigile_username,
     plan_vigile_username_normalizations,
@@ -25,7 +26,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         apply_changes = options["apply"]
         all_vigiles = list(
-            User.objects.filter(role=User.Role.VIGILE)
+            User.objects.filter(role=User.Role.VIGILE, is_roulement=False)
             .order_by("id")
             .values_list("id", "username")
         )
@@ -34,6 +35,7 @@ class Command(BaseCommand):
             (uid, username)
             for uid, username in all_vigiles
             if not is_standard_vigile_username(username or "")
+            and not is_standard_roulement_username(username or "")
         ]
 
         if not vigiles:

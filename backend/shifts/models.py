@@ -11,6 +11,7 @@ class ShiftAssignment(models.Model):
     class Status(models.TextChoices):
         SCHEDULED = "scheduled", "Planifié"
         EXTRA = "extra", "Extra"
+        ROULEMENT = "roulement", "Roulement"
         REPLACED = "replaced", "Remplacé"
         COMPLETED = "completed", "Terminé"
         MISSED = "missed", "Manqué"
@@ -106,7 +107,12 @@ class ShiftAssignment(models.Model):
     @classmethod
     def active_on_duty_statuses(cls) -> list[str]:
         """Statuts pour lesquels le vigile doit pouvoir pointer (alertes, check-in)."""
-        return [cls.Status.SCHEDULED, cls.Status.REPLACED, cls.Status.EXTRA]
+        return [
+            cls.Status.SCHEDULED,
+            cls.Status.REPLACED,
+            cls.Status.EXTRA,
+            cls.Status.ROULEMENT,
+        ]
 
 
 class FixedPost(models.Model):

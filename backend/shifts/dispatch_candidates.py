@@ -44,7 +44,7 @@ def guard_ids_busy_today(*, exclude_assignment_id: int | None = None) -> set[int
 
 def _base_eligible_vigiles_qs() -> QuerySet[User]:
     return (
-        User.objects.filter(role=User.Role.VIGILE, is_active=True)
+        User.objects.filter(role=User.Role.VIGILE, is_active=True, is_roulement=False)
         .exclude(profile_photo="")
         .exclude(face_embedding__isnull=True)
         .order_by("username")

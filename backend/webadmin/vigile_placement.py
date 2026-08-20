@@ -143,6 +143,10 @@ def build_vigile_placement(vigile: User) -> dict:
             role = "Extra"
             detail = ""
             variant = "info"
+        elif assignment.status == ShiftAssignment.Status.ROULEMENT:
+            role = "Roulement"
+            detail = ""
+            variant = "primary"
         elif (
             assignment.status == ShiftAssignment.Status.REPLACED
             and assignment.original_guard_id
@@ -170,7 +174,10 @@ def build_vigile_placement(vigile: User) -> dict:
                 guard=vigile,
                 shift_date__gt=today,
                 shift_date__lte=horizon,
-                status=ShiftAssignment.Status.SCHEDULED,
+                status__in=(
+                    ShiftAssignment.Status.SCHEDULED,
+                    ShiftAssignment.Status.ROULEMENT,
+                ),
             )
             .select_related("site")
             .order_by("shift_date", "start_time")[:5]

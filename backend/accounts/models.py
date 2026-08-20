@@ -21,6 +21,10 @@ class User(AbstractUser):
         help_text="Adresse ou lieu de résidence du vigile.",
     )
     is_active_on_duty = models.BooleanField(default=True)
+    is_roulement = models.BooleanField(
+        default=False,
+        help_text="Vigile en roulement (RLT-) : couverture manuelle multi-sites, sans poste fixe titulaire.",
+    )
     fcm_token = models.TextField(blank=True)
     profile_photo = models.ImageField(
         upload_to="profiles/",

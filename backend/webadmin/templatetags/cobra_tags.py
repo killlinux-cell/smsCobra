@@ -5,6 +5,7 @@ register = template.Library()
 ASSIGNMENT_STATUS_FR = {
     "scheduled": "Planifié",
     "extra": "Extra",
+    "roulement": "Roulement",
     "replaced": "Remplacé",
     "completed": "Terminé",
     "missed": "Manqué",

@@ -29,6 +29,17 @@ urlpatterns = [
     path("vigiles/<int:pk>/", views.vigile_detail_view, name="webadmin-vigile-detail"),
     path("vigiles/<int:pk>/cv.pdf", views.vigile_cv_pdf_view, name="webadmin-vigile-cv-pdf"),
     path("vigiles/<int:pk>/supprimer/", views.vigile_delete_view, name="webadmin-vigile-delete"),
+    path(
+        "vigiles/<int:pk>/convertir-roulement/",
+        views.convert_vigile_to_roulement_view,
+        name="webadmin-vigile-convert-roulement",
+    ),
+    path("roulement/", views.roulement_list_view, name="webadmin-roulement"),
+    path(
+        "roulement/affectations/<int:pk>/annuler/",
+        views.cancel_roulement_assignment_view,
+        name="webadmin-cancel-roulement",
+    ),
     path("affectations/", views.affectations_list_view, name="webadmin-affectations"),
     path(
         "affectations/titulaires/",

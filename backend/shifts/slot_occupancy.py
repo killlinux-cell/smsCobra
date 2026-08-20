@@ -33,7 +33,10 @@ def active_titular_guard_ids(*, site_id: int, shift_type: str) -> set[int]:
 
 def assignment_occupies_titular_slot(assignment: ShiftAssignment, active_titular_ids: set[int]) -> bool:
     """True si l'affectation occupe réellement un slot titulaire (pas une planification orpheline)."""
-    if assignment.status == ShiftAssignment.Status.EXTRA:
+    if assignment.status in (
+        ShiftAssignment.Status.EXTRA,
+        ShiftAssignment.Status.ROULEMENT,
+    ):
         return False
     if assignment.status != ShiftAssignment.Status.SCHEDULED:
         return True

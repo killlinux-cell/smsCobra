@@ -132,7 +132,15 @@ def promote_replacement_to_titular_on_dispatch(
     """
     Si le vigile absent est titulaire du poste fixe (jour/nuit) du site,
     le remplaçant devient titulaire ; l'absent est suspendu jusqu'à réintégration.
+    Les vigiles roulement (RLT) ne sont jamais promus titulaires.
     """
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    replacement = User.objects.filter(pk=replacement_guard_id).only("is_roulement").first()
+    if replacement and replacement.is_roulement:
+        return None
+
     post = find_fixed_post_for_assignment(assignment, titular_guard_id=absent_guard_id)
     if not post or post.titular_guard_id != absent_guard_id:
         return None

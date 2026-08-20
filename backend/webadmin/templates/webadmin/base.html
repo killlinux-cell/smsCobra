@@ -45,6 +45,9 @@
       <a class="nav-link {% if nav_active == 'affectations' %}active{% endif %}" href="{% url 'webadmin-affectations-titulaires' %}">
         <i class="bi bi-diagram-3-fill"></i> Titulaires
       </a>
+      <a class="nav-link {% if nav_active == 'roulement' %}active{% endif %}" href="{% url 'webadmin-roulement' %}">
+        <i class="bi bi-arrow-repeat"></i> Roulement
+      </a>
       <a class="nav-link {% if nav_active == 'alertes' %}active{% endif %}" href="{% url 'webadmin-alertes' %}">
         <i class="bi bi-bell-fill"></i> Alertes
         {% if cobra_critical_count %}<span class="badge rounded-pill bg-danger ms-1">{{ cobra_critical_count }}</span>{% endif %}

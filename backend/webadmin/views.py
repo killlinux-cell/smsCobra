@@ -44,6 +44,8 @@ from .forms import (
     ControllerCreationForm,
     ControllerUpdateForm,
     DispatchForm,
+    RoulementAssignmentForm,
+    RoulementCreationForm,
     ShiftAssignmentForm,
     SiteForm,
     VigileCreationForm,
@@ -833,7 +835,7 @@ def _vigile_search_filter(term: str) -> Q:
 
 @admin_web_required
 def vigiles_list_view(request):
-    vigiles = User.objects.filter(role=User.Role.VIGILE).order_by("username")
+    vigiles = User.objects.filter(role=User.Role.VIGILE, is_roulement=False).order_by("username")
     search_q = (request.GET.get("q") or "").strip()
     if search_q:
         vigiles = vigiles.filter(_vigile_search_filter(search_q))
@@ -1073,8 +1075,112 @@ def vigile_detail_view(request, pk):
             "id_document_verso_kind": _uploaded_file_kind(vigile.id_document_verso),
             "vigiles_list_querystring": list_qs,
             "placement": placement,
+            "can_convert_roulement": not vigile.is_roulement,
         },
     )
+
+
+@admin_web_required
+@require_POST
+def convert_vigile_to_roulement_view(request, pk):
+    vigile = get_object_or_404(User.objects.filter(role=User.Role.VIGILE, is_roulement=False), pk=pk)
+    list_qs = request.GET.urlencode()
+    from accounts.roulement_convert import convert_vigile_to_roulement
+
+    try:
+        vigile = convert_vigile_to_roulement(vigile, actor=request.user)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+        redir = reverse("webadmin-vigile-detail", args=[pk])
+        if list_qs:
+            redir = f"{redir}?{list_qs}"
+        return redirect(redir)
+
+    messages.success(
+        request,
+        f"{vigile.display_name} est maintenant en roulement ({vigile.username}). "
+        "Planifiez ses missions depuis la section Roulement.",
+    )
+    redir = reverse("webadmin-roulement")
+    return redirect(redir)
+
+
+@admin_web_required
+def roulement_list_view(request):
+    today = timezone.localdate()
+    horizon = today + timedelta(days=14)
+    roulements = User.objects.filter(
+        role=User.Role.VIGILE,
+        is_roulement=True,
+    ).order_by("username")
+    upcoming_assignments = (
+        ShiftAssignment.objects.filter(
+            status=ShiftAssignment.Status.ROULEMENT,
+            shift_date__gte=today,
+            shift_date__lte=horizon,
+        )
+        .select_related("guard", "site")
+        .order_by("shift_date", "site__name", "start_time")
+    )
+    create_form = RoulementCreationForm()
+    plan_form = RoulementAssignmentForm(initial={"shift_date": today})
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        if action == "create_rlt":
+            create_form = RoulementCreationForm(request.POST, request.FILES)
+            if create_form.is_valid():
+                create_form.save()
+                messages.success(
+                    request,
+                    "Vigile roulement créé. Planifiez ses affectations ci-dessous.",
+                )
+                return redirect("webadmin-roulement")
+        elif action == "plan_assignment":
+            plan_form = RoulementAssignmentForm(request.POST)
+            if plan_form.is_valid():
+                created = plan_form.save()
+                n = len(created)
+                guard = plan_form.cleaned_data["guard"]
+                site = plan_form.cleaned_data["site"]
+                messages.success(
+                    request,
+                    f"{n} affectation(s) roulement enregistrée(s) pour {guard.username} sur « {site.name} ».",
+                )
+                return redirect("webadmin-roulement")
+    return render(
+        request,
+        "webadmin/roulement.html",
+        {
+            "page_title": "Roulement",
+            "nav_active": "roulement",
+            "roulements": roulements,
+            "upcoming_assignments": upcoming_assignments,
+            "create_form": create_form,
+            "plan_form": plan_form,
+            "today": today,
+        },
+    )
+
+
+@admin_web_required
+@require_POST
+def cancel_roulement_assignment_view(request, pk):
+    assignment = get_object_or_404(
+        ShiftAssignment.objects.select_related("guard", "site"),
+        pk=pk,
+        status=ShiftAssignment.Status.ROULEMENT,
+    )
+    next_url = (request.POST.get("next") or "").strip() or reverse("webadmin-roulement")
+    if Checkin.objects.filter(assignment=assignment).exists():
+        messages.error(
+            request,
+            "Impossible d'annuler : des pointages existent déjà sur cette affectation.",
+        )
+        return redirect(next_url)
+    label = f"{assignment.guard.username} @ {assignment.site.name} ({assignment.shift_date:%d/%m/%Y})"
+    assignment.delete()
+    messages.success(request, f"Affectation roulement supprimée : {label}.")
+    return redirect(next_url)
 
 
 @admin_web_required

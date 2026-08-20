@@ -1,0 +1,157 @@
+{% extends "webadmin/base.html" %}
+{% load cobra_tags %}
+{% block content %}
+<div class="alert alert-light border mb-4 small">
+  <strong>Roulement :</strong> vigiles <strong>RLT-XXX</strong> sans poste fixe titulaire.
+  Vous choisissez manuellement le <strong>site</strong>, la <strong>date</strong> et le créneau <strong>jour/nuit</strong>.
+  Les horaires appliqués sont ceux de la fiche site. Un RLT peut couvrir plusieurs sites sur sa semaine de service (6 jours typiques + 1 repos).
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-5">
+    <div class="card cobra-panel h-100">
+      <div class="card-header"><i class="bi bi-person-plus me-2"></i>Nouveau vigile roulement</div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_rlt">
+          {% if create_form.non_field_errors %}
+          <div class="alert alert-danger">{{ create_form.non_field_errors }}</div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="{{ create_form.first_name.id_for_label }}">{{ create_form.first_name.label }}</label>
+              {{ create_form.first_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ create_form.last_name.id_for_label }}">{{ create_form.last_name.label }}</label>
+              {{ create_form.last_name }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ create_form.profile_photo.id_for_label }}">{{ create_form.profile_photo.label }}</label>
+              {{ create_form.profile_photo }}
+              {% if create_form.profile_photo.errors %}<div class="text-danger small">{{ create_form.profile_photo.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ create_form.phone_number.id_for_label }}">{{ create_form.phone_number.label }}</label>
+              {{ create_form.phone_number }}
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn cobra-btn-accent">
+                <i class="bi bi-check2 me-1"></i>Créer RLT
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-7">
+    <div class="card cobra-panel h-100">
+      <div class="card-header"><i class="bi bi-calendar-plus me-2"></i>Planifier une mission roulement</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="plan_assignment">
+          {% if plan_form.non_field_errors %}
+          <div class="alert alert-danger">{{ plan_form.non_field_errors }}</div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="{{ plan_form.guard.id_for_label }}">{{ plan_form.guard.label }}</label>
+              {{ plan_form.guard }}
+              {% if plan_form.guard.errors %}<div class="text-danger small">{{ plan_form.guard.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ plan_form.site.id_for_label }}">{{ plan_form.site.label }}</label>
+              {{ plan_form.site }}
+              {% if plan_form.site.errors %}<div class="text-danger small">{{ plan_form.site.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="{{ plan_form.shift_date.id_for_label }}">{{ plan_form.shift_date.label }}</label>
+              {{ plan_form.shift_date }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="{{ plan_form.shift_type.id_for_label }}">{{ plan_form.shift_type.label }}</label>
+              {{ plan_form.shift_type }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="{{ plan_form.roulement_days.id_for_label }}">{{ plan_form.roulement_days.label }}</label>
+              {{ plan_form.roulement_days }}
+              {% if plan_form.roulement_days.help_text %}<div class="form-text">{{ plan_form.roulement_days.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2-circle me-1"></i>Enregistrer la planification
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card cobra-panel mt-4">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-people me-2"></i>Équipe roulement ({{ roulements|length }})</span>
+  </div>
+  <div class="card-body">
+    {% if roulements %}
+    <div class="d-flex flex-wrap gap-2">
+      {% for r in roulements %}
+      <a href="{% url 'webadmin-vigile-detail' r.pk %}" class="badge rounded-pill text-bg-primary text-decoration-none py-2 px-3">
+        {{ r.get_full_name|default:r.username }} · {{ r.username }}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">Aucun vigile roulement. Créez un RLT ou convertissez un vigile depuis sa fiche.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card cobra-panel mt-4">
+  <div class="card-header">
+    <i class="bi bi-calendar3 me-2"></i>Missions planifiées (14 prochains jours)
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Vigile</th>
+          <th>Site</th>
+          <th>Créneau</th>
+          <th>Horaires</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in upcoming_assignments %}
+        <tr>
+          <td>{{ a.shift_date|date:"d/m/Y" }}</td>
+          <td>{{ a.guard.display_name }}</td>
+          <td>{{ a.site.name }}</td>
+          <td><span class="badge bg-primary-subtle text-primary-emphasis border">{{ a.status|statut_affectation_fr }}</span></td>
+          <td>{{ a.start_time|time:"H:i" }} – {{ a.end_time|time:"H:i" }}</td>
+          <td class="text-end">
+            <form method="post" action="{% url 'webadmin-cancel-roulement' a.pk %}" class="d-inline"
+                  onsubmit="return confirm('Annuler cette affectation roulement ?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Annuler</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-muted text-center py-4">Aucune mission roulement planifiée sur les 14 prochains jours.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

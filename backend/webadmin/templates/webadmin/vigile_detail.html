@@ -179,6 +179,27 @@
           </button>
 
           <hr class="my-4">
+          {% if can_convert_roulement %}
+          <div class="rounded-3 border border-primary border-opacity-25 p-3 bg-primary bg-opacity-10 mb-4">
+            <p class="small fw-semibold text-primary mb-2"><i class="bi bi-arrow-repeat me-1"></i>Passer en roulement</p>
+            <p class="small text-muted mb-3">
+              Retire ce vigile de ses postes fixes titulaires, attribue un matricule <strong>RLT-XXX</strong>
+              et permet une planification multi-sites depuis la section Roulement.
+            </p>
+            <form method="post" action="{% url 'webadmin-vigile-convert-roulement' vigile.pk %}{% if vigiles_list_querystring %}?{{ vigiles_list_querystring }}{% endif %}"
+                  onsubmit="return confirm('Convertir {{ vigile.username }} en vigile roulement (RLT) ? Les postes fixes seront libérés.');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-repeat me-1"></i>Convertir en roulement
+              </button>
+            </form>
+          </div>
+          {% elif vigile.is_roulement %}
+          <div class="alert alert-info py-2 small mb-4">
+            <i class="bi bi-arrow-repeat me-1"></i>Vigile roulement — planifiez ses missions depuis
+            <a href="{% url 'webadmin-roulement' %}">Roulement</a>.
+          </div>
+          {% endif %}
           <div class="rounded-3 border border-danger border-opacity-25 p-3 bg-danger bg-opacity-10">
             <p class="small fw-semibold text-danger mb-2"><i class="bi bi-exclamation-octagon me-1"></i>Zone sensible</p>
             <p class="small text-muted mb-3">Supprime définitivement le compte, les affectations et l'historique de pointage liés à ce vigile.</p>
