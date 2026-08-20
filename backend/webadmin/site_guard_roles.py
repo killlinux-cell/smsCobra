@@ -65,11 +65,11 @@ def enrich_guard_roles_from_assignments(
         slot_key = (guard.id, lab)
 
         if assignment.shift_date == today:
-        if assignment.status == ShiftAssignment.Status.EXTRA:
-            note_role(guard, f"Extra — {lab}")
-        elif assignment.status == ShiftAssignment.Status.ROULEMENT:
-            note_role(guard, f"Roulement — {lab}")
-        elif (
+            if assignment.status == ShiftAssignment.Status.EXTRA:
+                note_role(guard, f"Extra — {lab}")
+            elif assignment.status == ShiftAssignment.Status.ROULEMENT:
+                note_role(guard, f"Roulement — {lab}")
+            elif (
                 assignment.status == ShiftAssignment.Status.REPLACED
                 and assignment.original_guard_id
                 and slot_key not in covered
@@ -82,6 +82,11 @@ def enrich_guard_roles_from_assignments(
             and assignment.status == ShiftAssignment.Status.EXTRA
         ):
             note_role(guard, f"Extra planifié — {lab}")
+        elif (
+            assignment.shift_date > today
+            and assignment.status == ShiftAssignment.Status.ROULEMENT
+        ):
+            note_role(guard, f"Roulement planifié — {lab}")
 
 
 def sort_role_labels(roles: list[str]) -> list[str]:
@@ -91,6 +96,8 @@ def sort_role_labels(roles: list[str]) -> list[str]:
         "Remplaçant en poste —",
         "Remplaçant désigné —",
         "Dépêche —",
+        "Roulement —",
+        "Roulement planifié —",
         "Extra —",
         "Extra planifié —",
         "En poste aujourd'hui —",
