@@ -25,6 +25,11 @@ class User(AbstractUser):
         default=False,
         help_text="Vigile en roulement (RLT-) : couverture manuelle multi-sites, sans poste fixe titulaire.",
     )
+    roulement_cycle_anchor = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Premier jour d'un bloc de service (cycle 6 jours + 1 repos).",
+    )
     fcm_token = models.TextField(blank=True)
     profile_photo = models.ImageField(
         upload_to="profiles/",

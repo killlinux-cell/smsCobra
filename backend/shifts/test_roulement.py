@@ -24,11 +24,13 @@ class RoulementUsernameTests(TestCase):
 
 class RoulementAssignmentTests(TestCase):
     def setUp(self):
+        self.day = date(2026, 8, 10)
         self.rlt = User.objects.create_user(
             username="RLT-010",
             password="x",
             role="vigile",
             is_roulement=True,
+            roulement_cycle_anchor=self.day,
         )
         self.site_a = Site.objects.create(
             name="Site A",
@@ -50,7 +52,6 @@ class RoulementAssignmentTests(TestCase):
             latitude=1,
             longitude=1,
         )
-        self.day = date(2026, 8, 10)
 
     def test_create_roulement_uses_site_hours(self):
         rows = create_roulement_assignments(

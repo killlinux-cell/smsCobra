@@ -46,6 +46,7 @@ from .forms import (
     DispatchForm,
     RoulementAssignmentForm,
     RoulementCreationForm,
+    RoulementCycleAnchorForm,
     ConvertVigileToRoulementForm,
     ShiftAssignmentForm,
     SiteForm,
@@ -1065,6 +1066,23 @@ def vigile_detail_view(request, pk):
     from accounts.roulement_eligibility import vigile_is_active_titular
 
     placement = build_vigile_placement(vigile)
+    today = timezone.localdate()
+    roulement_cycle = None
+    if vigile.is_roulement:
+        from shifts.roulement_cycle import (
+            build_guard_calendar,
+            cycle_label,
+            guard_cycle_anchor,
+            is_rest_day,
+        )
+
+        anchor = guard_cycle_anchor(vigile)
+        roulement_cycle = {
+            "anchor": anchor,
+            "today_label": cycle_label(today, anchor) if anchor else None,
+            "is_rest_today": is_rest_day(today, anchor) if anchor else False,
+            "days": build_guard_calendar(vigile, start=today, days=14, today=today),
+        }
     return render(
         request,
         "webadmin/vigile_detail.html",
@@ -1081,6 +1099,7 @@ def vigile_detail_view(request, pk):
                 not vigile.is_roulement and not vigile_is_active_titular(vigile)
             ),
             "vigile_is_titular": vigile_is_active_titular(vigile),
+            "roulement_cycle": roulement_cycle,
         },
     )
 
@@ -1114,6 +1133,8 @@ def convert_vigile_to_roulement_view(request, pk):
 def roulement_list_view(request):
     today = timezone.localdate()
     horizon = today + timedelta(days=14)
+    from shifts.roulement_cycle import build_team_calendars
+
     roulements = User.objects.filter(
         role=User.Role.VIGILE,
         is_roulement=True,
@@ -1129,7 +1150,9 @@ def roulement_list_view(request):
     )
     create_form = RoulementCreationForm()
     convert_form = ConvertVigileToRoulementForm()
-    plan_form = RoulementAssignmentForm(initial={"shift_date": today})
+    plan_form = RoulementAssignmentForm(initial={"shift_date": today, "roulement_days": 6})
+    anchor_form = RoulementCycleAnchorForm(initial={"cycle_anchor": today})
+    team_calendars = build_team_calendars(roulements, start=today, days=14)
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
         if action == "create_rlt":
@@ -1170,6 +1193,16 @@ def roulement_list_view(request):
                     f"{n} affectation(s) roulement enregistrée(s) pour {guard.username} sur « {site.name} ».",
                 )
                 return redirect("webadmin-roulement")
+        elif action == "set_cycle_anchor":
+            anchor_form = RoulementCycleAnchorForm(request.POST)
+            if anchor_form.is_valid():
+                guard = anchor_form.save()
+                anchor = anchor_form.cleaned_data["cycle_anchor"]
+                messages.success(
+                    request,
+                    f"Cycle 6j/1 repos de {guard.username} redémarré au {anchor:%d/%m/%Y}.",
+                )
+                return redirect("webadmin-roulement")
     return render(
         request,
         "webadmin/roulement.html",
@@ -1177,10 +1210,12 @@ def roulement_list_view(request):
             "page_title": "Roulement",
             "nav_active": "roulement",
             "roulements": roulements,
+            "team_calendars": team_calendars,
             "upcoming_assignments": upcoming_assignments,
             "create_form": create_form,
             "convert_form": convert_form,
             "plan_form": plan_form,
+            "anchor_form": anchor_form,
             "today": today,
         },
     )

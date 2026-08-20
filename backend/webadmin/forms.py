@@ -1240,11 +1240,42 @@ class RoulementCreationForm(VigileCreationForm):
         return generate_roulement_username()
 
     def save(self, commit=True):
+        from shifts.roulement_cycle import default_cycle_anchor
+
         user = super().save(commit=False)
         user.is_roulement = True
+        if not user.roulement_cycle_anchor:
+            user.roulement_cycle_anchor = default_cycle_anchor()
         if commit:
             user.save()
         return user
+
+
+class RoulementCycleAnchorForm(forms.Form):
+    """Redémarre le cycle 6j/1 repos à partir d'une date."""
+
+    guard = GuardChoiceField(
+        queryset=User.objects.none(),
+        label="Vigile roulement",
+        widget=forms.Select(attrs={"class": _SEL}),
+    )
+    cycle_anchor = forms.DateField(
+        label="Premier jour de service",
+        widget=_DATE_HTML5_WIDGET,
+        input_formats=_DATE_HTML5_FORMATS,
+        help_text="Ce jour = J1 du cycle (6 jours service puis 1 repos).",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["guard"].queryset = roulement_choice_queryset()
+        _apply_html5_date_field(self.fields["cycle_anchor"])
+
+    def save(self) -> User:
+        guard = self.cleaned_data["guard"]
+        guard.roulement_cycle_anchor = self.cleaned_data["cycle_anchor"]
+        guard.save(update_fields=["roulement_cycle_anchor"])
+        return guard
 
 
 class ConvertVigileToRoulementForm(forms.Form):

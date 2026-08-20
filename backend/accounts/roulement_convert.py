@@ -5,8 +5,11 @@ from __future__ import annotations
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from django.utils import timezone
+
 from accounts.models import User
 from accounts.roulement_username import generate_roulement_username, is_standard_roulement_username
+from shifts.roulement_cycle import default_cycle_anchor
 
 
 @transaction.atomic
@@ -31,5 +34,7 @@ def convert_vigile_to_roulement(vigile: User, *, actor=None) -> User:
     old_username = vigile.username
     vigile.username = generate_roulement_username()
     vigile.is_roulement = True
-    vigile.save(update_fields=["username", "is_roulement"])
+    if not vigile.roulement_cycle_anchor:
+        vigile.roulement_cycle_anchor = default_cycle_anchor(timezone.localdate())
+    vigile.save(update_fields=["username", "is_roulement", "roulement_cycle_anchor"])
     return vigile

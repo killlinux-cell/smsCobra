@@ -6,7 +6,8 @@
   <ul class="mb-0 mt-2">
     <li><strong>Convertir</strong> un vigile VIR <strong>non titulaire</strong> → matricule RLT.</li>
     <li><strong>Planifier</strong> où il va : site + date + jour/nuit (horaires = fiche site).</li>
-    <li>Un RLT peut couvrir <strong>plusieurs sites</strong> sur sa semaine (ex. 6 jours service + 1 repos).</li>
+    <li>Cycle <strong>6 jours service + 1 jour repos</strong> — le calendrier ci-dessous indique repos / mission / service libre.</li>
+    <li>Un RLT peut couvrir <strong>plusieurs sites</strong> sur ses jours de service.</li>
   </ul>
 </div>
 
@@ -127,19 +128,89 @@
 <div class="card cobra-panel mt-4">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <span><i class="bi bi-people me-2"></i>Équipe roulement ({{ roulements|length }})</span>
+    <div class="d-flex flex-wrap gap-2 small">
+      <span class="badge rounded-pill bg-success-subtle text-success-emphasis border">Mission</span>
+      <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border">Service libre</span>
+      <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis border">Repos</span>
+    </div>
   </div>
   <div class="card-body">
-    {% if roulements %}
-    <div class="d-flex flex-wrap gap-2">
-      {% for r in roulements %}
-      <a href="{% url 'webadmin-vigile-detail' r.pk %}" class="badge rounded-pill text-bg-primary text-decoration-none py-2 px-3">
-        {{ r.get_full_name|default:r.username }} · {{ r.username }}
-      </a>
-      {% endfor %}
+    {% if team_calendars %}
+    {% for row in team_calendars %}
+    <div class="mb-4 pb-4 {% if not forloop.last %}border-bottom{% endif %}">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+          <a href="{% url 'webadmin-vigile-detail' row.guard.pk %}" class="fw-semibold text-decoration-none">
+            {{ row.guard.display_name }} · {{ row.guard.username }}
+          </a>
+          {% if row.is_rest_today %}
+          <span class="badge bg-secondary ms-1">En repos aujourd'hui</span>
+          {% else %}
+          <span class="badge bg-primary-subtle text-primary-emphasis border ms-1">{{ row.today_label }}</span>
+          {% endif %}
+        </div>
+        {% if row.anchor %}
+        <span class="small text-muted">Cycle depuis le {{ row.anchor|date:"d/m/Y" }}</span>
+        {% endif %}
+      </div>
+      <div class="d-flex flex-wrap gap-1">
+        {% for day in row.days %}
+        <div class="text-center" style="min-width: 4.5rem;">
+          <div class="small text-muted">{{ day.date|date:"D" }}<br>{{ day.date|date:"d/m" }}</div>
+          <div class="rounded px-1 py-2 small border
+            {% if day.status == 'rest' %}bg-secondary-subtle text-secondary-emphasis
+            {% elif day.status == 'mission' %}bg-success-subtle text-success-emphasis
+            {% elif day.status == 'free' %}bg-warning-subtle text-warning-emphasis
+            {% else %}bg-light text-muted{% endif %}
+            {% if day.is_today %}border-primary border-2{% endif %}">
+            {% if day.status == 'mission' %}
+              {% for m in day.missions %}
+              <div class="text-truncate" title="{{ m.site.name }}">{{ m.site.name|truncatechars:12 }}</div>
+              {% endfor %}
+            {% else %}
+              {{ day.status_label }}
+            {% endif %}
+          </div>
+          <div class="small text-muted">{{ day.cycle_label }}</div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
+    {% endfor %}
     {% else %}
     <p class="text-muted mb-0">Aucun vigile roulement. Créez un RLT ou convertissez un vigile depuis sa fiche.</p>
     {% endif %}
+  </div>
+</div>
+
+<div class="card cobra-panel mt-4">
+  <div class="card-header"><i class="bi bi-arrow-clockwise me-2"></i>Ajuster le cycle 6j/1 repos</div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Redémarre le compteur de service pour un RLT (ex. après une absence longue).
+      La date choisie devient le <strong>jour 1</strong> du bloc de 6 jours.
+    </p>
+    <form method="post" class="row g-3 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="set_cycle_anchor">
+      {% if anchor_form.non_field_errors %}
+      <div class="col-12 alert alert-danger">{{ anchor_form.non_field_errors }}</div>
+      {% endif %}
+      <div class="col-md-5">
+        <label class="form-label" for="{{ anchor_form.guard.id_for_label }}">{{ anchor_form.guard.label }}</label>
+        {{ anchor_form.guard }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="{{ anchor_form.cycle_anchor.id_for_label }}">{{ anchor_form.cycle_anchor.label }}</label>
+        {{ anchor_form.cycle_anchor }}
+        {% if anchor_form.cycle_anchor.help_text %}<div class="form-text">{{ anchor_form.cycle_anchor.help_text }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-outline-secondary w-100">
+          <i class="bi bi-arrow-clockwise me-1"></i>Appliquer
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 

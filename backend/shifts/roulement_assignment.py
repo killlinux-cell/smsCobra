@@ -10,6 +10,7 @@ from django.db import transaction
 from accounts.models import User
 from shifts.guard_conflicts import conflict_error_message, find_assignment_conflict_on_other_site
 from shifts.models import ShiftAssignment
+from shifts.roulement_cycle import validate_service_days
 from shifts.site_shift_times import SHIFT_DAY, SHIFT_NIGHT, slot_times_for_site
 from sites.models import Site
 
@@ -46,6 +47,7 @@ def validate_create_roulement_assignment(
             f"n'est configuré sur ce site."
         )
     days = max(1, min(int(roulement_days or 1), 31))
+    validate_service_days(guard=guard, shift_date=shift_date, roulement_days=days)
     start_time, _ = slot_times_for_site(site, shift_type)
     for offset in range(days):
         day = shift_date + timedelta(days=offset)
