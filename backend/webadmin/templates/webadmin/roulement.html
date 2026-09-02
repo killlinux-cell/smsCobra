@@ -7,6 +7,7 @@
     <li><strong>Convertir</strong> un vigile VIR <strong>non titulaire</strong> → matricule RLT.</li>
     <li><strong>Planifier</strong> où il va : site + date + jour/nuit (horaires = fiche site).</li>
     <li>Cycle <strong>6 jours service + 1 jour repos</strong> — le calendrier ci-dessous indique repos / mission / service libre.</li>
+    <li>Indiquez le <strong>titulaire en repos</strong> remplacé : il ne sera plus attendu ni alerté sur ce créneau.</li>
     <li>Un RLT peut couvrir <strong>plusieurs sites</strong> sur ses jours de service.</li>
   </ul>
 </div>
@@ -112,6 +113,12 @@
               <label class="form-label" for="{{ plan_form.roulement_days.id_for_label }}">{{ plan_form.roulement_days.label }}</label>
               {{ plan_form.roulement_days }}
               {% if plan_form.roulement_days.help_text %}<div class="form-text">{{ plan_form.roulement_days.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-12">
+              <label class="form-label" for="{{ plan_form.relieved_titular.id_for_label }}">{{ plan_form.relieved_titular.label }}</label>
+              {{ plan_form.relieved_titular }}
+              {% if plan_form.relieved_titular.help_text %}<div class="form-text">{{ plan_form.relieved_titular.help_text }}</div>{% endif %}
+              {% if plan_form.relieved_titular.errors %}<div class="text-danger small">{{ plan_form.relieved_titular.errors }}</div>{% endif %}
             </div>
             <div class="col-12">
               <button type="submit" class="btn btn-primary">

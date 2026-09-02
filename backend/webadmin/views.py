@@ -1237,6 +1237,9 @@ def cancel_roulement_assignment_view(request, pk):
         )
         return redirect(next_url)
     label = f"{assignment.guard.username} @ {assignment.site.name} ({assignment.shift_date:%d/%m/%Y})"
+    from shifts.roulement_relief import restore_titular_after_roulement_cancel
+
+    restore_titular_after_roulement_cancel(assignment)
     assignment.delete()
     messages.success(request, f"Affectation roulement supprimée : {label}.")
     return redirect(next_url)

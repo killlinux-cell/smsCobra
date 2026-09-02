@@ -28,12 +28,14 @@ $COMPOSE cp backend/accounts/management/commands/normalize_vigile_usernames.py a
 $COMPOSE cp backend/shifts/models.py api:/app/shifts/models.py
 $COMPOSE cp backend/shifts/roulement_assignment.py api:/app/shifts/roulement_assignment.py
 $COMPOSE cp backend/shifts/roulement_cycle.py api:/app/shifts/roulement_cycle.py
+$COMPOSE cp backend/shifts/roulement_relief.py api:/app/shifts/roulement_relief.py
 $COMPOSE cp backend/shifts/slot_occupancy.py api:/app/shifts/slot_occupancy.py
 $COMPOSE cp backend/shifts/titular_replacement.py api:/app/shifts/titular_replacement.py
 $COMPOSE cp backend/shifts/dispatch_candidates.py api:/app/shifts/dispatch_candidates.py
 $COMPOSE cp backend/shifts/migrations/0010_remove_shiftassignment_uniq_shiftassignment_one_outgoing_per_incoming_and_more.py api:/app/shifts/migrations/0010_remove_shiftassignment_uniq_shiftassignment_one_outgoing_per_incoming_and_more.py
 $COMPOSE cp backend/shifts/migrations/0011_remove_fixedpost_uniq_active_fixedpost_per_site_shift_and_more.py api:/app/shifts/migrations/0011_remove_fixedpost_uniq_active_fixedpost_per_site_shift_and_more.py
 $COMPOSE cp backend/shifts/migrations/0012_shiftassignment_status_roulement.py api:/app/shifts/migrations/0012_shiftassignment_status_roulement.py
+$COMPOSE cp backend/shifts/migrations/0013_shiftassignment_status_rest.py api:/app/shifts/migrations/0013_shiftassignment_status_rest.py
 
 # Webadmin
 $COMPOSE cp backend/webadmin/forms.py api:/app/webadmin/forms.py

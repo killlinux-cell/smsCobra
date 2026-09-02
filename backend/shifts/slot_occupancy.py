@@ -36,6 +36,7 @@ def assignment_occupies_titular_slot(assignment: ShiftAssignment, active_titular
     if assignment.status in (
         ShiftAssignment.Status.EXTRA,
         ShiftAssignment.Status.ROULEMENT,
+        ShiftAssignment.Status.REST,
     ):
         return False
     if assignment.status != ShiftAssignment.Status.SCHEDULED:

@@ -1331,10 +1331,34 @@ class RoulementAssignmentForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": _CTRL, "min": "1", "max": "31"}),
         help_text="Même site et même créneau sur N jours (ex. 6 jours de service).",
     )
+    relieved_titular = GuardChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        label="Titulaire en repos (remplacé)",
+        widget=forms.Select(attrs={"class": _SEL}),
+        help_text=(
+            "Titulaire du site qui est en repos ce soir : il ne sera plus attendu ni alerté. "
+            "Le RLT le remplace sur ce créneau."
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _apply_html5_date_field(self.fields["shift_date"])
+        site = None
+        shift_type = None
+        if self.data:
+            site_id = self.data.get("site")
+            shift_type = self.data.get("shift_type")
+            if site_id:
+                site = Site.objects.filter(pk=site_id, is_active=True).first()
+        elif self.initial.get("site"):
+            site = self.initial.get("site")
+            shift_type = self.initial.get("shift_type")
+        if site and shift_type:
+            from shifts.roulement_relief import titulars_for_site_shift
+
+            self.fields["relieved_titular"].queryset = titulars_for_site_shift(site, shift_type)
 
     def clean(self):
         cleaned = super().clean()
@@ -1350,6 +1374,7 @@ class RoulementAssignmentForm(forms.Form):
                 shift_date=cleaned["shift_date"],
                 shift_type=cleaned["shift_type"],
                 roulement_days=cleaned["roulement_days"],
+                relieved_titular=cleaned.get("relieved_titular"),
             )
         except DjangoValidationError as exc:
             raise forms.ValidationError(exc.messages)
@@ -1364,5 +1389,6 @@ class RoulementAssignmentForm(forms.Form):
             shift_date=self.cleaned_data["shift_date"],
             shift_type=self.cleaned_data["shift_type"],
             roulement_days=self.cleaned_data["roulement_days"],
+            relieved_titular=self.cleaned_data.get("relieved_titular"),
         )
 

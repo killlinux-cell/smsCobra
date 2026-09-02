@@ -12,6 +12,7 @@ class ShiftAssignment(models.Model):
         SCHEDULED = "scheduled", "Planifié"
         EXTRA = "extra", "Extra"
         ROULEMENT = "roulement", "Roulement"
+        REST = "rest", "Repos (roulement)"
         REPLACED = "replaced", "Remplacé"
         COMPLETED = "completed", "Terminé"
         MISSED = "missed", "Manqué"

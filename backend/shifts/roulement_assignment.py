@@ -11,6 +11,10 @@ from accounts.models import User
 from shifts.guard_conflicts import conflict_error_message, find_assignment_conflict_on_other_site
 from shifts.models import ShiftAssignment
 from shifts.roulement_cycle import validate_service_days
+from shifts.roulement_relief import (
+    mark_titular_relieved_by_roulement,
+    validate_relieved_titular,
+)
 from shifts.site_shift_times import SHIFT_DAY, SHIFT_NIGHT, slot_times_for_site
 from sites.models import Site
 
@@ -34,8 +38,14 @@ def validate_create_roulement_assignment(
     shift_date: date,
     shift_type: str,
     roulement_days: int = 1,
+    relieved_titular: User | None = None,
 ) -> None:
     validate_roulement_guard(guard)
+    validate_relieved_titular(
+        relieved_titular=relieved_titular,
+        site=site,
+        shift_type=shift_type,
+    )
     if not site.is_active:
         raise ValidationError("Ce site est inactif.")
     if shift_type not in (SHIFT_DAY, SHIFT_NIGHT):
@@ -80,6 +90,7 @@ def create_roulement_assignments(
     shift_date: date,
     shift_type: str,
     roulement_days: int = 1,
+    relieved_titular: User | None = None,
 ) -> list[ShiftAssignment]:
     validate_create_roulement_assignment(
         guard=guard,
@@ -87,12 +98,21 @@ def create_roulement_assignments(
         shift_date=shift_date,
         shift_type=shift_type,
         roulement_days=roulement_days,
+        relieved_titular=relieved_titular,
     )
     days = max(1, min(int(roulement_days or 1), 31))
     start_time, end_time = slot_times_for_site(site, shift_type)
     created: list[ShiftAssignment] = []
     for offset in range(days):
         day = shift_date + timedelta(days=offset)
+        if relieved_titular is not None:
+            mark_titular_relieved_by_roulement(
+                relieved_titular=relieved_titular,
+                site=site,
+                shift_date=day,
+                start_time=start_time,
+                end_time=end_time,
+            )
         assignment = ShiftAssignment.objects.create(
             guard=guard,
             site=site,
@@ -100,6 +120,7 @@ def create_roulement_assignments(
             start_time=start_time,
             end_time=end_time,
             status=ShiftAssignment.Status.ROULEMENT,
+            original_guard=relieved_titular,
             relieved_by=None,
         )
         created.append(assignment)

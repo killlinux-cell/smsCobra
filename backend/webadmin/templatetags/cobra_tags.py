@@ -6,6 +6,7 @@ ASSIGNMENT_STATUS_FR = {
     "scheduled": "Planifié",
     "extra": "Extra",
     "roulement": "Roulement",
+    "rest": "Repos",
     "replaced": "Remplacé",
     "completed": "Terminé",
     "missed": "Manqué",
