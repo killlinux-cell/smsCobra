@@ -11,7 +11,6 @@ class Migration(migrations.Migration):
         ("reports", "0004_alter_titularchangelog_kind"),
         ("shifts", "0013_shiftassignment_status_rest"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("sites", "0011_alter_site_site_manager_phone"),
     ]
 
     operations = [

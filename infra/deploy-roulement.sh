@@ -21,7 +21,14 @@ $COMPOSE cp backend/accounts/roulement_convert.py api:/app/accounts/roulement_co
 $COMPOSE cp backend/reports/models.py api:/app/reports/models.py
 $COMPOSE cp backend/reports/roulement_changes.py api:/app/reports/roulement_changes.py
 $COMPOSE cp backend/reports/activity_feed.py api:/app/reports/activity_feed.py
+$COMPOSE cp backend/reports/migrations/0004_alter_titularchangelog_kind.py api:/app/reports/migrations/0004_alter_titularchangelog_kind.py
 $COMPOSE cp backend/reports/migrations/0005_roulementchangelog.py api:/app/reports/migrations/0005_roulementchangelog.py
+
+# Sites (chaîne complète si absente en prod)
+$COMPOSE cp backend/sites/models.py api:/app/sites/models.py
+$COMPOSE cp backend/sites/migrations/0010_site_manager_name_site_sms_phone.py api:/app/sites/migrations/0010_site_manager_name_site_sms_phone.py
+$COMPOSE cp backend/sites/migrations/0011_alter_site_site_manager_phone.py api:/app/sites/migrations/0011_alter_site_site_manager_phone.py
+
 $COMPOSE cp backend/accounts/roulement_eligibility.py api:/app/accounts/roulement_eligibility.py
 $COMPOSE cp backend/accounts/migrations/0009_controller_visit_default_visited_at.py api:/app/accounts/migrations/0009_controller_visit_default_visited_at.py
 $COMPOSE cp backend/accounts/migrations/0010_user_is_roulement.py api:/app/accounts/migrations/0010_user_is_roulement.py
