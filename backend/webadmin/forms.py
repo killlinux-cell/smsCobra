@@ -1329,20 +1329,21 @@ class RoulementAssignmentForm(forms.Form):
         max_value=31,
         initial=1,
         widget=forms.NumberInput(attrs={"class": _CTRL, "min": "1", "max": "31"}),
-        help_text="Même site et même créneau sur N jours (ex. 6 jours de service).",
+        help_text="Même site, même titulaire reposé et même créneau sur N jours. Sinon planifiez 1 jour à la fois.",
     )
     relieved_titular = GuardChoiceField(
         queryset=User.objects.none(),
-        required=False,
+        required=True,
         label="Titulaire en repos (remplacé)",
         widget=forms.Select(attrs={"class": _SEL}),
         help_text=(
-            "Titulaire du site qui est en repos ce soir : il ne sera plus attendu ni alerté. "
-            "Le RLT le remplace sur ce créneau."
+            "Obligatoire : titulaire du site que le RLT remplace à cette date. "
+            "Pour un titulaire différent chaque jour, planifiez jour par jour (1 jour)."
         ),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, actor=None, **kwargs):
+        self.actor = actor
         super().__init__(*args, **kwargs)
         _apply_html5_date_field(self.fields["shift_date"])
         site = None
@@ -1390,5 +1391,6 @@ class RoulementAssignmentForm(forms.Form):
             shift_type=self.cleaned_data["shift_type"],
             roulement_days=self.cleaned_data["roulement_days"],
             relieved_titular=self.cleaned_data.get("relieved_titular"),
+            actor=self.actor,
         )
 

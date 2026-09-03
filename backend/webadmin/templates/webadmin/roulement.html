@@ -7,7 +7,8 @@
     <li><strong>Convertir</strong> un vigile VIR <strong>non titulaire</strong> → matricule RLT.</li>
     <li><strong>Planifier</strong> où il va : site + date + jour/nuit (horaires = fiche site).</li>
     <li>Cycle <strong>6 jours service + 1 jour repos</strong> — le calendrier ci-dessous indique repos / mission / service libre.</li>
-    <li>Indiquez le <strong>titulaire en repos</strong> remplacé : il ne sera plus attendu ni alerté sur ce créneau.</li>
+    <li>Indiquez le <strong>titulaire en repos</strong> remplacé (obligatoire) : décision admin tracée dans le journal.</li>
+    <li>Pour remplacer <strong>un titulaire différent chaque jour</strong>, planifiez <strong>1 jour à la fois</strong>.</li>
     <li>Un RLT peut couvrir <strong>plusieurs sites</strong> sur ses jours de service.</li>
   </ul>
 </div>
@@ -230,9 +231,9 @@
       <thead class="table-light">
         <tr>
           <th>Date</th>
-          <th>Vigile</th>
+          <th>RLT</th>
+          <th>Remplace (repos)</th>
           <th>Site</th>
-          <th>Créneau</th>
           <th>Horaires</th>
           <th></th>
         </tr>
@@ -241,9 +242,16 @@
         {% for a in upcoming_assignments %}
         <tr>
           <td>{{ a.shift_date|date:"d/m/Y" }}</td>
-          <td>{{ a.guard.display_name }}</td>
+          <td>{{ a.guard.display_name }} <span class="text-muted small">({{ a.guard.username }})</span></td>
+          <td>
+            {% if a.original_guard %}
+            {{ a.original_guard.display_name }}
+            <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Repos</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
           <td>{{ a.site.name }}</td>
-          <td><span class="badge bg-primary-subtle text-primary-emphasis border">{{ a.status|statut_affectation_fr }}</span></td>
           <td>{{ a.start_time|time:"H:i" }} – {{ a.end_time|time:"H:i" }}</td>
           <td class="text-end">
             <form method="post" action="{% url 'webadmin-cancel-roulement' a.pk %}" class="d-inline"
@@ -257,6 +265,38 @@
         {% empty %}
         <tr>
           <td colspan="6" class="text-muted text-center py-4">Aucune mission roulement planifiée sur les 14 prochains jours.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card cobra-panel mt-4">
+  <div class="card-header">
+    <i class="bi bi-journal-text me-2"></i>Journal des décisions roulement
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Date/heure</th>
+          <th>Action</th>
+          <th>Détail</th>
+          <th>Par</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in roulement_logs %}
+        <tr>
+          <td class="text-nowrap small">{{ log.occurred_at|date:"d/m/Y H:i" }}</td>
+          <td><span class="badge bg-light text-dark border">{{ log.get_kind_display }}</span></td>
+          <td class="small">{{ log.detail }}</td>
+          <td class="small text-muted">{% if log.actor %}{{ log.actor.display_name }}{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="text-muted text-center py-4">Aucune trace roulement enregistrée.</td>
         </tr>
         {% endfor %}
       </tbody>

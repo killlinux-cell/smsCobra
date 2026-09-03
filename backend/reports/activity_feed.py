@@ -14,7 +14,7 @@ from accounts.models import ControllerSiteAssignment, ControllerVisit, User
 from accounts.permissions import IsAdminRole
 from alerts.models import LateAlert
 from reports.alert_ack import alert_kind_label
-from reports.models import AttendanceReport, TitularChangeLog
+from reports.models import AttendanceReport, RoulementChangeLog, TitularChangeLog
 from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
 
@@ -443,6 +443,49 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                     "site_id": log.site_id,
                     "site_name": site_name,
                     "fixed_post_id": log.fixed_post_id,
+                },
+            )
+        )
+
+    for log in (
+        RoulementChangeLog.objects.select_related(
+            "site", "rlt_guard", "relieved_guard", "actor"
+        )
+        .order_by("-occurred_at")[:per_bucket]
+    ):
+        site_name = log.site.name if log.site_id else "—"
+        rlt_l = log.rlt_guard.display_name if log.rlt_guard_id else ""
+        relieved_l = log.relieved_guard.display_name if log.relieved_guard_id else ""
+        actor_l = log.actor.display_name if log.actor_id else ""
+
+        if log.kind == RoulementChangeLog.Kind.PLANNED:
+            title = "Roulement planifié"
+            day = log.shift_date.strftime("%d/%m/%Y") if log.shift_date else ""
+            body = (
+                f"« {site_name} » {day} : {rlt_l} remplace {relieved_l} (repos titulaire)"
+                f"{f' — par {actor_l}' if actor_l else ''}."
+            )
+        elif log.kind == RoulementChangeLog.Kind.CANCELLED:
+            title = "Roulement annulé"
+            day = log.shift_date.strftime("%d/%m/%Y") if log.shift_date else ""
+            body = (
+                f"« {site_name} » {day} : mission {rlt_l} annulée"
+                f"{f' par {actor_l}' if actor_l else ''}."
+            )
+        else:
+            title = "Conversion en roulement"
+            body = f"{rlt_l} passé en vigile roulement{f' par {actor_l}' if actor_l else ''}."
+
+        events.append(
+            (
+                log.occurred_at,
+                {
+                    "kind": log.kind,
+                    "occurred_at": log.occurred_at,
+                    "title": title,
+                    "body": body,
+                    "site_id": log.site_id,
+                    "site_name": site_name,
                 },
             )
         )

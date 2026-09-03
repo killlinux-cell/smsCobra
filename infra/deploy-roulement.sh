@@ -18,6 +18,10 @@ echo "=== Copie des fichiers Roulement vers le conteneur api ==="
 $COMPOSE cp backend/accounts/models.py api:/app/accounts/models.py
 $COMPOSE cp backend/accounts/roulement_username.py api:/app/accounts/roulement_username.py
 $COMPOSE cp backend/accounts/roulement_convert.py api:/app/accounts/roulement_convert.py
+$COMPOSE cp backend/reports/models.py api:/app/reports/models.py
+$COMPOSE cp backend/reports/roulement_changes.py api:/app/reports/roulement_changes.py
+$COMPOSE cp backend/reports/activity_feed.py api:/app/reports/activity_feed.py
+$COMPOSE cp backend/reports/migrations/0005_roulementchangelog.py api:/app/reports/migrations/0005_roulementchangelog.py
 $COMPOSE cp backend/accounts/roulement_eligibility.py api:/app/accounts/roulement_eligibility.py
 $COMPOSE cp backend/accounts/migrations/0009_controller_visit_default_visited_at.py api:/app/accounts/migrations/0009_controller_visit_default_visited_at.py
 $COMPOSE cp backend/accounts/migrations/0010_user_is_roulement.py api:/app/accounts/migrations/0010_user_is_roulement.py

@@ -1145,12 +1145,20 @@ def roulement_list_view(request):
             shift_date__gte=today,
             shift_date__lte=horizon,
         )
-        .select_related("guard", "site")
+        .select_related("guard", "site", "original_guard")
         .order_by("shift_date", "site__name", "start_time")
+    )
+    from reports.models import RoulementChangeLog
+
+    roulement_logs = (
+        RoulementChangeLog.objects.select_related(
+            "site", "rlt_guard", "relieved_guard", "actor"
+        )
+        .order_by("-occurred_at")[:40]
     )
     create_form = RoulementCreationForm()
     convert_form = ConvertVigileToRoulementForm()
-    plan_form = RoulementAssignmentForm(initial={"shift_date": today, "roulement_days": 6})
+    plan_form = RoulementAssignmentForm(initial={"shift_date": today, "roulement_days": 1}, actor=None)
     anchor_form = RoulementCycleAnchorForm(initial={"cycle_anchor": today})
     team_calendars = build_team_calendars(roulements, start=today, days=14)
     if request.method == "POST":
@@ -1182,7 +1190,7 @@ def roulement_list_view(request):
                     )
                     return redirect("webadmin-roulement")
         elif action == "plan_assignment":
-            plan_form = RoulementAssignmentForm(request.POST)
+            plan_form = RoulementAssignmentForm(request.POST, actor=request.user)
             if plan_form.is_valid():
                 created = plan_form.save()
                 n = len(created)
@@ -1216,6 +1224,7 @@ def roulement_list_view(request):
             "convert_form": convert_form,
             "plan_form": plan_form,
             "anchor_form": anchor_form,
+            "roulement_logs": roulement_logs,
             "today": today,
         },
     )
@@ -1237,8 +1246,10 @@ def cancel_roulement_assignment_view(request, pk):
         )
         return redirect(next_url)
     label = f"{assignment.guard.username} @ {assignment.site.name} ({assignment.shift_date:%d/%m/%Y})"
+    from reports.roulement_changes import log_roulement_cancelled
     from shifts.roulement_relief import restore_titular_after_roulement_cancel
 
+    log_roulement_cancelled(assignment=assignment, actor=request.user)
     restore_titular_after_roulement_cancel(assignment)
     assignment.delete()
     messages.success(request, f"Affectation roulement supprimée : {label}.")

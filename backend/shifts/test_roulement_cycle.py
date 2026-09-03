@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
+from shifts.models import FixedPost
 from shifts.roulement_assignment import create_roulement_assignments
 from shifts.roulement_cycle import (
     build_guard_calendar,
@@ -36,6 +37,13 @@ class RoulementCycleTests(TestCase):
             latitude=1,
             longitude=1,
         )
+        self.titular = User.objects.create_user(username="VIR-C1", password="x", role="vigile")
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.titular,
+            is_active=True,
+        )
 
     def test_cycle_position(self):
         self.assertEqual(cycle_position(self.anchor, self.anchor), 0)
@@ -63,6 +71,7 @@ class RoulementCycleTests(TestCase):
             site=self.site,
             shift_date=service_day,
             shift_type="day",
+            relieved_titular=self.titular,
         )
         days = build_guard_calendar(self.rlt, start=self.anchor, days=8)
         by_date = {d["date"]: d for d in days}

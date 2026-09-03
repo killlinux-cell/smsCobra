@@ -84,3 +84,62 @@ class TitularChangeLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_kind_display()} — {self.site_id} @ {self.occurred_at}"
+
+
+class RoulementChangeLog(models.Model):
+    """Historique des décisions roulement (planification, annulation, conversion)."""
+
+    class Kind(models.TextChoices):
+        PLANNED = "roulement_planned", "Mission roulement planifiée"
+        CANCELLED = "roulement_cancelled", "Mission roulement annulée"
+        CONVERTED = "vigile_converted_rlt", "Conversion VIR → RLT"
+
+    kind = models.CharField(max_length=32, choices=Kind.choices)
+    site = models.ForeignKey(
+        Site,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="roulement_change_logs",
+    )
+    shift_date = models.DateField(null=True, blank=True)
+    shift_type = models.CharField(max_length=8, blank=True)
+    rlt_guard = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="roulement_logs_as_rlt",
+    )
+    relieved_guard = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="roulement_logs_relieved",
+    )
+    assignment = models.ForeignKey(
+        "shifts.ShiftAssignment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="roulement_change_logs",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="roulement_changes_as_actor",
+    )
+    detail = models.TextField(blank=True)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]
+        indexes = [
+            models.Index(fields=["site", "occurred_at"], name="rlt_chg_site_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} @ {self.occurred_at}"

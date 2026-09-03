@@ -41,6 +41,10 @@ def validate_create_roulement_assignment(
     relieved_titular: User | None = None,
 ) -> None:
     validate_roulement_guard(guard)
+    if relieved_titular is None:
+        raise ValidationError(
+            "Indiquez le titulaire en repos remplacé par le roulement sur ce créneau."
+        )
     validate_relieved_titular(
         relieved_titular=relieved_titular,
         site=site,
@@ -91,6 +95,7 @@ def create_roulement_assignments(
     shift_type: str,
     roulement_days: int = 1,
     relieved_titular: User | None = None,
+    actor=None,
 ) -> list[ShiftAssignment]:
     validate_create_roulement_assignment(
         guard=guard,
@@ -122,6 +127,14 @@ def create_roulement_assignments(
             status=ShiftAssignment.Status.ROULEMENT,
             original_guard=relieved_titular,
             relieved_by=None,
+        )
+        from reports.roulement_changes import log_roulement_planned
+
+        log_roulement_planned(
+            assignment=assignment,
+            relieved_guard=relieved_titular,
+            shift_type=shift_type,
+            actor=actor,
         )
         created.append(assignment)
     return created

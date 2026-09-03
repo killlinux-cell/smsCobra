@@ -52,6 +52,20 @@ class RoulementAssignmentTests(TestCase):
             latitude=1,
             longitude=1,
         )
+        self.titular_a = User.objects.create_user(username="VIR-A1", password="x", role="vigile")
+        self.titular_b = User.objects.create_user(username="VIR-B1", password="x", role="vigile")
+        FixedPost.objects.create(
+            site=self.site_a,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.titular_a,
+            is_active=True,
+        )
+        FixedPost.objects.create(
+            site=self.site_b,
+            shift_type=FixedPost.ShiftType.DAY,
+            titular_guard=self.titular_b,
+            is_active=True,
+        )
 
     def test_create_roulement_uses_site_hours(self):
         rows = create_roulement_assignments(
@@ -59,6 +73,7 @@ class RoulementAssignmentTests(TestCase):
             site=self.site_b,
             shift_date=self.day,
             shift_type="day",
+            relieved_titular=self.titular_b,
         )
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].start_time, time(8, 0))
@@ -71,12 +86,14 @@ class RoulementAssignmentTests(TestCase):
             site=self.site_a,
             shift_date=self.day,
             shift_type="day",
+            relieved_titular=self.titular_a,
         )
         rows = create_roulement_assignments(
             guard=self.rlt,
             site=self.site_b,
             shift_date=self.day,
             shift_type="day",
+            relieved_titular=self.titular_b,
         )
         self.assertEqual(len(rows), 1)
         self.assertEqual(
@@ -95,6 +112,7 @@ class RoulementAssignmentTests(TestCase):
             shift_date=self.day,
             shift_type="day",
             roulement_days=6,
+            relieved_titular=self.titular_a,
         )
         self.assertEqual(len(rows), 6)
 

@@ -37,4 +37,8 @@ def convert_vigile_to_roulement(vigile: User, *, actor=None) -> User:
     if not vigile.roulement_cycle_anchor:
         vigile.roulement_cycle_anchor = default_cycle_anchor(timezone.localdate())
     vigile.save(update_fields=["username", "is_roulement", "roulement_cycle_anchor"])
+
+    from reports.roulement_changes import log_vigile_converted_to_rlt
+
+    log_vigile_converted_to_rlt(vigile=vigile, actor=actor)
     return vigile
