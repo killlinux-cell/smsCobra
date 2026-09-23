@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
     env_file:
       - ../backend/.env.production
-    command: celery -A config worker -l info
+    command: celery -A config worker -l info --concurrency=2
     volumes:
       - api_media:/app/media
       - ../backend/secrets:/app/secrets:ro

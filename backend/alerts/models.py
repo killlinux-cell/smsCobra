@@ -25,6 +25,10 @@ class LateAlert(models.Model):
 
     class Meta:
         ordering = ("-triggered_at",)
+        indexes = [
+            models.Index(fields=["assignment", "status"], name="latealert_asg_status_idx"),
+            models.Index(fields=["status", "triggered_at"], name="latealert_status_time_idx"),
+        ]
 
     def __str__(self) -> str:
         return f"Alert {self.assignment_id} - {self.status}"

@@ -8,7 +8,7 @@ from accounts.models import User
 from accounts.permissions import IsAdminRole
 from shifts.models import ShiftAssignment
 from sites.models import Site
-from webadmin.alert_state import compute_replacement_needed, get_live_critical_alert_summary
+from webadmin.alert_state import compute_replacement_needed, get_live_critical_alert_counts
 
 from .models import LateAlert
 from .serializers import (
@@ -143,7 +143,7 @@ class LiveStatusView(APIView):
     def get(self, request):
         today = timezone.localdate()
         assignments = ShiftAssignment.objects.filter(shift_date=today)
-        summary = get_live_critical_alert_summary(today)
+        summary = get_live_critical_alert_counts(today)
         payload = {
             "total": assignments.count(),
             "scheduled": assignments.filter(status=ShiftAssignment.Status.SCHEDULED).count(),

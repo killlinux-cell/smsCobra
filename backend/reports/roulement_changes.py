@@ -134,6 +134,22 @@ def log_vigile_converted_to_rlt(*, vigile, actor=None) -> RoulementChangeLog:
     )
 
 
+def log_rlt_converted_to_vigile(*, vigile, actor=None) -> RoulementChangeLog:
+    ts = timezone.localtime(timezone.now()).strftime("%d/%m/%Y %H:%M")
+    actor_name = _guard_label(actor) if actor else "Admin"
+    name = _guard_label(vigile)
+    detail = (
+        f"[{ts}] {actor_name} : {name} retiré du roulement "
+        f"(matricule {vigile.username}). Peut être titularisé."
+    )
+    return RoulementChangeLog.objects.create(
+        kind=RoulementChangeLog.Kind.RESTORED,
+        rlt_guard=vigile,
+        actor=actor,
+        detail=detail,
+    )
+
+
 def _infer_shift_type(site, start_time) -> str:
     from shifts.site_shift_times import shift_type_for_start_time
 

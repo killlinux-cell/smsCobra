@@ -148,6 +148,53 @@ class ConvertToRoulementTests(TestCase):
         self.titular.refresh_from_db()
         self.assertFalse(self.titular.is_roulement)
 
+    def test_convert_rlt_back_to_vigile(self):
+        from accounts.roulement_convert import convert_roulement_to_vigile
+        from reports.models import RoulementChangeLog
+
+        convert_vigile_to_roulement(self.vigile)
+        self.vigile.refresh_from_db()
+        rlt_username = self.vigile.username
+        restored = convert_roulement_to_vigile(self.vigile)
+        restored.refresh_from_db()
+        self.assertFalse(restored.is_roulement)
+        self.assertTrue(restored.username.startswith("VIR-"))
+        self.assertNotEqual(restored.username, rlt_username)
+        self.assertIsNone(restored.roulement_cycle_anchor)
+        self.assertTrue(
+            RoulementChangeLog.objects.filter(
+                kind=RoulementChangeLog.Kind.RESTORED, rlt_guard=restored
+            ).exists()
+        )
+
+    def test_convert_rlt_cancels_future_missions(self):
+        from accounts.roulement_convert import convert_roulement_to_vigile
+        from django.utils import timezone
+        from shifts.roulement_assignment import create_roulement_assignments
+
+        convert_vigile_to_roulement(self.vigile)
+        self.vigile.refresh_from_db()
+        day = timezone.localdate()
+        self.site.day_staff_required = 1
+        self.site.save(update_fields=["day_staff_required"])
+        create_roulement_assignments(
+            guard=self.vigile,
+            site=self.site,
+            shift_date=day,
+            shift_type="day",
+            relieved_titular=self.titular,
+        )
+        convert_roulement_to_vigile(self.vigile)
+        self.assertFalse(
+            ShiftAssignment.objects.filter(
+                guard=self.vigile, status=ShiftAssignment.Status.ROULEMENT
+            ).exists()
+        )
+        titular_asg = ShiftAssignment.objects.get(
+            guard=self.titular, site=self.site, shift_date=day
+        )
+        self.assertEqual(titular_asg.status, ShiftAssignment.Status.SCHEDULED)
+
 
 class RoulementNoTitularPromotionTests(TestCase):
     def setUp(self):
@@ -190,3 +237,73 @@ class RoulementNoTitularPromotionTests(TestCase):
         self.assertIsNone(post)
         self.post.refresh_from_db()
         self.assertEqual(self.post.titular_guard_id, self.titular.id)
+
+
+class RoulementAssignmentFormTests(TestCase):
+    def setUp(self):
+        self.day = timezone.localdate()
+        self.rlt = User.objects.create_user(
+            username="RLT-010",
+            password="x",
+            role="vigile",
+            is_roulement=True,
+            first_name="Jean",
+            last_name="Bogui",
+            roulement_cycle_anchor=self.day,
+        )
+        self.site = Site.objects.create(
+            name="Impérial",
+            address="Abidjan",
+            expected_start_time=time(8, 0),
+            expected_end_time=time(20, 0),
+            day_staff_required=0,
+            night_staff_required=1,
+            latitude=1,
+            longitude=1,
+        )
+        self.tido = User.objects.create_user(
+            username="VIR-143",
+            password="x",
+            role="vigile",
+            first_name="Tido",
+            last_name="Test",
+        )
+        FixedPost.objects.create(
+            site=self.site,
+            shift_type=FixedPost.ShiftType.NIGHT,
+            titular_guard=self.tido,
+            is_active=True,
+        )
+
+    def test_form_accepts_relieved_titular_on_post(self):
+        from webadmin.forms import RoulementAssignmentForm
+
+        form = RoulementAssignmentForm(
+            data={
+                "guard": str(self.rlt.pk),
+                "site": str(self.site.pk),
+                "shift_date": self.day.isoformat(),
+                "shift_type": "night",
+                "roulement_days": "1",
+                "relieved_titular": str(self.tido.pk),
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors.as_json())
+        rows = form.save()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].original_guard_id, self.tido.pk)
+
+    def test_form_rejects_day_shift_when_site_has_no_day_post(self):
+        from webadmin.forms import RoulementAssignmentForm
+
+        form = RoulementAssignmentForm(
+            data={
+                "guard": str(self.rlt.pk),
+                "site": str(self.site.pk),
+                "shift_date": self.day.isoformat(),
+                "shift_type": "day",
+                "roulement_days": "1",
+                "relieved_titular": str(self.tido.pk),
+            }
+        )
+        self.assertFalse(form.is_valid())

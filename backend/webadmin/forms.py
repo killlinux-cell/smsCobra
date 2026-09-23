@@ -118,17 +118,19 @@ class GuardChoiceField(forms.ModelChoiceField):
 
 
 def vigile_choice_queryset():
-    """Vigiles titulaires actifs triés par nom (hors roulement RLT)."""
-    return User.objects.filter(role=User.Role.VIGILE, is_roulement=False).order_by(
+    """Vigiles actifs triés par nom (RLT inclus : ils peuvent être titularisés)."""
+    return User.objects.filter(role=User.Role.VIGILE).order_by(
         "first_name", "last_name", "username"
     )
 
 
 def roulement_choice_queryset():
     """Vigiles roulement (RLT) actifs."""
-    return User.objects.filter(role=User.Role.VIGILE, is_roulement=True, is_active=True).order_by(
-        "first_name", "last_name", "username"
-    )
+    from django.db.models import Q
+
+    return User.objects.filter(role=User.Role.VIGILE, is_active=True).filter(
+        Q(is_roulement=True) | Q(username__istartswith="RLT-")
+    ).order_by("first_name", "last_name", "username")
 
 
 class SiteForm(forms.ModelForm):
@@ -798,6 +800,12 @@ class ShiftAssignmentForm(forms.ModelForm):
             queryset=self.fields["guard"].queryset,
             label=self.fields["guard"].label,
         )
+        self.fields["guard"].label_suffixes = {
+            pk: "roulement — titulariser ici"
+            for pk in User.objects.filter(
+                role=User.Role.VIGILE, is_roulement=True
+            ).values_list("pk", flat=True)
+        }
         self.fields["guard"].widget.attrs.setdefault("class", _SEL)
         self.fields["site"].queryset = Site.objects.filter(is_active=True).order_by("name")
         if not for_create:
@@ -836,10 +844,14 @@ class ShiftAssignmentForm(forms.ModelForm):
             return cleaned
 
         if getattr(guard, "is_roulement", False):
-            raise forms.ValidationError(
-                "Les vigiles roulement (RLT) se planifient depuis la section Roulement, "
-                "pas depuis Affectations."
-            )
+            mode = cleaned.get("planning_mode", self.MODE_PLANIFIER) if self.for_create else None
+            if not self.for_create or mode == self.MODE_EXTRA:
+                raise forms.ValidationError(
+                    "Les vigiles roulement (RLT) se planifient depuis la section Roulement. "
+                    "Pour le fixer comme titulaire : Affectations → mode Planifier, "
+                    "ou retirez-le d'abord du roulement via sa fiche."
+                )
+            cleaned["_convert_rlt_to_titular"] = True
 
         start_time, end_time = self._slot_times(site, shift_type)
         cleaned["start_time"] = start_time
@@ -1063,6 +1075,12 @@ class ShiftAssignmentForm(forms.ModelForm):
             return first
 
         obj = super().save(commit=False)
+        if self.cleaned_data.get("_convert_rlt_to_titular"):
+            from accounts.roulement_convert import convert_roulement_to_vigile
+
+            guard = convert_roulement_to_vigile(self.cleaned_data["guard"])
+            obj.guard = guard
+            self.cleaned_data["guard"] = guard
         obj.status = ShiftAssignment.Status.SCHEDULED
         self._apply_times_and_relief(obj)
         if commit:
@@ -1295,6 +1313,21 @@ class ConvertVigileToRoulementForm(forms.Form):
         self.fields["vigile"].queryset = non_titular_vigile_queryset()
 
 
+class ConvertRoulementToVigileForm(forms.Form):
+    """Retire un RLT du pool roulement (matricule VIR) pour le titulariser ensuite."""
+
+    guard = GuardChoiceField(
+        queryset=User.objects.none(),
+        label="Vigile roulement à retirer",
+        widget=forms.Select(attrs={"class": _SEL}),
+        help_text="Il redevient un vigile VIR, réapparaît dans Vigiles, et peut être fixé titulaire.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["guard"].queryset = roulement_choice_queryset()
+
+
 class RoulementAssignmentForm(forms.Form):
     SHIFT_TYPE_DAY = ShiftAssignmentForm.SHIFT_TYPE_DAY
     SHIFT_TYPE_NIGHT = ShiftAssignmentForm.SHIFT_TYPE_NIGHT
@@ -1316,6 +1349,7 @@ class RoulementAssignmentForm(forms.Form):
     )
     shift_type = forms.ChoiceField(
         choices=(
+            ("", "— Jour ou nuit —"),
             (SHIFT_TYPE_DAY, "Jour (horaires prise/fin du site)"),
             (SHIFT_TYPE_NIGHT, "Nuit (fin du site → prise lendemain)"),
         ),
@@ -1346,6 +1380,9 @@ class RoulementAssignmentForm(forms.Form):
         self.actor = actor
         super().__init__(*args, **kwargs)
         _apply_html5_date_field(self.fields["shift_date"])
+        from shifts.roulement_relief import all_active_titulars, titulars_for_site_shift
+
+        self.fields["relieved_titular"].queryset = all_active_titulars()
         site = None
         shift_type = None
         if self.data:
@@ -1357,9 +1394,9 @@ class RoulementAssignmentForm(forms.Form):
             site = self.initial.get("site")
             shift_type = self.initial.get("shift_type")
         if site and shift_type:
-            from shifts.roulement_relief import titulars_for_site_shift
-
-            self.fields["relieved_titular"].queryset = titulars_for_site_shift(site, shift_type)
+            scoped = titulars_for_site_shift(site, shift_type)
+            if scoped.exists():
+                self.fields["relieved_titular"].queryset = scoped
 
     def clean(self):
         cleaned = super().clean()

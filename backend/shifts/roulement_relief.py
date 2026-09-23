@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, time
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from accounts.models import User
@@ -14,18 +14,39 @@ from shifts.models import FixedPost, ShiftAssignment
 from sites.models import Site
 
 
+def _shift_type_values(shift_type: str) -> tuple[str, ...]:
+    if shift_type in (FixedPost.ShiftType.DAY, "day"):
+        return (FixedPost.ShiftType.DAY, "day")
+    if shift_type in (FixedPost.ShiftType.NIGHT, "night"):
+        return (FixedPost.ShiftType.NIGHT, "night")
+    return (shift_type,) if shift_type else ()
+
+
+def _titular_ids_from_posts(posts) -> set[int]:
+    ids: set[int] = set()
+    for fp in posts.only("titular_guard_id", "replacement_guard_id", "replacement_active"):
+        if fp.titular_guard_id:
+            ids.add(fp.titular_guard_id)
+        if fp.replacement_active and fp.replacement_guard_id:
+            ids.add(fp.replacement_guard_id)
+    return ids
+
+
+def all_active_titulars():
+    """Tous les titulaires (et remplaçants actifs) — pour valider un POST même sans JS."""
+    ids = _titular_ids_from_posts(FixedPost.objects.filter(is_active=True))
+    return User.objects.filter(pk__in=ids).order_by("first_name", "last_name", "username")
+
+
 def titulars_for_site_shift(site: Site, shift_type: str):
     """Titulaires actifs sur le site pour le créneau jour ou nuit."""
-    return (
-        User.objects.filter(
-            pk__in=FixedPost.objects.filter(
-                site=site,
-                shift_type=shift_type,
-                is_active=True,
-                titular_guard_id__isnull=False,
-            ).values_list("titular_guard_id", flat=True)
-        )
-        .order_by("first_name", "last_name", "username")
+    posts = FixedPost.objects.filter(
+        site=site,
+        shift_type__in=_shift_type_values(shift_type) or [shift_type],
+        is_active=True,
+    )
+    return User.objects.filter(pk__in=_titular_ids_from_posts(posts)).order_by(
+        "first_name", "last_name", "username"
     )
 
 
@@ -39,17 +60,12 @@ def validate_relieved_titular(
         return
     if relieved_titular.is_roulement:
         raise ValidationError("Le titulaire en repos ne peut pas être un vigile roulement (RLT).")
-    allowed_ids = set(
-        FixedPost.objects.filter(
-            site=site,
-            shift_type=shift_type,
-            is_active=True,
-        ).values_list("titular_guard_id", flat=True)
-    )
-    if relieved_titular.pk not in allowed_ids:
+    allowed = titulars_for_site_shift(site, shift_type)
+    if not allowed.filter(pk=relieved_titular.pk).exists():
+        shift_label = "jour" if shift_type in (FixedPost.ShiftType.DAY, "day") else "nuit"
         raise ValidationError(
             f"{relieved_titular.display_name} n'est pas titulaire sur « {site.name} » "
-            f"pour ce créneau ({shift_type})."
+            f"pour le poste {shift_label}. Choisissez un titulaire de ce site et de ce créneau."
         )
 
 
@@ -89,23 +105,46 @@ def mark_titular_relieved_by_roulement(
             ShiftAssignment.Status.SCHEDULED,
             ShiftAssignment.Status.REST,
             ShiftAssignment.Status.REPLACED,
+            ShiftAssignment.Status.MISSED,
         ):
             raise ValidationError(
-                f"Impossible de marquer {relieved_titular.username} en repos : "
-                f"affectation déjà en cours ({titular_asg.get_status_display()})."
+                f"Impossible de marquer {relieved_titular.display_name} en repos : "
+                f"affectation déjà en cours ({titular_asg.get_status_display()}). "
+                "Choisissez une autre date, ou un autre titulaire."
             )
         titular_asg.status = ShiftAssignment.Status.REST
         titular_asg.end_time = end_time
         titular_asg.save(update_fields=["status", "end_time"])
     else:
-        titular_asg = ShiftAssignment.objects.create(
-            guard=relieved_titular,
-            site=site,
-            shift_date=shift_date,
-            start_time=start_time,
-            end_time=end_time,
-            status=ShiftAssignment.Status.REST,
-        )
+        try:
+            titular_asg = ShiftAssignment.objects.create(
+                guard=relieved_titular,
+                site=site,
+                shift_date=shift_date,
+                start_time=start_time,
+                end_time=end_time,
+                status=ShiftAssignment.Status.REST,
+            )
+        except IntegrityError:
+            titular_asg = ShiftAssignment.objects.filter(
+                guard=relieved_titular,
+                site=site,
+                shift_date=shift_date,
+                start_time=start_time,
+            ).first()
+            if titular_asg is None:
+                raise ValidationError(
+                    f"Impossible d'enregistrer le repos de {relieved_titular.display_name} "
+                    "sur ce créneau (conflit d'affectation). Réessayez ou choisissez une autre date."
+                )
+            if titular_asg.status == ShiftAssignment.Status.EXTRA:
+                raise ValidationError(
+                    f"{relieved_titular.display_name} est déjà en Extra sur ce créneau. "
+                    "Retirez d'abord ce Extra, ou choisissez un autre titulaire."
+                )
+            titular_asg.status = ShiftAssignment.Status.REST
+            titular_asg.end_time = end_time
+            titular_asg.save(update_fields=["status", "end_time"])
     _resolve_open_alerts_for_assignment(titular_asg)
     return titular_asg
 

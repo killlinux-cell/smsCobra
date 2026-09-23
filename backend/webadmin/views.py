@@ -48,13 +48,14 @@ from .forms import (
     RoulementCreationForm,
     RoulementCycleAnchorForm,
     ConvertVigileToRoulementForm,
+    ConvertRoulementToVigileForm,
     ShiftAssignmentForm,
     SiteForm,
     VigileCreationForm,
     VigileUpdateForm,
 )
 from .templatetags.cobra_tags import ASSIGNMENT_STATUS_FR
-from .alert_state import get_live_critical_alert_summary
+from .alert_state import get_live_critical_alert_counts, get_live_critical_alert_summary
 
 _logger = logging.getLogger(__name__)
 
@@ -837,7 +838,7 @@ def _vigile_search_filter(term: str) -> Q:
 
 @admin_web_required
 def vigiles_list_view(request):
-    vigiles = User.objects.filter(role=User.Role.VIGILE, is_roulement=False).order_by("username")
+    vigiles = User.objects.filter(role=User.Role.VIGILE).order_by("username")
     search_q = (request.GET.get("q") or "").strip()
     if search_q:
         vigiles = vigiles.filter(_vigile_search_filter(search_q))
@@ -1063,6 +1064,7 @@ def vigile_detail_view(request, pk):
     else:
         form = VigileUpdateForm(instance=vigile)
     from webadmin.vigile_placement import build_vigile_placement
+    from accounts.roulement_convert import vigile_is_in_roulement_pool
     from accounts.roulement_eligibility import vigile_is_active_titular
 
     placement = build_vigile_placement(vigile)
@@ -1098,6 +1100,7 @@ def vigile_detail_view(request, pk):
             "can_convert_roulement": (
                 not vigile.is_roulement and not vigile_is_active_titular(vigile)
             ),
+            "can_restore_from_roulement": vigile_is_in_roulement_pool(vigile),
             "vigile_is_titular": vigile_is_active_titular(vigile),
             "roulement_cycle": roulement_cycle,
         },
@@ -1130,6 +1133,57 @@ def convert_vigile_to_roulement_view(request, pk):
 
 
 @admin_web_required
+@require_POST
+def convert_roulement_to_vigile_view(request, pk):
+    vigile = get_object_or_404(User.objects.filter(role=User.Role.VIGILE), pk=pk)
+    list_qs = request.GET.urlencode()
+    from accounts.roulement_convert import convert_roulement_to_vigile
+
+    try:
+        vigile = convert_roulement_to_vigile(vigile, actor=request.user)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0] if exc.messages else str(exc))
+        redir = reverse("webadmin-vigile-detail", args=[pk])
+        if list_qs:
+            redir = f"{redir}?{list_qs}"
+        return redirect(redir)
+
+    messages.success(
+        request,
+        f"{vigile.display_name} n'est plus en roulement ({vigile.username}). "
+        "Vous pouvez le fixer comme titulaire depuis Affectations.",
+    )
+    redir = reverse("webadmin-vigile-detail", args=[vigile.pk])
+    if list_qs:
+        redir = f"{redir}?{list_qs}"
+    return redirect(redir)
+
+
+@admin_web_required
+def roulement_titulars_json_view(request):
+    """Liste les titulaires d'un site/créneau pour le formulaire de planification."""
+    from shifts.roulement_relief import titulars_for_site_shift
+
+    site_id = request.GET.get("site")
+    shift_type = (request.GET.get("shift_type") or "").strip()
+    site = Site.objects.filter(pk=site_id, is_active=True).first() if site_id else None
+    if not site or shift_type not in ("day", "night"):
+        return JsonResponse({"titulars": [], "staff_required": 0, "ok": False})
+    titulars = [
+        {"id": u.pk, "label": u.display_name}
+        for u in titulars_for_site_shift(site, shift_type)
+    ]
+    return JsonResponse(
+        {
+            "ok": True,
+            "titulars": titulars,
+            "staff_required": site.staff_required_for_shift(shift_type),
+            "site_name": site.name,
+        }
+    )
+
+
+@admin_web_required
 def roulement_list_view(request):
     today = timezone.localdate()
     horizon = today + timedelta(days=14)
@@ -1158,6 +1212,7 @@ def roulement_list_view(request):
     )
     create_form = RoulementCreationForm()
     convert_form = ConvertVigileToRoulementForm()
+    restore_form = ConvertRoulementToVigileForm()
     plan_form = RoulementAssignmentForm(initial={"shift_date": today, "roulement_days": 1}, actor=None)
     anchor_form = RoulementCycleAnchorForm(initial={"cycle_anchor": today})
     team_calendars = build_team_calendars(roulements, start=today, days=14)
@@ -1189,18 +1244,45 @@ def roulement_list_view(request):
                         "Planifiez ses missions ci-dessous.",
                     )
                     return redirect("webadmin-roulement")
+        elif action == "restore_vigile":
+            restore_form = ConvertRoulementToVigileForm(request.POST)
+            if restore_form.is_valid():
+                from accounts.roulement_convert import convert_roulement_to_vigile
+
+                vigile = restore_form.cleaned_data["guard"]
+                try:
+                    vigile = convert_roulement_to_vigile(vigile, actor=request.user)
+                except ValidationError as exc:
+                    messages.error(request, exc.messages[0] if exc.messages else str(exc))
+                else:
+                    messages.success(
+                        request,
+                        f"{vigile.display_name} n'est plus en roulement ({vigile.username}). "
+                        "Il réapparaît dans Vigiles : vous pouvez le fixer titulaire via Affectations.",
+                    )
+                    return redirect("webadmin-roulement")
         elif action == "plan_assignment":
             plan_form = RoulementAssignmentForm(request.POST, actor=request.user)
             if plan_form.is_valid():
-                created = plan_form.save()
-                n = len(created)
-                guard = plan_form.cleaned_data["guard"]
-                site = plan_form.cleaned_data["site"]
-                messages.success(
-                    request,
-                    f"{n} affectation(s) roulement enregistrée(s) pour {guard.username} sur « {site.name} ».",
-                )
-                return redirect("webadmin-roulement")
+                try:
+                    created = plan_form.save()
+                except ValidationError as exc:
+                    messages.error(request, exc.messages[0] if exc.messages else str(exc))
+                except IntegrityError:
+                    messages.error(
+                        request,
+                        "Impossible d'enregistrer cette mission (conflit d'affectation). "
+                        "Vérifiez que le RLT n'a pas déjà ce créneau, et que le titulaire est bien celui du site.",
+                    )
+                else:
+                    n = len(created)
+                    guard = plan_form.cleaned_data["guard"]
+                    site = plan_form.cleaned_data["site"]
+                    messages.success(
+                        request,
+                        f"{n} affectation(s) roulement enregistrée(s) pour {guard.display_name} sur « {site.name} ».",
+                    )
+                    return redirect("webadmin-roulement")
         elif action == "set_cycle_anchor":
             anchor_form = RoulementCycleAnchorForm(request.POST)
             if anchor_form.is_valid():
@@ -1222,6 +1304,7 @@ def roulement_list_view(request):
             "upcoming_assignments": upcoming_assignments,
             "create_form": create_form,
             "convert_form": convert_form,
+            "restore_form": restore_form,
             "plan_form": plan_form,
             "anchor_form": anchor_form,
             "roulement_logs": roulement_logs,
@@ -1671,7 +1754,7 @@ def cancel_extra_reinforcement_view(request):
 @admin_web_required
 def critical_alerts_status_view(request):
     """JSON léger pour le bandeau / son d'alerte sur toutes les pages du dashboard."""
-    summary = get_live_critical_alert_summary()
+    summary = get_live_critical_alert_counts()
     return JsonResponse(
         {
             "critical_count": summary["critical_count"],

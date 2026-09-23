@@ -18,6 +18,8 @@ echo "=== Copie des fichiers Roulement vers le conteneur api ==="
 $COMPOSE cp backend/accounts/models.py api:/app/accounts/models.py
 $COMPOSE cp backend/accounts/roulement_username.py api:/app/accounts/roulement_username.py
 $COMPOSE cp backend/accounts/roulement_convert.py api:/app/accounts/roulement_convert.py
+$COMPOSE cp backend/accounts/vigile_username_normalize.py api:/app/accounts/vigile_username_normalize.py
+$COMPOSE cp backend/reports/alert_ack.py api:/app/reports/alert_ack.py
 $COMPOSE cp backend/reports/models.py api:/app/reports/models.py
 $COMPOSE cp backend/reports/roulement_changes.py api:/app/reports/roulement_changes.py
 $COMPOSE cp backend/reports/activity_feed.py api:/app/reports/activity_feed.py
@@ -51,17 +53,28 @@ $COMPOSE cp backend/shifts/migrations/0013_shiftassignment_status_rest.py api:/a
 # Webadmin
 $COMPOSE cp backend/webadmin/forms.py api:/app/webadmin/forms.py
 $COMPOSE cp backend/webadmin/views.py api:/app/webadmin/views.py
+$COMPOSE cp backend/webadmin/context_processors.py api:/app/webadmin/context_processors.py
+$COMPOSE cp backend/webadmin/alert_state.py api:/app/webadmin/alert_state.py
+$COMPOSE cp backend/alerts/tasks.py api:/app/alerts/tasks.py
+$COMPOSE cp backend/alerts/models.py api:/app/alerts/models.py
+$COMPOSE cp backend/alerts/views.py api:/app/alerts/views.py
+$COMPOSE cp backend/alerts/migrations/0002_latealert_indexes.py api:/app/alerts/migrations/0002_latealert_indexes.py
+$COMPOSE cp backend/docker-entrypoint.sh api:/app/docker-entrypoint.sh
 $COMPOSE cp backend/webadmin/urls.py api:/app/webadmin/urls.py
 $COMPOSE cp backend/webadmin/site_guard_roles.py api:/app/webadmin/site_guard_roles.py
 $COMPOSE cp backend/webadmin/vigile_placement.py api:/app/webadmin/vigile_placement.py
 $COMPOSE cp backend/webadmin/templatetags/cobra_tags.py api:/app/webadmin/templatetags/cobra_tags.py
 $COMPOSE cp backend/webadmin/templates/webadmin/roulement.html api:/app/webadmin/templates/webadmin/roulement.html
+$COMPOSE cp backend/webadmin/templates/webadmin/vigiles.html api:/app/webadmin/templates/webadmin/vigiles.html
 $COMPOSE cp backend/webadmin/templates/webadmin/base.html api:/app/webadmin/templates/webadmin/base.html
 $COMPOSE cp backend/webadmin/templates/webadmin/_mobile_nav.html api:/app/webadmin/templates/webadmin/_mobile_nav.html
 $COMPOSE cp backend/webadmin/templates/webadmin/vigile_detail.html api:/app/webadmin/templates/webadmin/vigile_detail.html
 
-echo "=== Démarrage API (entrypoint = migrate + gunicorn) ==="
-$COMPOSE up -d api
+echo "=== Démarrage API + Celery (entrypoint = migrate + gunicorn) ==="
+$COMPOSE up -d api celery_worker celery_beat
+$COMPOSE cp backend/alerts/tasks.py celery_worker:/app/alerts/tasks.py
+$COMPOSE cp backend/reports/alert_ack.py celery_worker:/app/reports/alert_ack.py
+$COMPOSE restart celery_worker
 
 echo "=== Attente démarrage… ==="
 sleep 8

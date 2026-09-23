@@ -19,9 +19,9 @@ _logger = logging.getLogger(__name__)
 _ALERT_SCAN_CACHE_KEY = "cobra:webadmin_alert_scan"
 _ALERT_SCAN_INTERVAL_SEC = 180
 _SUMMARY_CACHE_KEY = "cobra:webadmin_alert_summary"
-_SUMMARY_CACHE_SEC = 45
+_SUMMARY_CACHE_SEC = 90
 _STALE_OPEN_CACHE_KEY = "cobra:webadmin_stale_open_count"
-_STALE_OPEN_CACHE_SEC = 60
+_STALE_OPEN_CACHE_SEC = 120
 
 _RETARD_PREFIX = "Retard prise de service"
 _GUARD_ACK_PREFIXES = (
@@ -62,10 +62,12 @@ def refresh_late_alerts_if_due() -> None:
 
 
 def invalidate_alert_summary_cache(for_day: date | None = None) -> None:
-    """Après acquittement : éviter d'afficher encore l'alerte pendant 45 s (cache)."""
+    """Après acquittement : le bandeau ne doit plus afficher l'alerte."""
     day = for_day or timezone.localdate()
     for offset in (0, 1):
-        cache.delete(f"{_SUMMARY_CACHE_KEY}:{(day - timedelta(days=offset)).isoformat()}")
+        d = (day - timedelta(days=offset)).isoformat()
+        cache.delete(f"{_SUMMARY_CACHE_KEY}:{d}")
+        cache.delete(f"{_SUMMARY_CACHE_KEY}:counts:{d}")
 
 
 def _guard_acknowledgment_filter():
@@ -100,14 +102,15 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
             type=Checkin.Type.START,
         ).values_list("assignment_id", flat=True)
     )
+    from reports.alert_ack import supervisor_decided_assignment_ids
+
+    decided_ids = supervisor_decided_assignment_ids(day_assignments)
     now = timezone.now()
     replacement_needed = []
     for assignment in day_assignments:
         if not assignment_is_operational(assignment):
             continue
-        from reports.alert_ack import assignment_has_supervisor_decision
-
-        if assignment_has_supervisor_decision(assignment):
+        if assignment.id in decided_ids:
             continue
         if assignment.id in started_assignment_ids:
             continue
@@ -151,30 +154,49 @@ def compute_replacement_needed(for_day: date | None = None) -> list[dict]:
     return replacement_needed
 
 
-def get_live_critical_alert_summary(for_day: date | None = None) -> dict:
-    """Compteurs alertes ouvertes + remplacements à prévoir (jour courant par défaut)."""
+def get_live_critical_alert_counts(for_day: date | None = None) -> dict:
+    """Compteurs seuls (bandeau / JSON) : pas d'objets ORM en cache Redis."""
     refresh_late_alerts_if_due()
     filter_day = for_day or timezone.localdate()
-    cache_key = f"{_SUMMARY_CACHE_KEY}:{filter_day.isoformat()}"
+    cache_key = f"{_SUMMARY_CACHE_KEY}:counts:{filter_day.isoformat()}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
+    counts, _rows = _compute_alert_counts_and_rows(filter_day)
+    cache.set(cache_key, counts, timeout=_SUMMARY_CACHE_SEC)
+    return counts
 
+
+def get_live_critical_alert_summary(for_day: date | None = None) -> dict:
+    """Compteurs + liste des remplacements (page Alertes)."""
+    refresh_late_alerts_if_due()
+    filter_day = for_day or timezone.localdate()
+    counts, replacement_needed = _compute_alert_counts_and_rows(filter_day)
+    cache.set(
+        f"{_SUMMARY_CACHE_KEY}:counts:{filter_day.isoformat()}",
+        counts,
+        timeout=_SUMMARY_CACHE_SEC,
+    )
+    return {
+        "filter_day": filter_day,
+        "replacement_needed": replacement_needed,
+        **counts,
+    }
+
+
+def _compute_alert_counts_and_rows(filter_day: date) -> tuple[dict, list]:
     open_count = LateAlert.objects.filter(
         triggered_at__date=filter_day,
         status=LateAlert.Status.OPEN,
     ).count()
     replacement_needed = compute_replacement_needed(filter_day)
     replacement_count = len(replacement_needed)
-    result = {
-        "filter_day": filter_day,
+    counts = {
         "alerts_open_count": open_count,
-        "replacement_needed": replacement_needed,
         "replacement_needed_count": replacement_count,
         "critical_count": open_count + replacement_count,
     }
-    cache.set(cache_key, result, timeout=_SUMMARY_CACHE_SEC)
-    return result
+    return counts, replacement_needed
 
 
 def get_stale_open_shifts_count() -> int:

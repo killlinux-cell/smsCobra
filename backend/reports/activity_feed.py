@@ -472,6 +472,9 @@ def build_activity_events(limit: int = 50, site_id: int | None = None) -> list[d
                 f"« {site_name} » {day} : mission {rlt_l} annulée"
                 f"{f' par {actor_l}' if actor_l else ''}."
             )
+        elif log.kind == RoulementChangeLog.Kind.RESTORED:
+            title = "Retrait du roulement"
+            body = f"{rlt_l} n'est plus vigile roulement{f' — par {actor_l}' if actor_l else ''}."
         else:
             title = "Conversion en roulement"
             body = f"{rlt_l} passé en vigile roulement{f' par {actor_l}' if actor_l else ''}."

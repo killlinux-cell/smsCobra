@@ -93,6 +93,7 @@ class RoulementChangeLog(models.Model):
         PLANNED = "roulement_planned", "Mission roulement planifiée"
         CANCELLED = "roulement_cancelled", "Mission roulement annulée"
         CONVERTED = "vigile_converted_rlt", "Conversion VIR → RLT"
+        RESTORED = "rlt_converted_vigile", "Retrait du roulement (RLT → VIR)"
 
     kind = models.CharField(max_length=32, choices=Kind.choices)
     site = models.ForeignKey(

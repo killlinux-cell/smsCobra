@@ -60,36 +60,65 @@ def assignment_has_supervisor_decision(assignment) -> bool:
     True si un superviseur a déjà tranché Présent/Absent pour ce créneau.
     Survit au remplacement d'affectation (site + vigile + date).
     """
+    return assignment.pk in supervisor_decided_assignment_ids([assignment])
+
+
+def supervisor_decided_assignment_ids(assignments) -> set[int]:
+    """Décisions superviseur en 2 requêtes pour tout un lot (évite le N+1)."""
     from alerts.models import LateAlert
     from django.db.models import Q
+
+    rows = [a for a in assignments if a is not None and getattr(a, "pk", None)]
+    if not rows:
+        return set()
 
     q = Q()
     for prefix in _GUARD_ALERT_PREFIXES:
         q |= Q(message__startswith=prefix)
 
-    if LateAlert.objects.filter(
-        assignment__site_id=assignment.site_id,
-        assignment__guard_id=assignment.guard_id,
-        assignment__shift_date=assignment.shift_date,
-        status=LateAlert.Status.ACKNOWLEDGED,
-    ).filter(q).exists():
-        return True
+    site_ids = {a.site_id for a in rows}
+    guard_ids = {a.guard_id for a in rows}
+    dates = {a.shift_date for a in rows}
 
-    report = AttendanceReport.objects.filter(
-        site_id=assignment.site_id,
-        guard_id=assignment.guard_id,
-        report_date=assignment.shift_date,
-    ).first()
-    if not report:
-        return False
-    if report.was_absent:
-        return True
-    notes = (report.notes or "").lower()
-    return (
-        "acquittée" in notes
-        or "acquittee" in notes
-        or "correction manuelle" in notes
-    )
+    ack_keys = {
+        (site_id, guard_id, shift_date)
+        for site_id, guard_id, shift_date in LateAlert.objects.filter(
+            assignment__site_id__in=site_ids,
+            assignment__guard_id__in=guard_ids,
+            assignment__shift_date__in=dates,
+            status=LateAlert.Status.ACKNOWLEDGED,
+        )
+        .filter(q)
+        .values_list("assignment__site_id", "assignment__guard_id", "assignment__shift_date")
+    }
+    decided: set[int] = set()
+    pending: list = []
+    for assignment in rows:
+        key = (assignment.site_id, assignment.guard_id, assignment.shift_date)
+        if key in ack_keys:
+            decided.add(assignment.pk)
+        else:
+            pending.append(assignment)
+    if not pending:
+        return decided
+
+    reports = AttendanceReport.objects.filter(
+        site_id__in={a.site_id for a in pending},
+        guard_id__in={a.guard_id for a in pending},
+        report_date__in={a.shift_date for a in pending},
+    ).only("site_id", "guard_id", "report_date", "was_absent", "notes")
+    report_by_key = {(r.site_id, r.guard_id, r.report_date): r for r in reports}
+    for assignment in pending:
+        report = report_by_key.get((assignment.site_id, assignment.guard_id, assignment.shift_date))
+        if not report:
+            continue
+        if report.was_absent:
+            decided.add(assignment.pk)
+            continue
+        notes = (report.notes or "").lower()
+        if "acquittée" in notes or "acquittee" in notes or "correction manuelle" in notes:
+            decided.add(assignment.pk)
+    return decided
 
 
 def mark_justified_presence_from_alert(alert) -> None:

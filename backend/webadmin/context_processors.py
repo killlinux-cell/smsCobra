@@ -1,5 +1,5 @@
 from webadmin.alert_state import (
-    get_live_critical_alert_summary,
+    get_live_critical_alert_counts,
     get_stale_open_shifts_count,
     user_can_see_admin_alerts,
 )
@@ -13,7 +13,7 @@ def cobra_critical_alerts(request):
     user = getattr(request, "user", None)
     if not user_can_see_admin_alerts(user):
         return {}
-    summary = get_live_critical_alert_summary()
+    summary = get_live_critical_alert_counts()
     stale_open = get_stale_open_shifts_count()
     return {
         "cobra_alerts_open_count": summary["alerts_open_count"],

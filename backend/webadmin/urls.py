@@ -34,7 +34,17 @@ urlpatterns = [
         views.convert_vigile_to_roulement_view,
         name="webadmin-vigile-convert-roulement",
     ),
+    path(
+        "vigiles/<int:pk>/retirer-roulement/",
+        views.convert_roulement_to_vigile_view,
+        name="webadmin-vigile-restore-from-roulement",
+    ),
     path("roulement/", views.roulement_list_view, name="webadmin-roulement"),
+    path(
+        "roulement/titulaires.json",
+        views.roulement_titulars_json_view,
+        name="webadmin-roulement-titulars-json",
+    ),
     path(
         "roulement/affectations/<int:pk>/annuler/",
         views.cancel_roulement_assignment_view,

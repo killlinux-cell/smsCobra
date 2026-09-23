@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from accounts.models import User
 from shifts.guard_conflicts import conflict_error_message, find_assignment_conflict_on_other_site
@@ -118,16 +118,22 @@ def create_roulement_assignments(
                 start_time=start_time,
                 end_time=end_time,
             )
-        assignment = ShiftAssignment.objects.create(
-            guard=guard,
-            site=site,
-            shift_date=day,
-            start_time=start_time,
-            end_time=end_time,
-            status=ShiftAssignment.Status.ROULEMENT,
-            original_guard=relieved_titular,
-            relieved_by=None,
-        )
+        try:
+            assignment = ShiftAssignment.objects.create(
+                guard=guard,
+                site=site,
+                shift_date=day,
+                start_time=start_time,
+                end_time=end_time,
+                status=ShiftAssignment.Status.ROULEMENT,
+                original_guard=relieved_titular,
+                relieved_by=None,
+            )
+        except IntegrityError as exc:
+            raise ValidationError(
+                f"Une affectation existe déjà pour {guard.display_name} sur « {site.name} » "
+                f"le {day.strftime('%d/%m/%Y')}. Annulez-la d'abord, ou changez la date."
+            ) from exc
         from reports.roulement_changes import log_roulement_planned
 
         log_roulement_planned(

@@ -7,9 +7,10 @@
     <li><strong>Convertir</strong> un vigile VIR <strong>non titulaire</strong> → matricule RLT.</li>
     <li><strong>Planifier</strong> où il va : site + date + jour/nuit (horaires = fiche site).</li>
     <li>Cycle <strong>6 jours service + 1 jour repos</strong> — le calendrier ci-dessous indique repos / mission / service libre.</li>
-    <li>Indiquez le <strong>titulaire en repos</strong> remplacé (obligatoire) : décision admin tracée dans le journal.</li>
+    <li>Indiquez le <strong>titulaire en repos</strong> remplacé (obligatoire) : la liste se met à jour selon le site et le créneau (jour/nuit).</li>
     <li>Pour remplacer <strong>un titulaire différent chaque jour</strong>, planifiez <strong>1 jour à la fois</strong>.</li>
     <li>Un RLT peut couvrir <strong>plusieurs sites</strong> sur ses jours de service.</li>
+    <li>Pour <strong>fixer un RLT titulaire</strong> : retirez-le du roulement (ci-dessous ou sur sa fiche), puis Affectations → Planifier.</li>
   </ul>
 </div>
 
@@ -35,6 +36,35 @@
       <div class="col-md-4">
         <button type="submit" class="btn btn-outline-primary w-100">
           <i class="bi bi-arrow-repeat me-1"></i>Convertir en RLT
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card cobra-panel mb-4">
+  <div class="card-header"><i class="bi bi-person-check me-2"></i>Retirer du roulement (RLT → VIR)</div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Le vigile reprend un matricule <strong>VIR</strong>, réapparaît dans <a href="{% url 'webadmin-vigiles' %}">Vigiles</a>
+      et peut être <strong>titularisé</strong> via <a href="{% url 'webadmin-affectations' %}">Affectations</a>.
+      Les missions roulement futures sans pointage sont annulées.
+    </p>
+    <form method="post" class="row g-3 align-items-end" onsubmit="return confirm('Retirer ce vigile du roulement ? Ses missions futures sans pointage seront annulées.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="restore_vigile">
+      {% if restore_form.non_field_errors %}
+      <div class="col-12 alert alert-danger">{{ restore_form.non_field_errors }}</div>
+      {% endif %}
+      <div class="col-md-8">
+        <label class="form-label" for="{{ restore_form.guard.id_for_label }}">{{ restore_form.guard.label }}</label>
+        {{ restore_form.guard }}
+        {% if restore_form.guard.help_text %}<div class="form-text">{{ restore_form.guard.help_text }}</div>{% endif %}
+        {% if restore_form.guard.errors %}<div class="text-danger small">{{ restore_form.guard.errors }}</div>{% endif %}
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-outline-secondary w-100">
+          <i class="bi bi-box-arrow-left me-1"></i>Retirer du roulement
         </button>
       </div>
     </form>
@@ -157,9 +187,17 @@
           <span class="badge bg-primary-subtle text-primary-emphasis border ms-1">{{ row.today_label }}</span>
           {% endif %}
         </div>
-        {% if row.anchor %}
-        <span class="small text-muted">Cycle depuis le {{ row.anchor|date:"d/m/Y" }}</span>
-        {% endif %}
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          {% if row.anchor %}
+          <span class="small text-muted">Cycle depuis le {{ row.anchor|date:"d/m/Y" }}</span>
+          {% endif %}
+          <form method="post" class="d-inline" onsubmit="return confirm('Retirer {{ row.guard.display_name }} du roulement pour le titulariser ?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="restore_vigile">
+            <input type="hidden" name="guard" value="{{ row.guard.pk }}">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Titulariser (VIR)</button>
+          </form>
+        </div>
       </div>
       <div class="d-flex flex-wrap gap-1">
         {% for day in row.days %}
@@ -303,4 +341,55 @@
     </table>
   </div>
 </div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+  var siteEl = document.getElementById("{{ plan_form.site.id_for_label }}");
+  var typeEl = document.getElementById("{{ plan_form.shift_type.id_for_label }}");
+  var titularEl = document.getElementById("{{ plan_form.relieved_titular.id_for_label }}");
+  if (!siteEl || !typeEl || !titularEl) return;
+  var url = "{% url 'webadmin-roulement-titulars-json' %}";
+  var selected = titularEl.value;
+
+  function optionLabel(item) { return item.label || ("#" + item.id); }
+
+  function loadTitulars() {
+    var site = siteEl.value;
+    var shift = typeEl.value;
+    if (!site || !shift) {
+      titularEl.innerHTML = '<option value="">— Choisissez d\'abord le site et jour/nuit —</option>';
+      return;
+    }
+    titularEl.innerHTML = '<option value="">Chargement…</option>';
+    fetch(url + "?site=" + encodeURIComponent(site) + "&shift_type=" + encodeURIComponent(shift), {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var rows = (data && data.titulars) || [];
+        var html = '<option value="">— Titulaire en repos —</option>';
+        if (!rows.length) {
+          html = '<option value="">Aucun titulaire sur ce site pour ce créneau</option>';
+          if (data && data.staff_required === 0) {
+            html = '<option value="">Aucun poste ' + (shift === "night" ? "nuit" : "jour") + ' sur ce site (effectif = 0)</option>';
+          }
+        } else {
+          rows.forEach(function (item) {
+            html += '<option value="' + item.id + '"' + (String(item.id) === String(selected) ? " selected" : "") + ">" + optionLabel(item) + "</option>";
+          });
+        }
+        titularEl.innerHTML = html;
+      })
+      .catch(function () {
+        titularEl.innerHTML = '<option value="">Impossible de charger les titulaires</option>';
+      });
+  }
+
+  siteEl.addEventListener("change", loadTitulars);
+  typeEl.addEventListener("change", loadTitulars);
+  if (siteEl.value && typeEl.value) loadTitulars();
+})();
+</script>
 {% endblock %}

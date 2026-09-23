@@ -47,6 +47,17 @@ def next_free_vigile_username(taken: set[str], start: int = 1) -> str:
             return candidate
 
 
+def generate_vigile_username() -> str:
+    """Prochain matricule VIR-XXX disponible en base."""
+    from accounts.models import User
+
+    taken = {
+        (value or "").strip().lower()
+        for value in User.objects.filter(role=User.Role.VIGILE).values_list("username", flat=True)
+    }
+    return next_free_vigile_username(taken, start=_max_vir_number(taken) + 1)
+
+
 def temp_vigile_username(user_id: int) -> str:
     return f"{TEMP_USERNAME_PREFIX}{user_id}__"
 
