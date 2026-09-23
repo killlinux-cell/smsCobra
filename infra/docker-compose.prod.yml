@@ -32,6 +32,9 @@ services:
       DB_PORT: "5432"
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      GUNICORN_WORKERS: "3"
+      GUNICORN_THREADS: "4"
+      GUNICORN_TIMEOUT: "90"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

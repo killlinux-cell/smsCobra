@@ -59,7 +59,6 @@ $COMPOSE cp backend/alerts/tasks.py api:/app/alerts/tasks.py
 $COMPOSE cp backend/alerts/models.py api:/app/alerts/models.py
 $COMPOSE cp backend/alerts/views.py api:/app/alerts/views.py
 $COMPOSE cp backend/alerts/migrations/0002_latealert_indexes.py api:/app/alerts/migrations/0002_latealert_indexes.py
-$COMPOSE cp backend/docker-entrypoint.sh api:/app/docker-entrypoint.sh
 $COMPOSE cp backend/webadmin/urls.py api:/app/webadmin/urls.py
 $COMPOSE cp backend/webadmin/site_guard_roles.py api:/app/webadmin/site_guard_roles.py
 $COMPOSE cp backend/webadmin/vigile_placement.py api:/app/webadmin/vigile_placement.py
