@@ -155,6 +155,8 @@ class LiveStatusView(APIView):
             "replacement_needed_count": summary["replacement_needed_count"],
             "critical_count": summary["critical_count"],
             "extras_today": assignments.filter(status=ShiftAssignment.Status.EXTRA).count(),
+            "roulement_today": assignments.filter(status=ShiftAssignment.Status.ROULEMENT).count(),
+            "rest_today": assignments.filter(status=ShiftAssignment.Status.REST).count(),
             "vigiles_count": User.objects.filter(role=User.Role.VIGILE).count(),
             "sites_count": Site.objects.filter(is_active=True).count(),
         }

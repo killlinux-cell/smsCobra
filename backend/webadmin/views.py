@@ -445,6 +445,8 @@ def dashboard_view(request):
         extra=Count("id", filter=Q(status=ShiftAssignment.Status.EXTRA)),
         scheduled=Count("id", filter=Q(status=ShiftAssignment.Status.SCHEDULED)),
         replaced=Count("id", filter=Q(status=ShiftAssignment.Status.REPLACED)),
+        roulement=Count("id", filter=Q(status=ShiftAssignment.Status.ROULEMENT)),
+        rest=Count("id", filter=Q(status=ShiftAssignment.Status.REST)),
         completed=Count("id", filter=Q(status=ShiftAssignment.Status.COMPLETED)),
         missed=Count("id", filter=Q(status=ShiftAssignment.Status.MISSED)),
     )
@@ -495,6 +497,8 @@ def dashboard_view(request):
             "extra": kpi_counts["extra"],
             "scheduled": kpi_counts["scheduled"],
             "replaced": kpi_counts["replaced"],
+            "roulement": kpi_counts["roulement"],
+            "rest": kpi_counts["rest"],
             "completed": kpi_counts["completed"],
             "missed": kpi_counts["missed"],
             "open_alerts": open_alerts_today.count(),
