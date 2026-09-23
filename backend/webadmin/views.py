@@ -23,6 +23,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from accounts.models import ControllerSiteAssignment, ControllerVisit, User
@@ -436,6 +437,7 @@ def notifications_push_view(request):
 
 
 @admin_web_required
+@never_cache
 def dashboard_view(request):
     # Date « métier » = fuseau Django (Africa/Abidjan), pas la date OS du serveur.
     today = timezone.localdate()
@@ -558,6 +560,7 @@ def sites_list_view(request):
 
 
 @admin_web_required
+@never_cache
 def site_detail_view(request, pk):
     site = get_object_or_404(Site.objects.all(), pk=pk)
     today = timezone.localdate()

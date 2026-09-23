@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET
 
-PWA_CACHE_VERSION = "1"
+PWA_CACHE_VERSION = "3-kpi-rlt"
 
 
 @require_GET

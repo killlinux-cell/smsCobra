@@ -53,6 +53,7 @@ $COMPOSE cp backend/shifts/migrations/0013_shiftassignment_status_rest.py api:/a
 # Webadmin
 $COMPOSE cp backend/webadmin/forms.py api:/app/webadmin/forms.py
 $COMPOSE cp backend/webadmin/views.py api:/app/webadmin/views.py
+$COMPOSE cp backend/webadmin/pwa.py api:/app/webadmin/pwa.py
 $COMPOSE cp backend/webadmin/context_processors.py api:/app/webadmin/context_processors.py
 $COMPOSE cp backend/webadmin/alert_state.py api:/app/webadmin/alert_state.py
 $COMPOSE cp backend/alerts/tasks.py api:/app/alerts/tasks.py
@@ -72,8 +73,9 @@ $COMPOSE cp backend/webadmin/templates/webadmin/dashboard.html api:/app/webadmin
 $COMPOSE cp backend/webadmin/templates/webadmin/site_detail.html api:/app/webadmin/templates/webadmin/site_detail.html
 $COMPOSE cp backend/webadmin/templates/webadmin/_site_guard_table.html api:/app/webadmin/templates/webadmin/_site_guard_table.html
 
-echo "=== Démarrage API + Celery (entrypoint = migrate + gunicorn) ==="
-$COMPOSE up -d api celery_worker celery_beat
+echo "=== Relance API sans recreer le conteneur (garde les fichiers copies) ==="
+$COMPOSE start api
+$COMPOSE restart api
 $COMPOSE cp backend/alerts/tasks.py celery_worker:/app/alerts/tasks.py
 $COMPOSE cp backend/reports/alert_ack.py celery_worker:/app/reports/alert_ack.py
 $COMPOSE restart celery_worker
@@ -87,6 +89,9 @@ echo ""
 echo "=== Test local port 8000 ==="
 curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8000/dashboard/login/ || true
 
-echo "=== Fin. Vérifiez :"
+echo "=== Verification fichiers dans le conteneur ==="
+$COMPOSE exec -T api grep -F "cobra-kpi-rlt" /app/webadmin/templates/webadmin/dashboard.html
+$COMPOSE exec -T api grep -F "Équipe actuelle" /app/webadmin/templates/webadmin/site_detail.html
+$COMPOSE exec -T api grep -F "kpi.roulement" /app/webadmin/views.py
 echo "  - https://smsapp24.com/dashboard/roulement/"
 echo "  - https://smsapp24.com/dashboard/sites/<id>/"
