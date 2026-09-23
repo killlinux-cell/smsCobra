@@ -110,3 +110,8 @@ def sort_role_labels(roles: list[str]) -> list[str]:
         return (len(priority), label)
 
     return sorted(roles, key=key)
+
+
+def is_current_site_presence(roles) -> bool:
+    """True si le vigile a un rôle actuel (titulaire, extra/RLT du jour, dépêche…), pas seulement l'historique."""
+    return bool(roles)

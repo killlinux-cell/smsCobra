@@ -10,6 +10,7 @@
 </style>
 {% endblock %}
 {% block content %}
+<p class="small text-muted mb-3">Répartition des <strong>{{ kpi.total }}</strong> affectations d'aujourd'hui, dont <strong>{{ kpi.roulement }}</strong> mission{% if kpi.roulement != 1 %}s{% endif %} roulement et <strong>{{ kpi.rest }}</strong> titulaire{% if kpi.rest != 1 %}s{% endif %} en repos.</p>
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-4 col-xl-2">
     <div class="card cobra-kpi h-100">

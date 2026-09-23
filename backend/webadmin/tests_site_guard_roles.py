@@ -96,6 +96,12 @@ class SiteGuardRolesTests(TestCase):
         self.assertEqual(ordered[0], "Titulaire — jour")
         self.assertEqual(ordered[1], "Dépêche — nuit")
 
+    def test_empty_roles_are_history_not_current(self):
+        from webadmin.site_guard_roles import is_current_site_presence
+
+        self.assertTrue(is_current_site_presence(["Titulaire — jour"]))
+        self.assertFalse(is_current_site_presence([]))
+
     def test_promoted_titular_no_duplicate_depeche_role(self):
         """Après promotion titulaire, pas de double rôle Titulaire + Dépêche."""
         self.fixed.titular_guard = self.dispatch

@@ -69,6 +69,8 @@ $COMPOSE cp backend/webadmin/templates/webadmin/base.html api:/app/webadmin/temp
 $COMPOSE cp backend/webadmin/templates/webadmin/_mobile_nav.html api:/app/webadmin/templates/webadmin/_mobile_nav.html
 $COMPOSE cp backend/webadmin/templates/webadmin/vigile_detail.html api:/app/webadmin/templates/webadmin/vigile_detail.html
 $COMPOSE cp backend/webadmin/templates/webadmin/dashboard.html api:/app/webadmin/templates/webadmin/dashboard.html
+$COMPOSE cp backend/webadmin/templates/webadmin/site_detail.html api:/app/webadmin/templates/webadmin/site_detail.html
+$COMPOSE cp backend/webadmin/templates/webadmin/_site_guard_table.html api:/app/webadmin/templates/webadmin/_site_guard_table.html
 
 echo "=== Démarrage API + Celery (entrypoint = migrate + gunicorn) ==="
 $COMPOSE up -d api celery_worker celery_beat

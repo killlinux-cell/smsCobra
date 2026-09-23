@@ -640,7 +640,11 @@ def site_detail_view(request, pk):
             else:
                 note_role(fp.replacement_guard, f"Remplaçant désigné — {lab}")
 
-    from webadmin.site_guard_roles import enrich_guard_roles_from_assignments, sort_role_labels
+    from webadmin.site_guard_roles import (
+        enrich_guard_roles_from_assignments,
+        is_current_site_presence,
+        sort_role_labels,
+    )
 
     enrich_guard_roles_from_assignments(
         fixed_posts,
@@ -723,6 +727,9 @@ def site_detail_view(request, pk):
             }
         )
 
+    guard_rows_current = [row for row in guard_rows if is_current_site_presence(row["roles"])]
+    guard_rows_history = [row for row in guard_rows if not is_current_site_presence(row["roles"])]
+
     site_controller_visits = list(
         ControllerVisit.objects.filter(site=site)
         .select_related("controller")
@@ -766,7 +773,9 @@ def site_detail_view(request, pk):
             "fixed_post_rows": fixed_post_rows,
             "assignments": assignments,
             "assignments_total": assignments_total,
-            "guard_rows": guard_rows,
+            "guard_rows": guard_rows_current,
+            "guard_rows_current": guard_rows_current,
+            "guard_rows_history": guard_rows_history,
             "assignments_date_from": date_from,
             "assignments_date_to": date_to,
             "site_controller_visits": site_controller_visits,

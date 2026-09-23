@@ -137,56 +137,29 @@
   {% endif %}
 
   <div class="col-lg-12">
-    <div class="card cobra-panel h-100">
-      <div class="card-header">Vigiles sur ce site</div>
+    <div class="card cobra-panel h-100 mb-4">
+      <div class="card-header">Équipe actuelle</div>
       <div class="card-body">
-        {% if guard_rows %}
         <p class="small text-muted mb-3 mb-lg-2">
-          Période : {{ assignments_date_from|date:"d/m/Y" }} — {{ assignments_date_to|date:"d/m/Y" }} · une ligne par vigile.
+          Titulaires, remplaçants, extras et roulements en poste aujourd'hui (ou déjà planifiés).
         </p>
-        <div class="table-responsive">
-          <table class="table table-sm cobra-table mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Vigile</th>
-                <th>Rôle</th>
-                <th class="text-center">Créneaux <span class="fw-normal text-muted">(période)</span></th>
-                <th class="text-center">Journées complètes <span class="fw-normal text-muted">(début + fin)</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in guard_rows %}
-              <tr>
-                <td class="fw-semibold">
-                  <a href="{% url 'webadmin-vigile-detail' row.user.pk %}">{{ row.user.display_name }}</a>
-                </td>
-                <td class="small">
-                  {% if row.roles %}
-                  {{ row.roles|join:" · " }}
-                  {% else %}<span class="text-muted">—</span>{% endif %}
-                </td>
-                <td class="small text-center">
-                  <span class="text-muted">{{ row.planifie }}</span> planifié{% if row.planifie != 1 %}s{% endif %}
-                  {% if row.extra %}
-                  · <span class="text-info">{{ row.extra }}</span> extra{% if row.extra != 1 %}s{% endif %}
-                  {% endif %}
-                  · <span class="text-success">{{ row.termine }}</span> terminé{% if row.termine != 1 %}s{% endif %}
-                  · <span class="text-danger">{{ row.manque }}</span> manqué{% if row.manque != 1 %}s{% endif %}
-                  {% if row.remplace_statut %}
-                  · <span class="text-warning">{{ row.remplace_statut }}</span> dépêche{% if row.remplace_statut != 1 %}s{% endif %}
-                  {% endif %}
-                </td>
-                <td class="small text-center">
-                  {% if row.pointes %}<strong>{{ row.pointes }}</strong>{% else %}<span class="text-muted">0</span>{% endif %}
-                  {% if row.retards %}<div class="text-danger small">dont {{ row.retards }} retard{% if row.retards != 1 %}s{% endif %}</div>{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        {% if guard_rows_current %}
+        {% include "webadmin/_site_guard_table.html" with rows=guard_rows_current %}
         {% else %}
-        <p class="text-muted mb-0">Aucun vigile identifié sur cette période pour ce site.</p>
+        <p class="text-muted mb-0">Aucun vigile en poste actuellement sur ce site.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card cobra-panel h-100">
+      <div class="card-header">Historique ({{ assignments_date_from|date:"d/m/Y" }} — {{ assignments_date_to|date:"d/m/Y" }})</div>
+      <div class="card-body">
+        <p class="small text-muted mb-3 mb-lg-2">
+          Anciens passages : ces vigiles ne tiennent plus le site. Ils n'occupent pas un poste et ne bloquent pas une nouvelle titularisation.
+        </p>
+        {% if guard_rows_history %}
+        {% include "webadmin/_site_guard_table.html" with rows=guard_rows_history %}
+        {% else %}
+        <p class="text-muted mb-0">Aucun ancien vigile sur cette période.</p>
         {% endif %}
       </div>
     </div>
